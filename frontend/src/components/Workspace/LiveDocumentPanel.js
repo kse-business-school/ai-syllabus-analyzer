@@ -3,13 +3,12 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import LinearProgress from '@mui/material/LinearProgress';
 import Paper from '@mui/material/Paper';
-import Switch from '@mui/material/Switch';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
-import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import ChatBubbleOutline from '@mui/icons-material/ChatBubbleOutline';
 import DocumentBlocks from './document/DocumentBlocks';
@@ -20,9 +19,6 @@ const LiveDocumentPanel = ({
   templateSections = [],
   diff = false,
   onToggleDiff,
-  onDownload,
-  downloading = false,
-  canDownload = true,
   focusedKey = null,
   onApproveSection,
   onDiscussSection,
@@ -76,33 +72,19 @@ const LiveDocumentPanel = ({
           <Typography variant="h2" sx={{ fontSize: '0.9375rem', fontWeight: 600 }}>
             {S.document}
           </Typography>
-          <FormControlLabel
-            sx={{ m: 0 }}
-            control={
-              <Switch
-                size="small"
-                checked={diff}
-                onChange={(e) => onToggleDiff?.(e.target.checked)}
-              />
-            }
-            label={
-              <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                {S.showChanges}
-              </Typography>
-            }
-          />
+          <ToggleButtonGroup
+            value={diff ? 'changes' : 'clean'}
+            exclusive
+            size="small"
+            aria-label="Document view"
+            onChange={(e, val) => val && onToggleDiff?.(val === 'changes')}
+            sx={{ height: 26, '& .MuiToggleButton-root': { textTransform: 'none', fontSize: '0.75rem', px: 1.25, py: 0 } }}
+          >
+            <ToggleButton value="clean">{S.cleanView}</ToggleButton>
+            <ToggleButton value="changes">{S.showChanges}</ToggleButton>
+          </ToggleButtonGroup>
         </Box>
 
-        <Button
-          size="small"
-          variant="contained"
-          startIcon={downloading ? <CircularProgress size={14} color="inherit" /> : <FileDownloadOutlined fontSize="small" />}
-          disabled={!canDownload || downloading}
-          onClick={onDownload}
-          sx={{ height: 28, fontSize: '0.8125rem' }}
-        >
-          {downloading ? S.downloading : S.downloadDocx}
-        </Button>
       </Box>
 
       {document?.loading && <LinearProgress sx={{ height: 2 }} />}
@@ -136,9 +118,9 @@ const LiveDocumentPanel = ({
               maxWidth: 760,
               mx: 'auto',
               p: { xs: 2.5, md: 4 },
-              bgcolor: 'var(--bg-canvas)',
+              bgcolor: 'background.paper',
               borderColor: 'divider',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              boxShadow: (t) => t.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
             }}
           >
             {sections.map((sec) => {

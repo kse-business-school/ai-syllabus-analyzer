@@ -22,11 +22,16 @@ import ColorLensOutlined from '@mui/icons-material/ColorLensOutlined';
 import { useAuth } from '../../contexts/AuthContext';
 import { useThemeMode } from '../../contexts/ThemeContext';
 import { useCohort } from '../../contexts/CohortContext';
+import { useWorkspaceChrome } from '../../contexts/WorkspaceChromeContext';
+import CircularProgress from '@mui/material/CircularProgress';
+import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
+import { S } from '../../strings';
 
 const Header = () => {
   const { user, logout } = useAuth();
   const { mode, setMode, brandPreset, setBrandPreset } = useThemeMode();
   const { currentProgram, currentCohort } = useCohort();
+  const { chrome } = useWorkspaceChrome();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -83,7 +88,7 @@ const Header = () => {
       }}
     >
       {/* Ліва зона: Логотип + Назва */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 200 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: { xs: 'auto', md: 180 }, flexShrink: 0 }}>
         <Box
           component={Link}
           to="/"
@@ -113,6 +118,7 @@ const Header = () => {
           <Typography
             variant="h2"
             sx={{
+              display: { xs: 'none', sm: 'block' },
               fontSize: '0.9375rem',
               fontWeight: 600,
               letterSpacing: '-0.01em',
@@ -129,7 +135,7 @@ const Header = () => {
       <Box
         id="kse-workspace-header-center"
         sx={{
-          display: 'flex',
+          display: { xs: 'none', lg: 'flex' },
           alignItems: 'center',
           gap: 1.5,
           overflow: 'hidden',
@@ -158,10 +164,55 @@ const Header = () => {
         )}
       </Box>
 
-      {/* Права зона: Навігація, Тема, Профіль */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 280, justifyContent: 'flex-end' }}>
+      {/* Права зона: Readiness, Download, навігація, тема, профіль */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, minWidth: 0, justifyContent: 'flex-end' }}>
+        {isWorkspace && chrome && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.5 }, mr: { xs: 0.5, sm: 1 } }}>
+            <Box sx={{ textAlign: 'right', lineHeight: 1.2 }} aria-label={`${S.readiness}: ${chrome.readinessLabel}`}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, fontSize: '0.6875rem' }}>
+                {S.readiness}
+              </Typography>
+              <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                {chrome.readinessValue}
+              </Typography>
+              {chrome.approvedLabel && (
+                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.75, display: { xs: 'none', lg: 'inline' } }}>
+                  {chrome.approvedLabel}
+                </Typography>
+              )}
+            </Box>
+            {chrome.openChecks > 0 && (
+              <Button
+                size="small"
+                variant="text"
+                color="warning"
+                onClick={chrome.onFocusCheck}
+                sx={{
+                  height: 26,
+                  fontSize: '0.75rem',
+                  px: 0.75,
+                  minWidth: 0,
+                  whiteSpace: 'nowrap',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {chrome.openChecks} {chrome.openChecks === 1 ? 'check' : 'checks'} open
+              </Button>
+            )}
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={chrome.downloading ? <CircularProgress size={14} color="inherit" /> : <FileDownloadOutlined fontSize="small" />}
+              disabled={!chrome.canDownload || chrome.downloading}
+              onClick={chrome.onDownload}
+              sx={{ height: 28, fontSize: { xs: '0.75rem', sm: '0.8125rem' }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              {chrome.downloading ? S.downloading : S.downloadDocx}
+            </Button>
+          </Box>
+        )}
         {/* Workspace / Cabinet switcher */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}>
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5, mr: 0.5 }}>
           <Button
             component={Link}
             to="/workspace"
@@ -198,7 +249,7 @@ const Header = () => {
 
         {/* Перемикач пресету бренду (KSE Green vs Studio) */}
         <Tooltip title={`Palette: ${brandPreset === 'kse-green' ? 'KSE Green' : 'KSE Studio'}`}>
-          <IconButton size="small" onClick={toggleBrand} sx={{ p: 0.5, color: 'text.secondary' }}>
+          <IconButton size="small" onClick={toggleBrand} sx={{ p: 0.5, color: 'text.secondary', display: { xs: 'none', md: 'inline-flex' } }}>
             <ColorLensOutlined fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -210,6 +261,7 @@ const Header = () => {
           size="small"
           onChange={handleThemeChange}
           sx={{
+            display: { xs: 'none', md: 'inline-flex' },
             height: 28,
             bgcolor: 'background.default',
             border: '1px solid',

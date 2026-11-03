@@ -2,9 +2,11 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Header from './Header';
+import { WorkspaceChromeProvider } from '../../contexts/WorkspaceChromeContext';
 
 const Layout = () => {
   return (
+    <WorkspaceChromeProvider>
     <Box
       sx={{
         minHeight: '100vh',
@@ -31,6 +33,7 @@ const Layout = () => {
         <Outlet />
       </Box>
     </Box>
+    </WorkspaceChromeProvider>
   );
 };
 
