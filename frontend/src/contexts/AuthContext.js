@@ -51,9 +51,9 @@ const authReducer = (state, action) => {
 };
 
 // Dev-обхід входу: лише з REACT_APP_USE_MOCKS=1 (у проді змінної немає).
-// Роль можна вибрати через ?role=instructor|admin; вибір лишається в sessionStorage.
+// Роль можна вибрати через ?role=instructor|manager|director|admin; вибір лишається в sessionStorage.
 const USE_MOCKS = process.env.REACT_APP_USE_MOCKS === '1';
-const MOCK_ROLES = ['instructor', 'admin'];
+const MOCK_ROLES = ['instructor', 'manager', 'director', 'admin'];
 
 const getMockUser = () => {
   let role = 'instructor';
@@ -67,7 +67,7 @@ const getMockUser = () => {
     id: `mock-${role}`,
     email: `${role}@mock.local`,
     firstName: 'Demo',
-    lastName: role === 'admin' ? 'Admin' : 'Instructor',
+    lastName: role.charAt(0).toUpperCase() + role.slice(1),
     role,
     settings: { theme: 'system' },
   };

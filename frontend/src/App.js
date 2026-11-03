@@ -17,6 +17,7 @@ import ProfessorTutorWorkspace from './pages/ProfessorTutorWorkspace';
 import Cabinet from './pages/Cabinet';
 import AccountSettings from './pages/AccountSettings';
 import PoliciesPage from './pages/PoliciesPage';
+import { ALL_ROLES } from './utils/roles';
 
 const DevCards = process.env.NODE_ENV === 'development'
   ? React.lazy(() => import('./pages/DevCards'))
@@ -76,7 +77,7 @@ function App() {
         <Route
           path="cabinet"
           element={
-            <ProtectedRoute requiredRoles={['admin', 'instructor']}>
+            <ProtectedRoute requiredRoles={ALL_ROLES}>
               <Cabinet />
             </ProtectedRoute>
           }

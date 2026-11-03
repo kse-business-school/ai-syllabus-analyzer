@@ -92,18 +92,14 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.cabinet.getSyllabi({ program, status, page: 1, limit: 50 });
-      let list = data.syllabi || [];
-      if (filterMineOnly && isAdmin) {
-        list = list.filter((s) => s.ownerId === userId || s.userId === userId);
-      }
-      setRows(list);
+      const { data } = await api.cabinet.getSyllabi({ program, status, page: 1, limit: 50, scope: filterMineOnly ? 'mine' : 'all' });
+      setRows(data.syllabi || []);
     } catch (err) {
       setSnack(err.response?.data?.message || 'Could not load syllabi');
     } finally {
       setLoading(false);
     }
-  }, [program, status, filterMineOnly, isAdmin, userId]);
+  }, [program, status, filterMineOnly]);
 
   useEffect(() => {
     load();

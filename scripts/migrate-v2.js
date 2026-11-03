@@ -6,7 +6,6 @@
  *   - Remaps Syllabus.status: processing→analyzing, analyzed|reviewed|approved→in_progress
  *   - Renames recommendations[].status → recommendations[].decision
  *   - Renames recommendations[].suggestedText → kept as-is (consumed by Phase 2 beforeAfter generator)
- *   - Demotes any user with role 'manager' to 'instructor' (logged for audit)
  *
  * Idempotent: safe to run multiple times. Run with `--dry-run` to preview.
  *
@@ -89,18 +88,7 @@ async function run() {
     }
   }
 
-  // 4. Demote manager users
-  const managers = await db.collection('users').find({ role: 'manager' }).project({ email: 1 }).toArray();
-  if (managers.length) {
-    console.log(`[migrate-v2] manager → instructor demotion (${managers.length}):`);
-    for (const m of managers) console.log(`  - ${m.email} (${m._id})`);
-    if (!DRY) {
-      const r = await db.collection('users').updateMany({ role: 'manager' }, { $set: { role: 'instructor' } });
-      stats.usersDemoted = r.modifiedCount;
-    } else {
-      stats.usersDemoted = managers.length;
-    }
-  }
+  // 4. Роль manager більше не понижується: з v5 вона легітимна (призначення курсів, All syllabi)
 
   console.log('[migrate-v2] summary:', stats);
   await mongoose.disconnect();

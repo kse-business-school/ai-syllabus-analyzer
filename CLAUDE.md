@@ -135,10 +135,11 @@ frontend/src/
   - `GET /:id` не віддає `state` і шляхи.
 - **Cabinet.**
   - Програми, користувачі й cleanup uploads доступні лише admin.
-  - Instructor бачить тільки свої силабуси. `/cabinet/syllabi` рахує readiness наживо зі `state`.
+  - За замовчуванням `/cabinet/syllabi` і `/cabinet/metrics` віддають лише власні силабуси; `?scope=all` — manager / director / admin (інакше 403). Readiness рахується наживо зі `state`.
+  - `/cabinet/offerings` (призначення курс × набір): читання — manager / director / admin бачать усі, викладач лише свої; запис — manager / director / admin.
   - Метрики: `total`, `inProgress`, `downloads`, `ready100`.
 - **Адміни.** 409, якщо зміна лишає систему без активного адміна. Видалення програми з силабусами → 409.
-- **Роль** береться з БД на кожен запит. Ролі — лише `instructor` і `admin` (`manager` видалено; `scripts/migrate-v2.js` понижує старих).
+- **Роль** береться з БД на кожен запит. Ролі: `instructor`, `manager`, `director`, `admin` (`services/roles.js`). `manager` / `director` бачать усі силабуси (лише читання), призначають курси до наборів (`CourseOffering`) і правлять довідники; мутації в чаті — лише власник.
 - **Rate limits:**
   - суворий per-IP на login / forgot / reset (`LOGIN_RATE_LIMIT_*`);
   - загальні per-IP на сайт і на `/api`;
