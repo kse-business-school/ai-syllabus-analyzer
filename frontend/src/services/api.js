@@ -131,11 +131,35 @@ class ApiService {
   };
 
   cabinet = {
-    getSyllabi: (params = {}) => this.client.get('/cabinet/syllabi', { params }),
-    getMetrics: () => this.client.get('/cabinet/metrics'),
-    getUsers: (params = {}) => this.client.get('/cabinet/users', { params }),
+    getSyllabi: (params = {}) => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().cabinet.getSyllabi(params);
+      }
+      return this.client.get('/cabinet/syllabi', { params });
+    },
+    getMetrics: () => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().cabinet.getMetrics();
+      }
+      return this.client.get('/cabinet/metrics');
+    },
+    getUsers: (params = {}) => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().cabinet.getUsers(params);
+      }
+      return this.client.get('/cabinet/users', { params });
+    },
     createUser: (data) => this.client.post('/cabinet/users', data),
-    listPrograms: () => this.client.get('/cabinet/programs'),
+    listPrograms: () => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().cabinet.listPrograms();
+      }
+      return this.client.get('/cabinet/programs');
+    },
     createProgram: (data) => this.client.post('/cabinet/programs', data),
     updateProgram: (id, data) => this.client.put(`/cabinet/programs/${id}`, data),
     deleteProgram: (id) => this.client.delete(`/cabinet/programs/${id}`),
@@ -144,7 +168,13 @@ class ApiService {
 
   // Довідники v5 за programCode
   references = {
-    programs: () => this.client.get('/references/programs'),
+    programs: () => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().references.programs();
+      }
+      return this.client.get('/references/programs');
+    },
     template: (programCode) => this.client.get(`/references/${programCode}/template`),
     outcomes: (programCode) => this.client.get(`/references/${programCode}/outcomes`),
     courses: (programCode) => this.client.get(`/references/${programCode}/courses`),
