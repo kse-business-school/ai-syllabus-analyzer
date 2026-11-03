@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,6 +11,8 @@ import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import ChatBubbleOutline from '@mui/icons-material/ChatBubbleOutline';
+import WarningAmber from '@mui/icons-material/WarningAmber';
+import ArrowForward from '@mui/icons-material/ArrowForward';
 import DocumentBlocks from './document/DocumentBlocks';
 import { S } from '../../strings';
 
@@ -20,6 +22,9 @@ const LiveDocumentPanel = ({
   diff = false,
   onToggleDiff,
   focusedKey = null,
+  highlightedSectionKey = null,
+  checks = [],
+  readiness = null,
   onApproveSection,
   onDiscussSection,
   readOnly = false,
@@ -27,17 +32,23 @@ const LiveDocumentPanel = ({
   const scrollRef = useRef(null);
   const sections = document?.sections;
   const titles = new Map(templateSections.map((s) => [s.key, s]));
+  const [activeHighlight, setActiveHighlight] = useState(null);
 
   useEffect(() => {
-    if (!focusedKey || !scrollRef.current) return;
-    const el = scrollRef.current.querySelector(`[data-section="${focusedKey}"]`);
+    if (!highlightedSectionKey) return undefined;
+    setActiveHighlight(highlightedSectionKey);
+    const timer = setTimeout(() => setActiveHighlight(null), 2000);
+    return () => clearTimeout(timer);
+  }, [highlightedSectionKey]);
+
+  useEffect(() => {
+    const targetKey = activeHighlight || focusedKey;
+    if (!targetKey || !scrollRef.current) return;
+    const el = scrollRef.current.querySelector(`[data-section="${targetKey}"]`);
     if (el) {
-      scrollRef.current.scrollTo({
-        top: el.getBoundingClientRect().top - scrollRef.current.getBoundingClientRect().top + scrollRef.current.scrollTop - 16,
-        behavior: 'smooth',
-      });
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [focusedKey, sections]);
+  }, [focusedKey, activeHighlight]);
 
   let lastDocNumber = null;
 
@@ -51,6 +62,10 @@ const LiveDocumentPanel = ({
         minWidth: 0,
         borderLeft: '1px solid',
         borderColor: 'divider',
+        '@keyframes highlightFade': {
+          '0%': { bgcolor: 'action.selected' },
+          '100%': { bgcolor: 'transparent' },
+        },
       }}
     >
       {/* Шапка документа */}
@@ -84,7 +99,6 @@ const LiveDocumentPanel = ({
             <ToggleButton value="changes">{S.showChanges}</ToggleButton>
           </ToggleButtonGroup>
         </Box>
-
       </Box>
 
       {document?.loading && <LinearProgress sx={{ height: 2 }} />}
@@ -137,7 +151,13 @@ const LiveDocumentPanel = ({
                 : sec.title;
               lastDocNumber = sec.docNumber ?? lastDocNumber;
               const focused = focusedKey === sec.key;
+              const isHighlighted = activeHighlight === sec.key;
               const hasContent = Boolean(sec.blocks?.length);
+              const gaps = readiness?.sections?.[sec.key]?.gaps || [];
+              const failedChecks = (checks || []).filter(
+                (c) => c.passed === false && (c.section === sec.key || c.target?.section === sec.key)
+              );
+              const isLocked = sec.locked || sec.mode === 'locked';
 
               return (
                 <Box
@@ -145,10 +165,20 @@ const LiveDocumentPanel = ({
                   data-section={sec.key}
                   sx={{
                     mb: 3.5,
+                    p: 1.5,
                     pl: 2,
+                    borderRadius: 1,
                     borderLeft: '3px solid',
                     borderColor: focused ? 'primary.main' : 'transparent',
-                    transition: 'border-color 0.2s ease',
+                    transition: 'border-color 0.2s ease, background-color 0.2s ease',
+                    ...(isHighlighted && {
+                      animation: 'highlightFade 2s ease-out',
+                      bgcolor: 'action.hover',
+                      '@media (prefers-reduced-motion: reduce)': {
+                        animation: 'none',
+                        bgcolor: 'action.hover',
+                      },
+                    }),
                   }}
                 >
                   {groupHeading && (
@@ -191,7 +221,7 @@ const LiveDocumentPanel = ({
                     {/* Інтерактивні кнопки секції */}
                     {!readOnly && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        {onDiscussSection && (
+                        {onDiscussSection && !isLocked && (
                           <Tooltip title="Discuss or draft this section in chat">
                             <Button
                               size="small"
@@ -210,7 +240,7 @@ const LiveDocumentPanel = ({
                             </Button>
                           </Tooltip>
                         )}
-                        {hasContent && onApproveSection && (
+                        {hasContent && onApproveSection && !isLocked && (
                           <Tooltip title="Approve this section">
                             <Button
                               size="small"
@@ -234,24 +264,72 @@ const LiveDocumentPanel = ({
                     )}
                   </Box>
 
-                  {hasContent ? (
-                    <DocumentBlocks blocks={sec.blocks} diff={diff} />
-                  ) : (
-                    <Typography
-                      variant="body2"
+                  {/* Позначки регуляторних перевірок */}
+                  {failedChecks.map((c, idx) => (
+                    <Alert
+                      key={c.id || idx}
+                      severity={c.severity === 'critical' ? 'error' : 'warning'}
+                      icon={<WarningAmber fontSize="small" />}
                       sx={{
-                        color: 'text.muted',
-                        fontStyle: 'italic',
-                        fontSize: '0.8125rem',
-                        bgcolor: 'background.default',
+                        my: 1,
+                        py: 0.25,
+                        px: 1.25,
+                        borderRadius: 1,
+                        '& .MuiAlert-message': { fontSize: '0.75rem', lineHeight: 1.3 },
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
+                        {c.message}
+                      </Typography>
+                      {c.details?.rule && (
+                        <Typography variant="caption" color="text.secondary">
+                          Academic policy: {c.details.rule}
+                        </Typography>
+                      )}
+                    </Alert>
+                  ))}
+
+                  {hasContent ? (
+                    <DocumentBlocks
+                      blocks={sec.blocks}
+                      diff={diff}
+                      sectionKey={sec.key}
+                      isLocked={isLocked}
+                      readOnly={readOnly}
+                      onSlotChange={(slotKey) => onDiscussSection?.(slotKey || sec.key, ownHeading)}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
                         p: 1.5,
                         borderRadius: 1,
+                        bgcolor: 'background.default',
                         border: '1px dashed',
                         borderColor: 'divider',
                       }}
                     >
-                      {S.documentEmpty}
-                    </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: 'text.muted',
+                          fontSize: '0.8125rem',
+                          mb: gaps.length > 0 && !readOnly ? 1 : 0,
+                        }}
+                      >
+                        {gaps.length > 0 ? `Required content missing: ${gaps.join(' · ')}` : S.documentEmpty}
+                      </Typography>
+                      {!readOnly && onDiscussSection && (
+                        <Button
+                          size="small"
+                          variant="text"
+                          endIcon={<ArrowForward sx={{ fontSize: 13 }} />}
+                          onClick={() => onDiscussSection(sec.key, ownHeading)}
+                          sx={{ fontSize: '0.75rem', p: 0, minWidth: 0, textTransform: 'none' }}
+                        >
+                          Answer in chat →
+                        </Button>
+                      )}
+                    </Box>
                   )}
                 </Box>
               );
