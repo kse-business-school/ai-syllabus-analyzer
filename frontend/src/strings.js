@@ -167,7 +167,7 @@ export const S = {
 
 // 14 concrete error scenarios matching the spec
 export const ERROR_MESSAGES = {
-  STATE_CONFLICT: 'This syllabus was updated in another tab. Refreshing to the latest version…',
+  STATE_CONFLICT: 'The syllabus changed in another tab or action. Refreshing to the latest version…',
   STALE_DRAFT: 'This draft was generated for an older version of the section. Ask AI to reword for a fresh draft.',
   UNCONFIRMED_VALUES: 'Please review and confirm the highlighted values before proceeding.',
   SECTION_INCOMPLETE: 'Please resolve the highlighted items in this section before approving.',
