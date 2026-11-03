@@ -237,3 +237,28 @@ readiness = {
 | `services/ai/prompts/interviewer.js` | `nextQuestion` | K (W3) |
 
   Маршрути й сервіси чату (H) викликають лише ці сигнатури; у тестах H їх мокає через `jest.mock`.
+
+## 10. Кабінет: набори, призначення, покриття ПРН
+
+Усі маршрути — `manager` / `director` / `admin` (крім читання власних призначень викладачем).
+
+| Маршрут | Призначення |
+|---|---|
+| `GET /cabinet/offerings?programCode=` | призначення курс × набір; викладач бачить лише свої |
+| `POST /cabinet/offerings`, `PUT /:id`, `DELETE /:id` | CRUD призначень (`courseCode`, `type`, `lecturerId`, `deadline`); дубль → 409, видалення з силабусами → 409 |
+| `GET /cabinet/lecturers` | `{ lecturers[{ _id, firstName, lastName, email, role }] }` для вибору в призначенні |
+| `GET /cabinet/plo-coverage?programCode=` | матриця покриття ПРН; невідомий код → 404 `UNKNOWN_PROGRAM_CODE` |
+
+**Відповідь `plo-coverage`:**
+
+```
+{ programCode,
+  courses:  [{ offeringId, courseCode, courseName, type, syllabusId|null,
+               cells: { <PLO code>: { weight, clos: [{ id, text, coverage, assessments: [{ id, name, weight }] }] } } }],
+  outcomes: [{ code, text, sum, uncovered }] }
+```
+
+- `weight`: `full` = 1, `partial` = 0,5, відсутня клітинка = 0. Для кількох CLO на один ПРН береться максимум, як у перевірці `plo.coverage`.
+- `sum` — Σ по курсах; `uncovered: true` при Σ = 0 (програма обіцяє результат, якого не дає жоден курс набору).
+- Силабус призначення: за `offeringId`, інакше (старі силабуси) за `programCode` + код курсу; з кількох береться найсвіжіший зі `state`. Силабуси в `analyzing` / `error` не враховуються. Курс без силабуса лишається порожнім стовпцем.
+- Збирає `services/plo/coverage.js` (чиста функція `buildCoverage`).

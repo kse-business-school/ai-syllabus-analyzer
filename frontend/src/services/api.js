@@ -164,6 +164,31 @@ class ApiService {
     updateProgram: (id, data) => this.client.put(`/cabinet/programs/${id}`, data),
     deleteProgram: (id) => this.client.delete(`/cabinet/programs/${id}`),
     updateUser: (id, data) => this.client.patch(`/cabinet/users/${id}`, data),
+    // Призначення курсу до набору (курс × набір) і матриця покриття ПРН
+    listOfferings: (params = {}) => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().cabinet.listOfferings(params);
+      }
+      return this.client.get('/cabinet/offerings', { params });
+    },
+    createOffering: (data) => this.client.post('/cabinet/offerings', data),
+    updateOffering: (id, data) => this.client.put(`/cabinet/offerings/${id}`, data),
+    deleteOffering: (id) => this.client.delete(`/cabinet/offerings/${id}`),
+    listLecturers: () => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().cabinet.listLecturers();
+      }
+      return this.client.get('/cabinet/lecturers');
+    },
+    getPloCoverage: (programCode) => {
+      if (process.env.REACT_APP_USE_MOCKS === '1') {
+        const { getMockClient } = require('./workspaceClient');
+        return getMockClient().cabinet.getPloCoverage(programCode);
+      }
+      return this.client.get('/cabinet/plo-coverage', { params: { programCode } });
+    },
   };
 
   // Довідники v5 за programCode

@@ -9,7 +9,8 @@ const User = require('../models/User');
 const Syllabus = require('../models/Syllabus');
 const Suggestion = require('../models/Suggestion');
 const { computeReadiness } = require('../services/syllabusState/readiness');
-const { getRefs } = require('../services/references');
+const { getRefs, getOutcomes, assertKnownProgramCode } = require('../services/references');
+const { buildCoverage } = require('../services/plo/coverage');
 const { sendInvitationEmail } = require('../services/emailService');
 const { isLastActiveAdmin } = require('../services/userService');
 const { generateToken } = require('../utils/tokens');
@@ -286,6 +287,38 @@ router.delete('/offerings/:id', auth, programmeStaff, [param('id').isMongoId()],
     res.json({ message: 'Видалено' });
   } catch (err) {
     console.error('Delete offering error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
+// Викладачі для вибору в призначенні (admin-список користувачів для manager/director закритий)
+router.get('/lecturers', auth, programmeStaff, async (req, res) => {
+  try {
+    const users = await User.find({ isActive: { $ne: false } })
+      .select('firstName lastName email role').sort({ lastName: 1, firstName: 1 }).lean();
+    res.json({ lecturers: users });
+  } catch (err) {
+    console.error('List lecturers error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
+// ─── PLO coverage (ТЗ, доповнення 29.10 §8) ──────────────────────────────────
+
+// Матриця ПРН × курси набору, зібрана зі state силабусів. Читають manager/director/admin
+router.get('/plo-coverage', auth, programmeStaff, async (req, res) => {
+  try {
+    const programCode = await assertKnownProgramCode(req.query.programCode);
+    const [outcomes, offerings, syllabi] = await Promise.all([
+      getOutcomes(programCode),
+      CourseOffering.find({ programCode }).sort({ courseCode: 1 }).lean(),
+      Syllabus.find({ programCode, state: { $exists: true, $ne: null } })
+        .select('course programCode offeringId status updatedAt state').lean(),
+    ]);
+    res.json({ programCode, ...buildCoverage({ outcomes, offerings, syllabi }) });
+  } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message, code: err.code });
+    console.error('PLO coverage error:', err);
     res.status(500).json({ message: 'Внутрішня помилка сервера' });
   }
 });
