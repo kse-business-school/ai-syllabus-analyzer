@@ -96,7 +96,7 @@ backend/
                             sections, policies, freeChat, draftSuggestions, slotWrite, known, state
     document/               loadDocument (docx/doc/pdf → blocks), extractors, convert (docToDocx), writers/templateDocx + templateStyles
     plo/                    coverage (матриця покриття ПРН набору, чиста функція)
-    lecturers/              profile (CRM → локальний профіль), crm (заглушка Lecturers CRM), cards
+    lecturers/              profile (CRM → збережений профіль → розділ 2 попереднього силабуса автора), crm (заглушка Lecturers CRM), cards
     outputs.js, outputFormats.js   syllabus.docx (кеш за stateRevision)
     analysisRunner.js, analysisLease.js   фоновий аналіз з lease
     syllabusCleanup.js, emailService.js, userService.js
