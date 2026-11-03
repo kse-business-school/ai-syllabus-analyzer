@@ -25,6 +25,7 @@ const sectionLabel = (sec, key) => {
 // Кожен розділ можна розкрити (текст з правої панелі) і затвердити окремо.
 const ApproveAllCard = ({ sectionKeys = [], sections = [], readiness, documentSections = [], actions, busy, readOnly }) => {
   const [open, setOpen] = useState({});
+  const [expandedCard, setExpandedCard] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const byKey = new Map(sections.map((s) => [s.key, s]));
@@ -43,6 +44,28 @@ const ApproveAllCard = ({ sectionKeys = [], sections = [], readiness, documentSe
     const res = await exec(() => actions.approveAll(remaining));
     if (res?.ok) setResult({ approved: res.data?.approved || [], skipped: res.data?.skipped || [] });
   };
+
+  if (remaining.length === 0 && !result?.skipped?.length && !expandedCard) {
+    return (
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="center"
+        sx={{ mb: 1, py: 0.75, px: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}
+      >
+        <CheckCircle fontSize="small" color="primary" />
+        <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
+          {S.noChangesTitle(sectionKeys.length)}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+          {S.approved}
+        </Typography>
+        <Button size="small" variant="text" color="inherit" onClick={() => setExpandedCard(true)} sx={{ minWidth: 0, px: 0.75 }}>
+          Show
+        </Button>
+      </Stack>
+    );
+  }
 
   return (
     <Paper variant="outlined" sx={{ mb: 1.5, p: 2, borderLeft: '4px solid', borderLeftColor: remaining.length ? 'primary.main' : 'divider' }}>

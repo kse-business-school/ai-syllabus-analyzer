@@ -122,8 +122,8 @@ class ApiService {
       this.client.post(`/chat/${syllabusId}/suggestions/${suggestionId}/answer`, { answer }, LLM_REQUEST),
     reopen: (syllabusId, suggestionId) =>
       this.client.post(`/chat/${syllabusId}/suggestions/${suggestionId}/reopen`, {}, LLM_REQUEST),
-    sendMessage: (syllabusId, text) =>
-      this.client.post(`/chat/${syllabusId}/message`, { text }, LLM_REQUEST),
+    sendMessage: (syllabusId, text, options = {}) =>
+      this.client.post(`/chat/${syllabusId}/message`, { text }, { ...LLM_REQUEST, ...options }),
     skip: (syllabusId, slotKey) => this.client.post(`/chat/${syllabusId}/skip`, { slotKey }, LLM_REQUEST),
     // Один вихід — syllabus.docx; ім'я файлу з Content-Disposition
     downloadDocx: (syllabusId) =>
