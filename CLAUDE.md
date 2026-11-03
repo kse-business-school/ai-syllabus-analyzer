@@ -170,7 +170,8 @@ frontend/src/
 
 - **LLM-виклики** — лише через `services/ai/client.js` (`createResponse`), strict `json_schema` або strict function tools.
   - Новий OpenAI-клієнт не створювати.
-  - Модель задається `LLM_MODEL` і має починатися з `gpt-`.
+  - Провайдер — `LLM_PROVIDER` (`openai` | `anthropic`); адаптер Anthropic — `services/ai/anthropicAdapter.js`, виклики лишаються в стилі Responses API.
+  - Модель задається `LLM_MODEL` і має починатися з `gpt-` (openai) або `claude-` (anthropic).
   - Текст документа в промптах обгортати `untrusted()` (`prompts/preamble.js`).
 - **Кожна чернетка моделі** проходить через `services/chat/draftSuggestions.js` (сканер фактів, вирізання неперевірених URL, `basisHash`). У стан чернетки потрапляють лише через accept.
 - **Нові слоти чи розділи** спершу йдуть у `schema.js`, `slots.js` і `template.sections.json`, а вже потім у промпти, перевірки, рендер і `templateDocx`.
@@ -185,11 +186,13 @@ frontend/src/
 
 ## 7. Конфігурація (ключові env)
 
-- **Backend.** Без `MONGODB_URI`, `JWT_SECRET`, `OPENAI_API_KEY` сервер не стартує.
+- **Backend.** Без `MONGODB_URI`, `JWT_SECRET` і ключа активного провайдера (`OPENAI_API_KEY` або `ANTHROPIC_API_KEY`) сервер не стартує.
 
 | Змінна | Значення за замовчуванням / призначення |
 |---|---|
-| `LLM_MODEL` | `gpt-5.4-mini` |
+| `LLM_PROVIDER` | `openai`; без нього `anthropic`, якщо задано лише `ANTHROPIC_API_KEY` |
+| `LLM_MODEL` | `gpt-5.4-mini` (openai), `claude-opus-5-5` (anthropic) |
+| `ANTHROPIC_REFUSAL_FALLBACK` | `1`; `0` вимикає серверний fallback за відмови класифікаторів безпеки |
 | `LLM_REASONING_EFFORT` | `medium` |
 | `LLM_MAX_OUTPUT_TOKENS` | — |
 | `REQUEST_TIMEOUT_MS` | 20000 |
