@@ -31,22 +31,14 @@ const SemanticTable = ({ rows, diff, sectionKey }) => {
     };
   });
 
-  // Перевіримо, чи це таблиця оцінювання (має % ваги)
-  let totalWeight = 0;
-  let hasWeights = false;
-
-  parsedRows.forEach(({ cells }) => {
-    cells.forEach((c) => {
-      const match = String(c).match(/(\d+)\s*%/);
-      if (match) {
-        hasWeights = true;
-        totalWeight += parseInt(match[1], 10);
-      }
-    });
-  });
-
-  const headerCells = parsedRows[0]?.cells || [];
-  const bodyRows = parsedRows.slice(1);
+  // Backend повертає лише рядки даних, зокрема готовий підсумок оцінювання.
+  const columnCount = Math.max(...parsedRows.map(({ cells }) => cells.length));
+  const scheduleHeaders = columnCount === 2
+    ? ['Individual work', 'Hours']
+    : ['Session', 'Topic', 'Type', 'Hours', 'Format', 'Date & time', 'Additional information'];
+  const headers = sectionKey === 'assessment'
+    ? ['Component', 'Weight', 'Deadline', 'Criteria']
+    : sectionKey === 'schedule' ? scheduleHeaders : null;
 
   return (
     <Box sx={{ my: 1.5, overflowX: 'auto' }}>
@@ -74,42 +66,29 @@ const SemanticTable = ({ rows, diff, sectionKey }) => {
           },
         }}
       >
-        <thead>
-          <tr>
-            {headerCells.map((cell, idx) => (
-              <th key={idx}>
-                {cell}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {bodyRows.map((rowObj, rIdx) => (
-            <tr key={rIdx}>
-              {rowObj.cells.map((cell, cIdx) => (
-                <td key={cIdx} style={{ fontWeight: cIdx === 0 ? 500 : 400 }}>
-                  {diff && rowObj.block.parts?.length ? (
-                    <Content block={rowObj.block} diff={diff} />
-                  ) : isPlaceholder(cell) ? (
-                    <Box component="span" sx={placeholderSx}>{cell}</Box>
-                  ) : (
-                    cell
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-        {hasWeights && (
-          <tfoot>
-            <tr>
-              <td style={{ fontWeight: 700 }}>Total</td>
-              <td colSpan={Math.max(1, headerCells.length - 1)} style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                {totalWeight}% {totalWeight === 100 ? '✓' : '(Recommended: 100%)'}
-              </td>
-            </tr>
-          </tfoot>
+        {headers && (
+          <thead>
+            <tr>{headers.slice(0, columnCount).map((cell) => <th key={cell} scope="col">{cell}</th>)}</tr>
+          </thead>
         )}
+        <tbody>
+          {parsedRows.map((rowObj, rIdx) => {
+            const changed = diff && rowObj.block.parts?.some((part) => part.type !== 'eq');
+            return (
+              <tr key={rIdx}>
+                {changed ? (
+                  <td colSpan={columnCount}><Content block={rowObj.block} diff /></td>
+                ) : rowObj.cells.map((cell, cIdx) => (
+                  <td key={cIdx}
+                    colSpan={cIdx === rowObj.cells.length - 1 ? columnCount - cIdx : 1}
+                    style={{ fontWeight: cIdx === 0 ? 500 : 400 }}>
+                    {isPlaceholder(cell) ? <Box component="span" sx={placeholderSx}>{cell}</Box> : cell}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
       </Box>
     </Box>
   );
