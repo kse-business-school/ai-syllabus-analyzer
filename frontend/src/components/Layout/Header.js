@@ -150,7 +150,7 @@ const Header = () => {
         {isWorkspace && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, maxWidth: '100%' }}>
             <Chip
-              label={`${currentProgram} · ${currentCohort}`}
+              label={currentCohort || currentProgram}
               size="small"
               variant="outlined"
               sx={{

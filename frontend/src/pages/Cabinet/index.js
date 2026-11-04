@@ -20,6 +20,7 @@ import { USE_MOCKS } from '../../services/workspaceClient';
 import { MOCK_PROGRAMS } from '../../mocks/chatV5';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCohort } from '../../contexts/CohortContext';
+import CohortSelect from '../../components/Cabinet/CohortSelect';
 import MetricsRow from './MetricsRow';
 import SyllabiTab from './SyllabiTab';
 import PloCoverageTab from './PloCoverageTab';
@@ -44,7 +45,7 @@ const NAV_ITEMS = [
 
 const Cabinet = () => {
   const { user } = useAuth();
-  const { currentProgram } = useCohort();
+  const { currentCohort } = useCohort();
   const isAdmin = user?.role === 'admin';
   const isDesktop = useMediaQuery('(min-width:1024px)');
 
@@ -231,6 +232,13 @@ const Cabinet = () => {
 
             {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 1 }}>{error}</Alert>}
 
+            {/* Перемикач набору — лише на екранах, де набір має значення */}
+            {['plo_coverage', 'courses_cohorts', 'references'].includes(activeNav) && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                <CohortSelect />
+              </Box>
+            )}
+
             {/* Вміст обраного розділу */}
             {activeNav === 'my_syllabi' && (
               <SyllabiTab
@@ -253,15 +261,15 @@ const Cabinet = () => {
             )}
 
             {activeNav === 'plo_coverage' && (
-              <PloCoverageTab programCode={currentProgram || 'MBA'} />
+              <PloCoverageTab programCode={currentCohort} />
             )}
 
             {activeNav === 'courses_cohorts' && (
-              <CoursesCohortsTab programCode={currentProgram || 'MBA'} />
+              <CoursesCohortsTab programCode={currentCohort} />
             )}
 
             {activeNav === 'references' && (
-              <ReferenceLibraryTab programCode={currentProgram || 'MBA'} />
+              <ReferenceLibraryTab programCode={currentCohort} />
             )}
 
             {activeNav === 'users' && isAdmin && <UsersTab />}

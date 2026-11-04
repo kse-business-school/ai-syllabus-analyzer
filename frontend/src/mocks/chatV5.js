@@ -17,6 +17,24 @@ export const MOCK_PROGRAMS = [
   { id: 'prog-emba', code: 'EMBA', name: 'Executive MBA', editions: [] },
 ];
 
+export const MOCK_OFFERINGS = [
+  { _id: 'off-rm', programCode: 'MBA28', courseCode: 'RM.1', courseName: 'Risk Management', type: 'elective', lecturerId: { _id: 'u-lecturer', firstName: 'Olena', lastName: 'Khomenko' }, deadline: null },
+  { _id: 'off-st', programCode: 'MBA28', courseCode: 'ST.1', courseName: 'Strategy', type: 'core', lecturerId: null, deadline: null },
+];
+
+// Форма відповіді GET /cabinet/plo-coverage
+export const MOCK_PLO_COVERAGE = {
+  courses: [
+    { offeringId: 'off-rm', courseCode: 'RM.1', courseName: 'Risk Management', type: 'elective', syllabusId: 'mock-upload',
+      cells: { 'ПРН1': { weight: 1, clos: [{ id: 'clo1', text: 'Apply risk management frameworks', coverage: 'full', assessments: [{ id: 'as3', name: 'Final project', weight: 40 }] }] } } },
+    { offeringId: 'off-st', courseCode: 'ST.1', courseName: 'Strategy', type: 'core', syllabusId: null, cells: {} },
+  ],
+  outcomes: [
+    { code: 'ПРН1', text: 'Strategic thinking in conditions of uncertainty', sum: 1, uncovered: false },
+    { code: 'ПРН7', text: 'Digital technologies, data and AI', sum: 0, uncovered: true },
+  ],
+};
+
 // TemplateSection[] (backend/fixtures/reference/template.sections.json)
 export const MOCK_SECTIONS = [
   { key: 'at_a_glance', order: 1, docNumber: null, docTitle: 'At a Glance', title: 'At a Glance', required: true, nature: 'fixed' },
@@ -977,6 +995,9 @@ export function createMockClient() {
     updateProgram: async (id, data) => ({ data: { id, ...data } }),
     deleteProgram: async () => ({ data: { ok: true } }),
     updateUser: async (id, data) => ({ data: { id, ...data } }),
+    listOfferings: async () => ({ data: { offerings: MOCK_OFFERINGS } }),
+    listLecturers: async () => ({ data: { lecturers: [{ _id: 'u-lecturer', firstName: 'Olena', lastName: 'Khomenko', email: 'o.khomenko@example.com' }] } }),
+    getPloCoverage: async (programCode) => ({ data: { programCode, ...MOCK_PLO_COVERAGE } }),
   };
 
   return {

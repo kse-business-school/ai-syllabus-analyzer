@@ -13,7 +13,7 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import Chip from '@mui/material/Chip';
 import api from '../../services/api';
 
-const ReferenceLibraryTab = ({ programCode = 'MBA' }) => {
+const ReferenceLibraryTab = ({ programCode }) => {
   const [subTab, setSubTab] = useState(0); // 0: Policies, 1: Outcomes, 2: Assessment
   const [policies, setPolicies] = useState([]);
   const [outcomes, setOutcomes] = useState([]);
@@ -27,13 +27,14 @@ const ReferenceLibraryTab = ({ programCode = 'MBA' }) => {
 
     Promise.all([
       api.policies.syllabusLibrary().catch(() => ({ data: { policies: [] } })),
-      api.references.outcomes(programCode).catch(() => ({ data: { outcomes: [] } })),
-      api.references.template(programCode).catch(() => ({ data: null })),
+      programCode ? api.references.outcomes(programCode).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      Promise.resolve(),
     ])
       .then(([polRes, outRes]) => {
         if (!active) return;
         setPolicies(polRes.data?.policies || []);
-        setOutcomes(outRes.data?.outcomes || []);
+        // /references/:code/outcomes віддає масив ПРН
+        setOutcomes(Array.isArray(outRes.data) ? outRes.data : (outRes.data?.outcomes || []));
       })
       .catch((err) => {
         if (active) setError('Could not load reference library items.');

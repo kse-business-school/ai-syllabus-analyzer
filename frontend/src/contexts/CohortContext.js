@@ -2,32 +2,33 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const CohortContext = createContext();
 
-export const CohortProvider = ({ children }) => {
-  const [currentProgram, setCurrentProgram] = useState(() => {
-    return localStorage.getItem('kse_selected_program') || 'MBA';
-  });
+const PROGRAM_KEY = 'kse_selected_program';
+// Новий ключ: у старому лежав вигаданий 'Cohort 2026'
+const COHORT_KEY = 'kse_selected_edition';
 
-  const [currentCohort, setCurrentCohort] = useState(() => {
-    return localStorage.getItem('kse_selected_cohort') || 'Cohort 2026';
-  });
+const read = (key, fallback) => {
+  try {
+    return localStorage.getItem(key) || fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+// currentCohort — код редакції програми (MBA27, MBA28…), за ним беруться ПРН, курси й призначення
+export const CohortProvider = ({ children }) => {
+  const [currentProgram, setCurrentProgram] = useState(() => read(PROGRAM_KEY, 'MBA'));
+  const [currentCohort, setCurrentCohort] = useState(() => read(COHORT_KEY, ''));
 
   useEffect(() => {
-    localStorage.setItem('kse_selected_program', currentProgram);
+    try { localStorage.setItem(PROGRAM_KEY, currentProgram); } catch { /* сховище недоступне */ }
   }, [currentProgram]);
 
   useEffect(() => {
-    localStorage.setItem('kse_selected_cohort', currentCohort);
+    try { localStorage.setItem(COHORT_KEY, currentCohort); } catch { /* сховище недоступне */ }
   }, [currentCohort]);
 
   return (
-    <CohortContext.Provider
-      value={{
-        currentProgram,
-        setCurrentProgram,
-        currentCohort,
-        setCurrentCohort,
-      }}
-    >
+    <CohortContext.Provider value={{ currentProgram, setCurrentProgram, currentCohort, setCurrentCohort }}>
       {children}
     </CohortContext.Provider>
   );

@@ -95,6 +95,7 @@ backend/
     chat/                   view, flow (старт, наступний крок, питання), decisions (accept/values/reject/refine/answer/reopen),
                             sections, policies, freeChat, draftSuggestions, slotWrite, known, state
     document/               loadDocument (docx/doc/pdf → blocks), extractors, convert (docToDocx), writers/templateDocx + templateStyles
+    plo/                    coverage (матриця покриття ПРН набору, чиста функція)
     lecturers/              profile (CRM → локальний профіль), crm (заглушка Lecturers CRM), cards
     outputs.js, outputFormats.js   syllabus.docx (кеш за stateRevision)
     analysisRunner.js, analysisLease.js   фоновий аналіз з lease
@@ -137,6 +138,7 @@ frontend/src/
   - Програми, користувачі й cleanup uploads доступні лише admin.
   - За замовчуванням `/cabinet/syllabi` і `/cabinet/metrics` віддають лише власні силабуси; `?scope=all` — manager / director / admin (інакше 403). Readiness рахується наживо зі `state`.
   - `/cabinet/offerings` (призначення курс × набір): читання — manager / director / admin бачать усі, викладач лише свої; запис — manager / director / admin.
+  - `/cabinet/plo-coverage?programCode=` (матриця ПРН × курси набору зі `state` силабусів, `services/plo/coverage.js`) і `/cabinet/lecturers` — manager / director / admin.
   - Метрики: `total`, `inProgress`, `downloads`, `ready100`.
 - **Адміни.** 409, якщо зміна лишає систему без активного адміна. Видалення програми з силабусами → 409.
 - **Роль** береться з БД на кожен запит. Ролі: `instructor`, `manager`, `director`, `admin` (`services/roles.js`). `manager` / `director` бачать усі силабуси (лише читання), призначають курси до наборів (`CourseOffering`) і правлять довідники; мутації в чаті — лише власник.
