@@ -22,7 +22,7 @@
 - **Реєстр слотів** — `services/syllabusState/slots.js`: тип A–E, `locked|library|free`, пороги повноти (ТЗ §8). Не дублювати ці правила в промптах чи маршрутах.
 - **Нічого не прив'язувати до MBA в коді.**
   - Шаблон, ПРН, нормативні курси, Capstone, політики — це дані з `programCode` (`services/references`, фікстури `backend/fixtures/reference/`, ідемпотентний сід).
-  - `courseKind` (core/elective) визначається лише за `programCode` + `courseCode`, ніколи за назвою.
+  - `courseKind` (core/elective) визначається за `programCode` + `courseCode`, ніколи за назвою: спершу призначення `CourseOffering` (`refs.offeringTypes`), без нього — перелік нормативних курсів програми.
 - **Перевірки ТЗ §2 — код, не промпт** (`services/checks`, чисті функції).
   - LLM використовується лише в `checks/llm.js` і лише для суджень. Результат іде в чат, а не в Readiness.
 - **Політики.**
@@ -76,7 +76,7 @@ backend/
                             template.sections; stub-каталоги assessment-components, prerequisites, compensation, ai-tools
   models/                   User (+lecturerProfile), Program (+editions), Syllabus (state, stateRevision, baselineState, programCode, track),
                             Suggestion (v5: target, draft, proposedValues), Conversation, Message, SlotChange, Policy (+syllabus-policy),
-                            TemplateSection, ProgramOutcome, OutcomeMapping, ProgramCourse, CapstoneGuide
+                            TemplateSection, ProgramOutcome, OutcomeMapping, ProgramCourse, CapstoneGuide, CourseOffering (курс × набір: type, lecturerId, deadline)
   routes/                   auth, syllabus (create/upload/status/analyze), chat (View, рішення, розділи, політики, документ, outputs), cabinet,
                             users (+profile/lecturer), policies, references
   services/
@@ -99,7 +99,7 @@ backend/
     outputs.js, outputFormats.js   syllabus.docx (кеш за stateRevision)
     analysisRunner.js, analysisLease.js   фоновий аналіз з lease
     syllabusCleanup.js, emailService.js, userService.js
-scripts/                    міграції (idempotent, --dry-run): migrate-v5-policies, migrate-v5-references, migrate-v5-state (+ історичні v2–v4)
+scripts/                    міграції (idempotent, --dry-run): migrate-v5-policies, migrate-v5-references, migrate-v5-state, migrate-v5-offerings (+ історичні v2–v4)
 frontend/src/
   pages/ProfessorTutorWorkspace.js   три зони
   components/Workspace/     SyllabusStructurePanel, LiveDocumentPanel, EmptyState (два входи), messages/*, suggestions/* (DraftCard,
@@ -208,7 +208,7 @@ frontend/src/
 
 - **Frontend:** `REACT_APP_API_URL` (за замовчуванням `http://localhost:5000/api`), `REACT_APP_USE_MOCKS`.
 - **Запуск:** `cd backend && npm run dev` (порт 5000), `cd frontend && npm start` (порт 3000).
-- **Розгортання v5:** `scripts/migrate-v5-policies.js`, `migrate-v5-references.js`, `migrate-v5-state.js` (спершу з `--dry-run`).
+- **Розгортання v5:** `scripts/migrate-v5-policies.js`, `migrate-v5-references.js`, `migrate-v5-state.js`, `migrate-v5-offerings.js` (спершу з `--dry-run`).
 
 ## 8. Відомі прогалини
 

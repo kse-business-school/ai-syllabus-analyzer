@@ -1,7 +1,7 @@
 // Порожній стан силабусу (трек 1 «з нуля»; також основа для парсера треку 2).
 // Політики — усі блоки довідника: locked з текстом фікстури, library без обраного варіанта (дефолту немає).
 const { SCHEMA_VERSION } = require('./schema');
-const { recompute, findCoreCourse } = require('./computed');
+const { recompute, findCoreCourse, courseKindOf } = require('./computed');
 
 const prov = (source = null) => ({ source, evidenceBlockIds: [] });
 
@@ -44,7 +44,7 @@ function createEmptyState({ programCode, track = 'scratch', refs, course = {} } 
       deliveryFormat: null,
       language: null,
       term: { start: null, end: null },
-      courseKind: core ? 'core' : 'elective',
+      courseKind: courseKindOf(refs, course.code),
       computed: null, // заповнює recompute
       ...prov(course.title || course.code ? 'instructor_directed' : null),
     },

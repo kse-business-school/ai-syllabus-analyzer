@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const Syllabus = require('../models/Syllabus');
 const Suggestion = require('../models/Suggestion');
 const Program = require('../models/Program');
+const CourseOffering = require('../models/CourseOffering');
 const { auth, requireRole } = require('../middleware/auth');
 const analysisRunner = require('../services/analysisRunner');
 const { deleteSyllabiCascade, deleteConversationsFor } = require('../services/syllabusCleanup');
@@ -150,6 +151,18 @@ async function resolveProgram(programId, rawProgramCode) {
   return { program, programCode };
 }
 
+// Призначення курсу до набору: programCode і код курсу беруться з нього, а не з тіла запиту.
+// Викладач може взяти лише своє призначення (або без викладача); admin — будь-яке.
+async function resolveOffering(offeringId, user) {
+  if (!offeringId) return null;
+  if (!mongoose.isValidObjectId(offeringId)) throw httpError(400, 'Invalid offering id', { code: 'INVALID_OFFERING' });
+  const offering = await CourseOffering.findById(offeringId).lean();
+  if (!offering) throw httpError(404, 'Course offering not found', { code: 'OFFERING_NOT_FOUND' });
+  const own = !offering.lecturerId || String(offering.lecturerId) === String(user.userId);
+  if (!own && user.role !== 'admin') throw httpError(403, 'This course is assigned to another lecturer', { code: 'OFFERING_FORBIDDEN' });
+  return offering;
+}
+
 // Трек 1: силабус з нуля, без файлу. Порожній стан створює createEmptyState, пише його store.initState
 router.post('/', auth, [
   body('title').trim().notEmpty().withMessage('Title is required'),
@@ -164,8 +177,9 @@ router.post('/', auth, [
       return res.status(400).json({ message: 'Validation failed', code: 'VALIDATION_ERROR', errors: errors.array() });
     }
     const { title, programId, courseCode } = req.body;
-    const { programCode } = await resolveProgram(programId, req.body.programCode);
-    const code = courseCode || undefined;
+    const offering = await resolveOffering(req.body.offeringId, req.user);
+    const { programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode);
+    const code = (offering ? offering.courseCode : courseCode) || undefined;
 
     const syllabus = await Syllabus.create({
       title,
@@ -173,6 +187,7 @@ router.post('/', auth, [
       instructor: req.user.userId,
       programId,
       programCode,
+      offeringId: offering ? offering._id : undefined,
       track: 'scratch',
       sourceFormat: null,
       status: 'in_progress',
@@ -227,8 +242,10 @@ router.post('/upload', auth, uploadSingle, [
     const { courseName, courseCode, credits, semester, year, programId } = req.body;
 
     let programCode;
+    let offering;
     try {
-      ({ programCode } = await resolveProgram(programId, req.body.programCode));
+      offering = await resolveOffering(req.body.offeringId, req.user);
+      ({ programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode));
     } catch (err) {
       await unlinkQuiet(req.file.path);
       throw err;
@@ -239,7 +256,7 @@ router.post('/upload', auth, uploadSingle, [
     const syllabus = new Syllabus({
       title: courseName,
       course: {
-        code: courseCode,
+        code: offering ? offering.courseCode : courseCode,
         name: courseName,
         credits: credits ? parseInt(credits) : undefined,
         semester,
@@ -248,6 +265,7 @@ router.post('/upload', auth, uploadSingle, [
       instructor: req.user.userId,
       programId,
       programCode,
+      offeringId: offering ? offering._id : undefined,
       track: 'upload',
       originalFile: {
         filename: req.file.filename,

@@ -4,6 +4,7 @@ const TemplateSection = require('../../models/TemplateSection');
 const ProgramOutcome = require('../../models/ProgramOutcome');
 const ProgramCourse = require('../../models/ProgramCourse');
 const CapstoneGuide = require('../../models/CapstoneGuide');
+const CourseOffering = require('../../models/CourseOffering');
 const { httpError } = require('../../utils/httpError');
 const { getPolicyLibrary } = require('./policies');
 
@@ -71,10 +72,18 @@ async function getCapstone(programCode) {
   });
 }
 
+/** Типи курсів, призначені в наборі: { 'КОД КУРСУ без пробілів': 'core'|'elective' } */
+async function getOfferingTypes(programCode) {
+  return cached(`offerings:${programCode}`, async () => {
+    const rows = await CourseOffering.find({ programCode }).select('courseCode type').lean();
+    return Object.fromEntries(rows.map((r) => [String(r.courseCode).normalize('NFC').replace(/\s+/g, '').toUpperCase(), r.type]));
+  });
+}
+
 async function getRefs(programCode) {
   const code = norm(programCode);
-  const [template, outcomes, courses, capstone, policyLibrary] = await Promise.all([
-    getTemplate(code), getOutcomes(code), getCourses(code), getCapstone(code), getPolicyLibrary(),
+  const [template, outcomes, courses, capstone, policyLibrary, offeringTypes] = await Promise.all([
+    getTemplate(code), getOutcomes(code), getCourses(code), getCapstone(code), getPolicyLibrary(), getOfferingTypes(code),
   ]);
   const { projectTypes, structure, criteria, deliverables, plagiarismThreshold } = capstone || {};
   return {
@@ -84,6 +93,7 @@ async function getRefs(programCode) {
     coreCourses: courses.map(({ code: c, uk, en, ects }) => ({ code: c, uk, en, ects })),
     capstone: { projectTypes, structure, criteria, deliverables, plagiarismThreshold },
     policyLibrary,
+    offeringTypes,
   };
 }
 
