@@ -5,9 +5,13 @@ const Syllabus = require('../models/Syllabus');
 const refs = require('../services/references');
 const { recompute } = require('../services/syllabusState/computed');
 const { createEmptyState } = require('../services/syllabusState/empty');
+const { seedReferences } = require('../services/references/seed');
 const { migrate } = require('../../scripts/migrate-v5-offerings');
 
-beforeAll(helpers.connectDb);
+beforeAll(async () => {
+  await helpers.connectDb();
+  await seedReferences();
+});
 afterAll(helpers.disconnectDb);
 beforeEach(() => refs.invalidateCache());
 
