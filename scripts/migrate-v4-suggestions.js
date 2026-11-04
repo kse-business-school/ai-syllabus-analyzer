@@ -20,6 +20,7 @@ const path = require('path');
 
 const BACKEND = path.join(__dirname, '..', 'backend');
 const fromBackend = (name) => require(require.resolve(name, { paths: [BACKEND] }));
+const Syllabus = require(path.join(BACKEND, 'models/Syllabus'));
 
 const REMOVED_SYLLABUS_FIELDS = ['editedText', 'revisionMarkup', 'previewPdf', 'structure', 'analysis', 'editingStatus'];
 const OLD_MESSAGE_KINDS = ['before-after', 'choice', 'case-cards'];
@@ -33,7 +34,7 @@ async function count(collection, filter) {
  * @param {{dryRun?: boolean}} opts
  */
 async function migrate(db, { dryRun = false } = {}) {
-  const syllabi = db.collection('syllabi');
+  const syllabi = db.collection(Syllabus.collection.name);
   const messages = db.collection('messages');
   const conversations = db.collection('conversations');
   const stats = {};

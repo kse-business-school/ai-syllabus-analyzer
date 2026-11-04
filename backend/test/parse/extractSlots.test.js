@@ -1,12 +1,13 @@
 // extractSlots: LLM замокано; перевіряються strict-схема, валідація blockIds/ПРН/ваг, повтор і пост-обробка.
 jest.mock('../../services/ai/client', () => ({ createResponse: jest.fn(), llmModel: 'gpt-test' }));
 const { createResponse } = require('../../services/ai/client');
+const client = require('../../services/ai/client');
 const { extractSlots, buildSchema, sanitize } = require('../../services/ai/parse/extractSlots');
 const { loadBlocks, refs, slots, reply } = require('./fixtures');
 
 let blocks;
 beforeAll(async () => { blocks = await loadBlocks(); });
-beforeEach(() => createResponse.mockReset());
+beforeEach(() => { createResponse.mockReset(); client.provider = 'openai'; });
 
 // Усі об'єкти strict-схеми мають required = усі властивості й additionalProperties:false
 function assertStrict(schema, at = '$') {
@@ -42,6 +43,38 @@ test('успішний витяг: запит strict json_schema, блоки з 
   // m13: текст документа — недовірені дані в маркерах
   expect(req.input[1].content.startsWith('<untrusted_document_text>')).toBe(true);
   expect(req.input[1].content.endsWith('</untrusted_document_text>')).toBe(true);
+});
+
+test('Anthropic extraction stays within union limits and preserves assessment to CLO links', async () => {
+  client.provider = 'anthropic';
+  const unionCount = (schema) => {
+    if (!schema || typeof schema !== 'object') return 0;
+    return (Array.isArray(schema.type) || schema.anyOf ? 1 : 0)
+      + Object.values(schema).reduce((total, value) => total + (Array.isArray(value)
+        ? value.reduce((n, item) => n + unionCount(item), 0) : unionCount(value)), 0);
+  };
+  const good = slots();
+  let retry = false;
+  createResponse.mockImplementation(async (request) => {
+    const schema = request.text.format.schema;
+    assertStrict(schema);
+    expect(unionCount(schema)).toBeLessThanOrEqual(16);
+    const partial = Object.fromEntries(Object.keys(schema.properties).map(key => [key, structuredClone(good[key])]));
+    if (partial.assessments) {
+      expect(request.input[0].content).toContain(JSON.stringify(good.outcomes));
+      if (!retry) { partial.assessments[0].outcomeIds = ['unknown-clo']; retry = true; }
+    }
+    return reply(partial);
+  });
+  const stats = { llmCalls: 0 };
+  const { slots: extracted, warnings } = await extractSlots({ blocks, refs: refs() }, { stats });
+  expect(extracted).toEqual(good);
+  expect(warnings).toEqual([]);
+  expect(createResponse).toHaveBeenCalledTimes(4);
+  expect(stats.llmCalls).toBe(4);
+  const names = createResponse.mock.calls.map(([request]) => request.text.format.name);
+  expect(names).toEqual(['parse_extract_slots_1', 'parse_extract_slots_2', 'parse_extract_slots_3', 'parse_extract_slots_3']);
+  expect(createResponse.mock.calls[3][0].input[1].content).toContain('unknown outcome link unknown-clo');
 });
 
 test('неіснуючі blockIds → коригувальний повтор з текстом помилки, далі успіх', async () => {

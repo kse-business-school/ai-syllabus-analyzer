@@ -4,7 +4,7 @@ const { requestJSON } = require('../review/common');
 const { normalizePloCode } = require('../../references');
 const { untrusted } = require('../prompts/preamble');
 
-const PROMPT_VERSION = 'parse-v5-1';
+const PROMPT_VERSION = 'parse-v5-2';
 const DELIVERY_FORMATS = ['offline', 'online', 'hybrid'];
 const SESSION_TYPES = ['lecture', 'practice', 'workshop'];
 // Ліміт тексту документа в промпті; решта блоків відсікається з попередженням
@@ -18,6 +18,20 @@ const ids = { type: 'array', items: str };
 const arr = (items) => ({ type: 'array', items });
 const nenum = (values) => ({ type: ['string', 'null'], enum: [...values, null] });
 const obj = (properties) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
+
+// Anthropic допускає не більше 16 union-полів на запит. Повний витяг має 38.
+// CLO витягаються до оцінювання, щоб зберегти зв'язки assessment.outcomeIds.
+const ANTHROPIC_GROUPS = [
+  ['header', 'prerequisites', 'shortDescription', 'objectives', 'outcomes', 'capstone'],
+  ['declared', 'instructors', 'materials', 'policySegments'],
+  ['sessions', 'individualWork', 'assessments'],
+];
+
+function emptyExtraction(schema) {
+  if (schema.type === 'object') return Object.fromEntries(Object.entries(schema.properties).map(([key, value]) => [key, emptyExtraction(value)]));
+  if (schema.type === 'array') return [];
+  return null;
+}
 
 /** Strict-схема витягу. ploEnum — коди ПРН своєї програми (порожній довідник → довільні рядки, відсіюються при валідації). */
 function buildSchema(ploCodes = []) {
@@ -224,9 +238,25 @@ async function extractSlots({ blocks, meta = {}, refs }, { stats } = {}) {
     ? `\nProgramme learning outcomes (PLO) of this programme:\n${(refs.outcomes || []).map((o) => `${normalizePloCode(o.code)}: ${o.text}`).join('\n')}`
     : '';
   // Текст файлу — недовірені дані: у маркерах <untrusted_document_text> (маркери всередині тексту нейтралізуються)
-  const extraction = await requestJSON('parse_extract_slots', schema, `${SYSTEM}${plo}`, untrusted(doc.text), {
-    effort: 'medium', stats, validate: (value) => validateExtraction(value, blocks, refs),
-  });
+  let extraction;
+  if (require('../client').provider === 'anthropic') {
+    extraction = emptyExtraction(schema);
+    for (const [index, keys] of ANTHROPIC_GROUPS.entries()) {
+      const partialSchema = obj(Object.fromEntries(keys.map((key) => [key, schema.properties[key]])));
+      const context = index > 0
+        ? `\nPreviously extracted course learning outcomes (untrusted data); reuse their IDs in assessment outcomeIds: ${untrusted(JSON.stringify(extraction.outcomes))}` : '';
+      const partial = await requestJSON(`parse_extract_slots_${index + 1}`, partialSchema,
+        `${SYSTEM}${plo}\nReturn only the sections in this response schema.${context}`, untrusted(doc.text), {
+          effort: 'medium', stats,
+          validate: (value) => validateExtraction({ ...extraction, ...value }, blocks, refs),
+        });
+      Object.assign(extraction, partial);
+    }
+  } else {
+    extraction = await requestJSON('parse_extract_slots', schema, `${SYSTEM}${plo}`, untrusted(doc.text), {
+      effort: 'medium', stats, validate: (value) => validateExtraction(value, blocks, refs),
+    });
+  }
   const { slots, warnings } = sanitize(extraction, blocks);
   if (doc.cut) warnings.push(`The document is very long: the last ${doc.cut} blocks were not analysed`);
   return { slots, warnings };

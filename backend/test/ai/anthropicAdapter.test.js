@@ -4,6 +4,7 @@ const {
 } = require('../../services/ai/anthropicAdapter');
 const { buildTools } = require('../../services/ai/tools/definitions');
 const { riskManagementState } = require('../fixtures/state/riskManagement');
+const { validateSchema } = require('../../utils/jsonSchema');
 
 const cfg = (client, extra = {}) => ({ client, model: 'claude-opus-5-5', timeoutMs: 1000, refusalFallback: false, ...extra });
 const fakeClient = (...messages) => {
@@ -58,6 +59,22 @@ describe('toAnthropicRequest', () => {
     const out = sanitizeSchema({ type: 'object', properties: { pattern: { type: 'string', pattern: 'x' }, minimum: { type: 'number', minimum: 1 } } });
     expect(Object.keys(out.properties)).toEqual(['pattern', 'minimum']);
     expect(out.properties.pattern).toEqual({ type: 'string' });
+  });
+
+  test('nullable enums use typed anyOf variants without changing accepted values', () => {
+    const schema = { type: ['string', 'null'], enum: ['offline', 'online', 'hybrid', null] };
+    const converted = sanitizeSchema(schema);
+    expect(converted).toEqual({ anyOf: [
+      { type: 'string', enum: ['offline', 'online', 'hybrid'] },
+      { type: 'null', enum: [null] },
+    ] });
+    for (const value of ['offline', 'online', 'hybrid', null, 'other', 0, false]) {
+      expect(validateSchema(converted, value).length === 0).toBe(validateSchema(schema, value).length === 0);
+    }
+    expect(schema.type).toEqual(['string', 'null']);
+    expect(sanitizeSchema({ type: ['string', 'null'], enum: ['x'] })).toEqual({
+      anyOf: [{ type: 'string', enum: ['x'] }],
+    });
   });
 
   test('Haiku 4.5 не отримує effort', () => {

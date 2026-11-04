@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const mongoose = require('mongoose');
+const Syllabus = require('../models/Syllabus');
 const { migrate } = require('../../scripts/migrate-v5-state');
 
 beforeAll(helpers.connectDb);
@@ -32,7 +33,7 @@ test('migrate-v5-state: v4 → v5; dry-run нічого не змінює, по�
   const submittedAt = new Date('2026-01-10T10:00:00Z');
   const ids = { v4: new mongoose.Types.ObjectId(), v5: new mongoose.Types.ObjectId(), legacy: new mongoose.Types.ObjectId(),
     emba: new mongoose.Types.ObjectId(), analyzing: new mongoose.Types.ObjectId() };
-  await db.collection('syllabi').insertMany([
+  await Syllabus.collection.insertMany([
     {
       _id: ids.v4, title: 'v4', programId: mba, status: 'submitted', submittedAt, submitting: false, submissionEmailStatus: 'sent',
       submittedPdfPath: files.pdf, document: { docVersion: 'd1', blocks: [], pdfBlockMap: { b1: 'b1' }, sourceBlocks: [], sourceDocVersion: 'p1' },
@@ -60,7 +61,7 @@ test('migrate-v5-state: v4 → v5; dry-run нічого не змінює, по�
   ]);
 
   const snapshot = async () => JSON.stringify([
-    await db.collection('syllabi').find().sort({ _id: 1 }).toArray(),
+    await Syllabus.collection.find().sort({ _id: 1 }).toArray(),
     await sug.find().sort({ _id: 1 }).toArray(),
     await db.collection('messages').find().sort({ _id: 1 }).toArray(),
   ]);
@@ -79,7 +80,7 @@ test('migrate-v5-state: v4 → v5; dry-run нічого не змінює, по�
   expect(fs.existsSync(working)).toBe(true);
 
   expect(await migrate(db)).toEqual(expected);
-  const get = (id) => db.collection('syllabi').findOne({ _id: id });
+  const get = (id) => Syllabus.findById(id).lean();
   const v4 = await get(ids.v4);
   expect(v4).toMatchObject({ programCode: 'MBA28', status: 'in_progress', needsRebuild: true });
   expect(v4.legacySubmittedAt).toEqual(submittedAt);
@@ -115,8 +116,8 @@ test('--default-edition: інша редакція; невідома редак�
   const db = mongoose.connection.db;
   const program = await db.collection('programs').findOne({ code: 'MBA' });
   const id = new mongoose.Types.ObjectId();
-  await db.collection('syllabi').insertOne({ _id: id, title: 'x', programId: program._id, status: 'in_progress' });
+  await Syllabus.collection.insertOne({ _id: id, title: 'x', programId: program._id, status: 'in_progress' });
   expect((await migrate(db, { defaultEdition: 'mba99' })).programCodeSet).toBe(0);
   expect((await migrate(db, { defaultEdition: 'mba27' })).programCodeSet).toBe(1);
-  expect((await db.collection('syllabi').findOne({ _id: id })).programCode).toBe('MBA27');
+  expect((await Syllabus.findById(id).lean()).programCode).toBe('MBA27');
 });

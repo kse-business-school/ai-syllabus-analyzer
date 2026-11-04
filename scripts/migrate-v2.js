@@ -13,8 +13,12 @@
  *   node scripts/migrate-v2.js [--dry-run]
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '..', 'backend', '.env') });
-const mongoose = require('mongoose');
+const path = require('path');
+const BACKEND = path.join(__dirname, '..', 'backend');
+const fromBackend = (name) => require(require.resolve(name, { paths: [BACKEND] }));
+fromBackend('dotenv').config({ path: path.join(BACKEND, '.env') });
+const mongoose = fromBackend('mongoose');
+const Syllabus = require(path.join(BACKEND, 'models/Syllabus'));
 
 const DRY = process.argv.includes('--dry-run');
 const URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ai-syllabus-analyzer';
@@ -23,6 +27,7 @@ async function run() {
   console.log(`[migrate-v2] connecting to ${URI}${DRY ? ' (DRY RUN)' : ''}`);
   await mongoose.connect(URI);
   const db = mongoose.connection.db;
+  const syllabi = db.collection(Syllabus.collection.name);
 
   const stats = {
     syllabiInspected: 0,
@@ -35,11 +40,11 @@ async function run() {
 
   // 1. Drop practicalChallenge field
   if (DRY) {
-    stats.practicalChallengeUnset = await db.collection('syllabi').countDocuments({
+    stats.practicalChallengeUnset = await syllabi.countDocuments({
       practicalChallenge: { $exists: true },
     });
   } else {
-    const r = await db.collection('syllabi').updateMany(
+    const r = await syllabi.updateMany(
       { practicalChallenge: { $exists: true } },
       { $unset: { practicalChallenge: '' } }
     );
@@ -55,15 +60,15 @@ async function run() {
   ];
   for (const { from, to } of statusMap) {
     if (DRY) {
-      stats.statusRemapped += await db.collection('syllabi').countDocuments({ status: from });
+      stats.statusRemapped += await syllabi.countDocuments({ status: from });
     } else {
-      const r = await db.collection('syllabi').updateMany({ status: from }, { $set: { status: to } });
+      const r = await syllabi.updateMany({ status: from }, { $set: { status: to } });
       stats.statusRemapped += r.modifiedCount;
     }
   }
 
   // 3. Per-recommendation: rename status → decision (and drop suggestedText since beforeAfter takes over)
-  const cursor = db.collection('syllabi').find({ 'recommendations.0': { $exists: true } });
+  const cursor = syllabi.find({ 'recommendations.0': { $exists: true } });
   while (await cursor.hasNext()) {
     const doc = await cursor.next();
     stats.syllabiInspected += 1;
@@ -84,7 +89,7 @@ async function run() {
       return next;
     });
     if (dirty && !DRY) {
-      await db.collection('syllabi').updateOne({ _id: doc._id }, { $set: { recommendations: newRecs } });
+      await syllabi.updateOne({ _id: doc._id }, { $set: { recommendations: newRecs } });
     }
   }
 

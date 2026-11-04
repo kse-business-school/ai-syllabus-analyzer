@@ -28,6 +28,7 @@ const path = require('path');
 
 const BACKEND = path.join(__dirname, '..', 'backend');
 const fromBackend = (name) => require(require.resolve(name, { paths: [BACKEND] }));
+const Syllabus = require(path.join(BACKEND, 'models/Syllabus'));
 
 const OLD_OUTPUT_KEYS = ['clean', 'tracked', 'trackedPdf', 'annotated', 'edited', 'previewPdf'];
 const SUBMIT_FIELDS = ['submitting', 'submissionEmailStatus', 'submittedPdfPath', 'submittedAt'];
@@ -45,7 +46,7 @@ const oldFilePaths = (doc) => [
  * @param {{dryRun?: boolean, defaultEdition?: string}} opts
  */
 async function migrate(db, { dryRun = false, defaultEdition = 'MBA28' } = {}) {
-  const syllabi = db.collection('syllabi');
+  const syllabi = db.collection(Syllabus.collection.name);
   const programs = db.collection('programs');
   const suggestions = db.collection('suggestions');
   const messages = db.collection('messages');

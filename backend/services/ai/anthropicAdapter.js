@@ -51,6 +51,19 @@ function sanitizeSchema(schema) {
       out[key] = Object.fromEntries(Object.entries(value).map(([name, sub]) => [name, sanitizeSchema(sub)]));
     } else out[key] = sanitizeSchema(value);
   }
+  // Anthropic відхиляє enum разом із масивом type (зокрема string|null у парсері).
+  // Розділяємо типи, зберігаючи той самий набір допустимих значень.
+  if (Array.isArray(out.type) && Array.isArray(out.enum)) {
+    const { type: types, enum: values, ...rest } = out;
+    return {
+      ...rest,
+      anyOf: types.map((type) => ({
+        type,
+        enum: values.filter((value) => type === 'null' ? value === null
+          : type === 'integer' ? Number.isInteger(value) : value !== null && typeof value === type),
+      })).filter((variant) => variant.enum.length),
+    };
+  }
   return out;
 }
 

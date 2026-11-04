@@ -16,8 +16,12 @@
  *   node scripts/migrate-v3-cleanup.js [--dry-run]
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '..', 'backend', '.env') });
-const mongoose = require('mongoose');
+const path = require('path');
+const BACKEND = path.join(__dirname, '..', 'backend');
+const fromBackend = (name) => require(require.resolve(name, { paths: [BACKEND] }));
+fromBackend('dotenv').config({ path: path.join(BACKEND, '.env') });
+const mongoose = fromBackend('mongoose');
+const Syllabus = require(path.join(BACKEND, 'models/Syllabus'));
 
 const DRY = process.argv.includes('--dry-run');
 const URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ai-syllabus-analyzer';
@@ -34,7 +38,7 @@ async function run() {
   console.log(`[migrate-v3] connecting to ${URI}${DRY ? ' (DRY RUN)' : ''}`);
   await mongoose.connect(URI);
   const db = mongoose.connection.db;
-  const syllabi = db.collection('syllabi');
+  const syllabi = db.collection(Syllabus.collection.name);
   const users = db.collection('users');
   const conversations = db.collection('conversations');
 
