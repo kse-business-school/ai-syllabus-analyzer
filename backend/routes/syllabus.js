@@ -23,6 +23,7 @@ const { initState } = store;
 const { resolveProfile } = require('../services/lecturers/profile');
 const { prepareInstructor } = require('../services/lecturers/cards');
 const { createDraftSuggestions } = require('../services/chat/draftSuggestions');
+const { canSeeAll, canManageProgramme } = require('../services/roles');
 
 const CLEANUP_GRACE_MS = 10 * 60 * 1000;
 
@@ -55,7 +56,7 @@ function isOwner(user, syllabus) {
 }
 
 function isOwnerOrAdmin(user, syllabus) {
-  return isOwner(user, syllabus) || user.role === 'admin';
+  return isOwner(user, syllabus) || canSeeAll(user.role);
 }
 
 const notFound = () => httpError(404, 'Syllabus not found', { code: 'NOT_FOUND' });
@@ -159,7 +160,7 @@ async function resolveOffering(offeringId, user) {
   const offering = await CourseOffering.findById(offeringId).lean();
   if (!offering) throw httpError(404, 'Course offering not found', { code: 'OFFERING_NOT_FOUND' });
   const own = !offering.lecturerId || String(offering.lecturerId) === String(user.userId);
-  if (!own && user.role !== 'admin') throw httpError(403, 'This course is assigned to another lecturer', { code: 'OFFERING_FORBIDDEN' });
+  if (!own && !canManageProgramme(user.role)) throw httpError(403, 'This course is assigned to another lecturer', { code: 'OFFERING_FORBIDDEN' });
   return offering;
 }
 

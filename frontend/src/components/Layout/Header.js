@@ -26,6 +26,7 @@ import { useWorkspaceChrome } from '../../contexts/WorkspaceChromeContext';
 import CircularProgress from '@mui/material/CircularProgress';
 import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import { S } from '../../strings';
+import { ROLE_LABELS } from '../../utils/roles';
 
 const Header = () => {
   const { user, logout } = useAuth();
@@ -339,7 +340,7 @@ const Header = () => {
               {user?.email}
             </Typography>
             <Chip
-              label={user?.role === 'admin' ? 'Administrator' : 'Instructor'}
+              label={ROLE_LABELS[user?.role] || 'Instructor'}
               size="small"
               sx={{
                 height: 20,

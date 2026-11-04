@@ -198,10 +198,10 @@ router.post('/',
   }
 });
 
-// Update policy (admin only)
-router.put('/:id', 
-  auth, 
-  requireRole('admin'), 
+// Update policy (admin, manager, director)
+router.put('/:id',
+  auth,
+  requireRole('admin', 'manager', 'director'),
   upload.single('file'),
   async (req, res) => {
   try {

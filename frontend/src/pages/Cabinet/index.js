@@ -27,15 +27,16 @@ import CoursesCohortsTab from './CoursesCohortsTab';
 import ReferenceLibraryTab from './ReferenceLibraryTab';
 import UsersTab from './UsersTab';
 import ProgramsTab from './ProgramsTab';
+import { ALL_ROLES, PROGRAMME_ROLES } from '../../utils/roles';
 
 const NAV_ITEMS = [
   // Syllabi & Curriculum
-  { id: 'my_syllabi', label: 'My syllabi', icon: <MenuBookOutlined fontSize="small" />, roles: ['instructor', 'admin'] },
-  { id: 'all_syllabi', label: 'All syllabi', icon: <GridViewOutlined fontSize="small" />, roles: ['admin'] },
-  { id: 'plo_coverage', label: 'PLO coverage', icon: <LayersOutlined fontSize="small" />, roles: ['instructor', 'admin'] },
-  { id: 'courses_cohorts', label: 'Courses & cohorts', icon: <SchoolOutlined fontSize="small" />, roles: ['instructor', 'admin'] },
+  { id: 'my_syllabi', label: 'My syllabi', icon: <MenuBookOutlined fontSize="small" />, roles: ALL_ROLES },
+  { id: 'all_syllabi', label: 'All syllabi', icon: <GridViewOutlined fontSize="small" />, roles: PROGRAMME_ROLES },
+  { id: 'plo_coverage', label: 'PLO coverage', icon: <LayersOutlined fontSize="small" />, roles: PROGRAMME_ROLES },
+  { id: 'courses_cohorts', label: 'Courses & cohorts', icon: <SchoolOutlined fontSize="small" />, roles: PROGRAMME_ROLES },
   // Reference Library
-  { id: 'references', label: 'Reference library', icon: <LibraryBooksOutlined fontSize="small" />, roles: ['instructor', 'admin'] },
+  { id: 'references', label: 'Reference library', icon: <LibraryBooksOutlined fontSize="small" />, roles: ALL_ROLES },
   // Administration
   { id: 'users', label: 'Users', icon: <PeopleOutline fontSize="small" />, roles: ['admin'] },
   { id: 'programs', label: 'Programmes', icon: <SchoolOutlined fontSize="small" />, roles: ['admin'] },
@@ -241,7 +242,7 @@ const Cabinet = () => {
               />
             )}
 
-            {activeNav === 'all_syllabi' && isAdmin && (
+            {activeNav === 'all_syllabi' && PROGRAMME_ROLES.includes(user?.role) && (
               <SyllabiTab
                 programs={programs}
                 isAdmin={isAdmin}
