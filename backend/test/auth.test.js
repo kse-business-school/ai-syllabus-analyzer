@@ -65,7 +65,7 @@ describe('ролі', () => {
   test('PATCH валідує тіло', async () => {
     const admin = await helpers.createUser({ role: 'admin' });
     const res = await request(app).patch(`/api/cabinet/users/${admin._id}`)
-      .set('Authorization', `Bearer ${helpers.tokenFor(admin)}`).send({ role: 'manager' });
+      .set('Authorization', `Bearer ${helpers.tokenFor(admin)}`).send({ role: 'superuser' });
     expect(res.status).toBe(400);
   });
 });

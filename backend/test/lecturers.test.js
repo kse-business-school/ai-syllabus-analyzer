@@ -105,6 +105,39 @@ describe('адаптер CRM', () => {
   });
 });
 
+describe('перенесення розділу 2 з попереднього силабуса', () => {
+  const makeSyllabus = (instructors, extra = {}) => Syllabus.create({
+    title: 'Prev', instructor: owner._id, programCode: 'MBA28', track: 'scratch', status: 'in_progress',
+    state: { instructors }, ...extra,
+  });
+
+  test('профіль не редагували: підставляється instructors[0] попереднього силабуса', async () => {
+    await makeSyllabus([{ id: 'instructor1', ...full }]);
+    const { profile, source } = await resolveProfile(owner._id);
+    expect(source).toBe('instructor_directed');
+    expect(profile).toMatchObject({ name: 'Jane Doe', position: full.position });
+  });
+
+  test('поточний силабус виключається з пошуку', async () => {
+    const current = await makeSyllabus([{ id: 'instructor1', ...full }]);
+    const { profile } = await resolveProfile(owner._id, { excludeSyllabusId: current._id });
+    expect(profile.name).not.toBe('Jane Doe');
+  });
+
+  test('збережений профіль має пріоритет над силабусом', async () => {
+    await makeSyllabus([{ id: 'instructor1', ...full }]);
+    await request(app).put(PROFILE_URL).set(auth()).send({ ...full, name: 'Jane Updated' });
+    const { profile } = await resolveProfile(owner._id);
+    expect(profile.name).toBe('Jane Updated');
+  });
+
+  test('порожній instructors[0] пропускається', async () => {
+    await makeSyllabus([{ id: 'instructor1', name: '', expertise: [] }]);
+    const { profile } = await resolveProfile(owner._id);
+    expect(profile.name).not.toBe('');
+  });
+});
+
 describe('префіл треку 1 і картка підтвердження', () => {
   test('POST /api/syllabus: instructors[0] з профілю до initState, pending-картка Yes / Update', async () => {
     await request(app).put(PROFILE_URL).set(auth()).send(full);

@@ -196,7 +196,7 @@ router.post('/', auth, [
     try {
       const refs = await getRefs(programCode);
       const state = createEmptyState({ programCode, track: 'scratch', refs, course: { title, code } });
-      const instructorCard = prepareInstructor(state, await resolveProfile(req.user.userId));
+      const instructorCard = prepareInstructor(state, await resolveProfile(req.user.userId, { excludeSyllabusId: syllabus._id }));
       const saved = await initState(syllabus._id, state, { setBaseline: true, refs });
       await createDraftSuggestions([instructorCard], { syllabusId: syllabus._id, state: saved.state, refs });
     } catch (err) {

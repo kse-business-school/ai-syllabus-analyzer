@@ -165,7 +165,7 @@ describe('кабінет', () => {
     expect(res.body).toEqual({ total: 3, inProgress: 3, downloads: 6, ready100: 1 });
     expect(res.body.submitted).toBeUndefined();
 
-    const all = await request(app).get('/api/cabinet/metrics').set(adminAuth);
+    const all = await request(app).get('/api/cabinet/metrics?scope=all').set(adminAuth);
     expect(all.body).toEqual({ total: 4, inProgress: 4, downloads: 16, ready100: 1 });
     expect(ready._id).toBeDefined();
     computeReadiness.mockImplementation(jest.requireActual('../services/syllabusState/readiness').computeReadiness);
