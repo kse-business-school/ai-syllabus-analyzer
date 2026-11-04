@@ -19,9 +19,16 @@ const pick = (itemId, extra = {}) => ({ itemId, fit: 'It trains judgement on how
 
 beforeEach(() => createResponse.mockReset());
 
-test('порожній каталог (заглушка фікстури) → [] без виклику LLM', async () => {
-  expect(readFixture('ai-tools.json').items).toEqual([]);
-  expect(await suggestAiTools({ state, refs })).toEqual([]);
+test('фікстура каталогу «AI in Your Course»: 57 повних записів з унікальними id', () => {
+  const { items, areas } = readFixture('ai-tools.json');
+  expect(items).toHaveLength(57);
+  expect(areas).toHaveLength(13);
+  const normalized = normalizeCatalog(items);
+  expect(normalized).toHaveLength(57);
+  expect(new Set(normalized.map((i) => i.id)).size).toBe(57);
+});
+
+test('порожній або неповний каталог → [] без виклику LLM', async () => {
   expect(await suggestAiTools({ state, refs, catalog: [] })).toEqual([]);
   expect(await suggestAiTools({ state, refs, catalog: [{ id: '', title: 'x', school: 'y' }, { id: 'a', title: '', school: 'y' }, { id: 'b', title: 't', school: '' }] })).toEqual([]);
   expect(createResponse).not.toHaveBeenCalled();

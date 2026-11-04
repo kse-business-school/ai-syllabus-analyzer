@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Professor's Tutor — clickable walkthrough</title>
+<style>
+/* ============================================================
+   KSE BUSINESS SCHOOL — Professor's Tutor
+   Дизайн-токени з брендбука (жовтень 2026).
+
+   Кольори     — палітра презентаційного брендбука
+   Гарнітура   — Arial. Жодних вебшрифтів
+   Радіуси     — 0. Бренд квадратний, і це його головна ознака
+   Тіні        — немає. Площини розділяються лініями в 1px
+   Елементи    — плашки: суцільні прямокутники, що стикуються
+                 впритул і заходять одна на одну. Плюс крапковий
+                 растр як тло. Це мова слайдів, перенесена в UI
+   Критичне    — #62005F (вторинний колір бренда), бо червоного
+                 в палітрі не існує
+
+   Дві теми, один набір змінних:
+     світла — біла шапка, зелений логотип
+     темна  — майже чорна шапка (#111112 з брендбука), логотип білий
+   ============================================================ */
+:root{
+  /* бренд */
+  --brand:#004641;
+  --brand-deep:#003632;
+  --mint:#94D4C1;
+  --green:#2EC195;
+  --green-2:#60BE98;
+  --plum:#62005F;
+
+  /* шапка */
+  --bar:#FFFFFF;
+  --bar-fg:#111112;
+  --bar-fg-2:#6B7280;
+  --bar-line:rgba(17,17,18,.14);
+  --bar-hover:#EDEFEE;
+  --logo:#004641;
+
+  /* площини */
+  --bg:#EDEFEE;
+  --paper:#FFFFFF;
+  --soft:#E4E8E6;
+  --band:#DFE8E4;
+  --ink:#111112;
+  --ink-2:#4B5554;
+  --ink-3:#6B7280;
+  --line:rgba(17,17,18,.13);
+  --rule:#D2D8D6;
+  --dot:rgba(0,70,65,.34);
+
+  /* плашки */
+  --plate:#94D4C1;
+  --plate-fg:#06302A;
+
+  /* ролі */
+  --btn-bg:var(--brand); --btn-fg:#FFFFFF; --btn-hover:var(--brand-deep);
+  --ok:var(--brand);
+  --wip:var(--green-2);
+  --flag:var(--plum);
+  --flag-soft:rgba(98,0,95,.07);
+  --ins:rgba(46,193,149,.32);
+  --ins-0:rgba(46,193,149,.66);
+  --me:var(--brand); --me-fg:#FFFFFF;
+
+  /* геометрія */
+  --r:0;
+  --sh:inset 0 0 0 1px var(--line);
+  --font:Arial,'Helvetica Neue',Helvetica,'Liberation Sans',sans-serif;
+  --w-side:248px; --w-doc:560px; --w-doc-min:512px;
+}
+
+:root[data-theme="dark"]{
+  --bar:#111112;
+  --bar-fg:#FFFFFF;
+  --bar-fg-2:rgba(255,255,255,.58);
+  --bar-line:rgba(255,255,255,.14);
+  --bar-hover:rgba(255,255,255,.1);
+  --logo:#FFFFFF;
+
+  --bg:#0B0B0C;
+  --paper:#161618;
+  --soft:#222225;
+  --band:#13211E;
+  --ink:#FFFFFF;
+  --ink-2:#B6C1BE;
+  --ink-3:rgba(255,255,255,.52);
+  --line:rgba(255,255,255,.15);
+  --rule:#000000;
+  --dot:rgba(148,212,193,.32);
+
+  --plate:#2EC195;
+  --plate-fg:#06302A;
+
+  --btn-bg:var(--green); --btn-fg:#06302A; --btn-hover:var(--green-2);
+  --ok:var(--green);
+  --wip:var(--mint);
+  --flag:#D79BD4;                 /* освітлений #62005F: оригінал на
+                                     темному не читається */
+  --flag-soft:rgba(215,155,212,.1);
+  --ins:rgba(46,193,149,.26);
+  --ins-0:rgba(46,193,149,.5);
+  --me:var(--brand); --me-fg:#FFFFFF;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input{font:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line);border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ============ плашка ============================================
+   Базовий елемент усієї системи. Прямокутник із заливкою, без
+   радіуса. Дві плашки, поставлені впритул, — підпис і значення.
+   ============================================================== */
+.plate{display:inline-flex;align-items:center;background:var(--plate);
+  color:var(--plate-fg);padding:5px 12px;font-size:11px;font-weight:700;
+  letter-spacing:.11em;text-transform:uppercase;white-space:nowrap}
+.plate-w{background:var(--paper);color:var(--ink);box-shadow:var(--sh);
+  letter-spacing:0;text-transform:none}
+.plates{display:flex;align-items:stretch}
+
+/* крапковий растр — тло, не декор заради декору */
+.raster{background-image:radial-gradient(var(--dot) 1.15px,transparent 1.35px);
+  background-size:10px 10px}
+
+/* ============ шапка ============================================
+   Світла тема: біла, логотип зелений. Темна: майже чорна, логотип
+   білий. Колір логотипа — currentColor, тому SVG один на обидві.
+   ============================================================== */
+.header{flex:0 0 auto;height:64px;display:flex;align-items:center;gap:22px;
+  padding:0 18px;background:var(--bar);color:var(--bar-fg);
+  border-bottom:1px solid var(--bar-line)}
+.logo{flex:0 0 auto;display:block;width:182px;height:34px;color:var(--logo)}
+.logo svg{display:block;width:182px;height:34px}
+.hdots{flex:0 0 96px;height:24px;align-self:center;
+  background-image:radial-gradient(var(--dot) 1.15px,transparent 1.35px);
+  background-size:9px 9px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 55%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 55%,transparent);opacity:.75}
+
+.tabs{display:flex;gap:0;flex:1;min-width:0;overflow:hidden;align-items:center}
+.tab{height:34px;padding:0 15px;border-radius:var(--r);font-size:13px;
+  color:var(--bar-fg-2);display:flex;align-items:center;gap:9px;
+  white-space:nowrap;transition:.13s}
+.tab:hover{background:var(--bar-hover);color:var(--bar-fg)}
+.tab.on{background:var(--plate);color:var(--plate-fg);font-weight:700}
+.tdot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.tdot.wip{background:var(--green)}
+.tdot.ok{background:var(--brand)}
+.tdot.new{background:var(--line)}
+.tab.on .tdot{background:var(--plate-fg)}
+.tab-add{height:34px;padding:0 13px;border-radius:var(--r);
+  color:var(--bar-fg-2);font-size:13px}
+.tab-add:hover{background:var(--bar-hover);color:var(--bar-fg)}
+
+.who{flex:0 0 auto;display:flex;align-items:center;gap:0}
+.who-name{font-size:13px;color:var(--bar-fg-2);padding-right:14px}
+.who-av{width:34px;height:34px;border-radius:var(--r);background:var(--brand);
+  color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
+:root[data-theme="dark"] .who-av{background:var(--green);color:#06302A}
+.theme{width:34px;height:34px;margin-left:10px;border-radius:var(--r);
+  display:grid;place-items:center;font-size:14px;color:var(--bar-fg-2);
+  box-shadow:inset 0 0 0 1px var(--bar-line)}
+.theme:hover{background:var(--bar-hover);color:var(--bar-fg)}
+
+/* ============ кнопки — ті самі плашки ========================== */
+.btn{height:36px;padding:0 18px;border-radius:var(--r);font-size:13px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  transition:.13s;white-space:nowrap}
+.btn-fill{background:var(--btn-bg);color:var(--btn-fg)}
+.btn-fill:hover{background:var(--btn-hover)}
+.btn-soft{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink-3)}
+.btn-soft:hover{background:var(--soft)}
+.btn-ghost{color:var(--ink-2);font-weight:400}
+.btn-ghost:hover{background:var(--soft)}
+.btn:disabled{opacity:.32;cursor:default}
+.btn-s{height:32px;padding:0 15px;font-size:12.5px}
+.btn-w{width:100%}
+.btn-lg{height:46px;padding:0 26px;font-size:14px}
+
+/* ============ каркас ============================================ */
+.body{flex:1;display:flex;gap:1px;background:var(--rule);min-height:0}
+.card{background:var(--paper);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+
+/* ---- зона 1 : структура силабуса ---- */
+.side{width:var(--w-side);flex:0 0 var(--w-side);padding:0}
+.side-list{flex:1;overflow-y:auto;padding:12px 0}
+.item{width:100%;display:flex;align-items:center;gap:12px;padding:10px 16px;
+  border-radius:var(--r);text-align:left;transition:.13s;
+  box-shadow:inset 3px 0 0 transparent}
+.item:hover{background:var(--soft)}
+.item.on{background:var(--soft);box-shadow:inset 3px 0 0 var(--plate)}
+.dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--line)}
+.dot.done{background:var(--ok)}
+.dot.need{background:var(--flag)}
+.dot.draft{background:var(--wip)}
+.nm{flex:1;font-size:13px;color:var(--ink-2);min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.item.on .nm{color:var(--ink);font-weight:700}
+
+.side-foot{position:relative;flex:0 0 auto;padding:18px 16px 16px;
+  border-top:1px solid var(--line);isolation:isolate}
+.side-foot:before{content:'';position:absolute;inset:0;z-index:-1;
+  background-image:radial-gradient(var(--dot) 1.15px,transparent 1.35px);
+  background-size:10px 10px;
+  -webkit-mask-image:linear-gradient(180deg,#000,transparent 72%);
+  mask-image:linear-gradient(180deg,#000,transparent 72%);opacity:.55}
+.rd-top{display:flex;align-items:stretch;margin-bottom:10px}
+.rd-l{display:inline-flex;align-items:center;background:var(--plate);
+  color:var(--plate-fg);padding:5px 11px;font-size:11px;font-weight:700;
+  letter-spacing:.11em;text-transform:uppercase}
+.rd-v{display:inline-flex;align-items:center;padding:5px 12px;font-size:15px;
+  font-weight:700;box-shadow:var(--sh)}
+.bar{height:6px;background:var(--soft);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--btn-bg);width:0;
+  transition:width .5s cubic-bezier(.32,.72,0,1)}
+.rd-sub{font-size:12px;color:var(--ink-3);margin:10px 0 14px}
+
+/* ---- зона 2 : чат ---- */
+.chat{flex:1;min-width:400px;background:var(--bg)}
+.scroll{flex:1;overflow-y:auto;padding:30px 24px 4px}
+.thread{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
+.turn{display:flex;flex-direction:column;gap:14px}
+.turn.me{align-items:flex-end}
+.said{font-size:14.5px;line-height:1.6;max-width:94%}
+.said p+p{margin-top:12px}
+.said b{font-weight:700}
+.turn.me .said{background:var(--me);color:var(--me-fg);padding:11px 16px;
+  font-size:14px;max-width:80%}
+.quiet{color:var(--ink-2);font-size:13.5px}
+.panel{background:var(--paper);box-shadow:var(--sh);padding:20px}
+.p-lead{font-size:13px;color:var(--ink-2);margin-bottom:14px}
+.p-lead b{color:var(--ink);font-weight:700}
+
+.opt{width:100%;display:flex;gap:12px;align-items:flex-start;padding:14px;
+  border-radius:var(--r);text-align:left;transition:.13s;
+  box-shadow:inset 0 0 0 1px transparent}
+.opt:hover{background:var(--soft)}
+.opt.on{background:var(--soft);box-shadow:inset 0 0 0 2px var(--brand)}
+:root[data-theme="dark"] .opt.on{box-shadow:inset 0 0 0 2px var(--green)}
+.ring{flex:0 0 auto;width:14px;height:14px;margin-top:4px;border-radius:50%;
+  box-shadow:inset 0 0 0 1.5px var(--ink-3)}   /* кругле навмисно:
+     квадратна рамка читається як чекбокс, а вибір тут один */
+.opt.on .ring{box-shadow:inset 0 0 0 5px var(--brand)}
+:root[data-theme="dark"] .opt.on .ring{box-shadow:inset 0 0 0 5px var(--green)}
+.o-t{display:block;font-size:13.5px;font-weight:700}
+.o-q{display:block;font-size:13px;color:var(--ink-2);line-height:1.55;margin-top:5px}
+.o-note{display:inline-flex;align-items:center;margin-top:8px;background:var(--plate);
+  color:var(--plate-fg);padding:3px 10px;font-size:11px;font-weight:700;
+  letter-spacing:.06em}
+.was{font-size:13.5px;color:var(--ink-3);text-decoration:line-through;
+  text-decoration-color:var(--line);margin-bottom:10px}
+.now{font-size:13.5px;line-height:1.6}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.why{font-size:12.5px;color:var(--ink-3);line-height:1.55;margin-top:14px}
+.val{background:var(--ins);padding:1px 5px;font-weight:700;color:var(--ink)}
+.typing{display:flex;gap:4px;padding:4px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--ink-3);animation:bl 1.1s infinite}
+.typing i:nth-child(2){animation-delay:.18s}
+.typing i:nth-child(3){animation-delay:.36s}
+@keyframes bl{0%,60%,100%{opacity:.25}30%{opacity:.9}}
+
+/* ---- порожній стан ---- */
+.empty{position:relative;max-width:540px;margin:7vh auto 0;text-align:center;isolation:isolate}
+.empty:before{content:'';position:absolute;z-index:-1;left:50%;top:-34px;
+  width:420px;height:150px;transform:translateX(-50%);
+  background-image:radial-gradient(var(--dot) 1.15px,transparent 1.35px);
+  background-size:10px 10px;
+  -webkit-mask-image:radial-gradient(60% 60% at 50% 42%,#000,transparent);
+  mask-image:radial-gradient(60% 60% at 50% 42%,#000,transparent);opacity:.75}
+.empty h2{font-size:28px;font-weight:400;letter-spacing:-.015em;margin-bottom:10px;line-height:1.2}
+.empty p{color:var(--ink-2);font-size:14.5px;margin-bottom:28px}
+.drop{background:var(--paper);box-shadow:var(--sh);padding:34px 26px;
+  transition:.13s;cursor:pointer}
+.drop:hover{box-shadow:inset 0 0 0 2px var(--brand)}
+:root[data-theme="dark"] .drop:hover{box-shadow:inset 0 0 0 2px var(--green)}
+.drop-i{font-size:24px;margin-bottom:10px;opacity:.45}
+.drop-t{font-size:14.5px;font-weight:700}
+.drop-s{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+.orr{display:flex;align-items:center;gap:14px;margin:20px 0;color:var(--ink-3);font-size:12px}
+.orr:before,.orr:after{content:"";height:1px;background:var(--line);flex:1}
+.howto{margin-top:28px;font-size:12.5px;color:var(--ink-3)}
+
+/* ---- поле вводу ---- */
+.compose{flex:0 0 auto;padding:14px 24px 10px}
+.compose-in{max-width:620px;margin:0 auto;display:flex;gap:0;align-items:center;
+  background:var(--paper);padding:0 0 0 18px;box-shadow:var(--sh);transition:.13s}
+.compose-in.hot{box-shadow:inset 0 0 0 2px var(--brand)}
+:root[data-theme="dark"] .compose-in.hot{box-shadow:inset 0 0 0 2px var(--green)}
+.compose-in input{flex:1;border:none;outline:none;font-size:14px;background:none;
+  height:44px;color:var(--ink)}
+.compose-in input::placeholder{color:var(--ink-3)}
+.send{width:44px;height:44px;border-radius:var(--r);background:var(--btn-bg);
+  color:var(--btn-fg);display:grid;place-items:center;flex:0 0 auto;font-size:15px}
+.foot-hint{position:relative;max-width:620px;margin:10px auto 0;font-size:11.5px;
+  color:var(--ink-3);text-align:center;isolation:isolate}
+.foot-hint:before{content:'';position:absolute;z-index:-1;left:50%;top:-6px;
+  width:300px;height:34px;transform:translateX(-50%);
+  background-image:radial-gradient(var(--dot) 1.1px,transparent 1.3px);
+  background-size:9px 9px;
+  -webkit-mask-image:radial-gradient(60% 70% at 50% 50%,#000,transparent);
+  mask-image:radial-gradient(60% 70% at 50% 50%,#000,transparent);opacity:.5}
+
+/* ---- зона 3 : живий документ ---- */
+.doc{width:var(--w-doc);flex:0 0 var(--w-doc);min-width:var(--w-doc-min)}
+.doc-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:0 16px;height:50px;border-bottom:1px solid var(--line)}
+.doc-lbl{display:inline-flex;align-items:center;background:var(--plate);
+  color:var(--plate-fg);padding:5px 12px;font-size:11px;font-weight:700;
+  letter-spacing:.11em;text-transform:uppercase}
+.doc-bar .seg{margin-left:auto}
+.seg{display:flex;box-shadow:var(--sh)}
+.seg button{padding:7px 15px;border-radius:var(--r);font-size:12px;color:var(--ink-2)}
+.seg button.on{background:var(--plate);color:var(--plate-fg);font-weight:700}
+.icob{width:34px;height:34px;border-radius:var(--r);color:var(--ink-2);
+  display:grid;place-items:center;font-size:15px;box-shadow:var(--sh)}
+.icob:hover{background:var(--soft)}
+.paper{flex:1;overflow-y:auto;padding:0 34px 60px}
+.doc-empty{height:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;color:var(--ink-3);gap:10px;padding:0 40px}
+.doc-empty .big{font-size:28px;opacity:.3}
+
+/* шапка документа: растрова смуга, на її нижній край сідають дві
+   плашки впритул — підпис і назва. Пряма цитата зі слайдів */
+.d-head{position:relative;height:92px;margin:0 -34px 40px;background:var(--band);
+  background-image:radial-gradient(var(--dot) 1.15px,transparent 1.35px);
+  background-size:10px 10px}
+.d-plates{position:absolute;left:34px;bottom:-18px;display:flex;align-items:stretch;max-width:calc(100% - 68px)}
+.d-kicker{display:inline-flex;align-items:center;background:var(--plate);
+  color:var(--plate-fg);padding:10px 15px;font-size:11px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase}
+.d-title{display:inline-flex;align-items:center;background:var(--paper);
+  color:var(--ink);padding:10px 18px;font-size:18px;font-weight:700;
+  letter-spacing:-.01em;box-shadow:var(--sh);min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.d-sep{display:none}
+
+.sec{scroll-margin-top:12px;padding:10px 12px;margin:0 -12px 12px;transition:background .45s}
+.sec.flash{background:var(--soft)}
+.h{display:inline-block;font-size:11px;font-weight:700;color:var(--ink-2);
+  margin-bottom:14px;letter-spacing:.11em;text-transform:uppercase;
+  padding-bottom:6px;border-bottom:3px solid var(--plate)}
+.p{font-size:13.5px;line-height:1.65;margin-bottom:10px}
+.p.small{font-size:12.5px;color:var(--ink-2)}
+.sub{font-size:12.5px;font-weight:700;color:var(--ink-2);margin:18px 0 7px}
+.ul{margin:0 0 8px 18px}
+.ul li{font-size:13px;line-height:1.65;margin-bottom:2px}
+.blank{display:block;padding:12px 14px;background:var(--soft);font-size:12.5px;color:var(--ink-3)}
+.blank.need{background:var(--flag-soft);color:var(--flag);box-shadow:inset 3px 0 0 var(--flag)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+table th{text-align:left;font-weight:700;color:var(--ink-3);font-size:11px;
+  letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px 0}
+table td{padding:9px 10px 9px 0;vertical-align:top;line-height:1.5;border-top:1px solid var(--line)}
+table tr:first-child td{border-top:none}
+.kv td:first-child{color:var(--ink-2);width:44%;font-size:12.5px}
+.miss{color:var(--flag);font-weight:700}
+.new{background:var(--ins);padding:1px 4px;animation:in .6s}
+@keyframes in{from{background:var(--ins-0)}}
+.tot{font-weight:700}
+.bad{color:var(--flag)}
+
+/* ---- фінальний екран ----
+   Клас навмисно НЕ .done: .dot.done у лівій панелі має той самий
+   суфікс, і правило ловило б статусні крапки. */
+.finish{position:absolute;inset:0;background:var(--bg);opacity:.97;
+  display:grid;place-items:center;z-index:40;padding:30px}
+.finish-c{background:var(--paper);box-shadow:var(--sh);padding:40px;max-width:520px;text-align:center}
+.finish-c h2{font-size:24px;font-weight:400;margin:16px 0 10px}
+.finish-c p{color:var(--ink-2);font-size:14px}
+.tick{width:52px;height:52px;background:var(--plate);color:var(--plate-fg);
+  display:grid;place-items:center;font-size:24px;margin:0 auto}
+.recv{text-align:left;margin:22px 0 4px;display:flex;flex-direction:column}
+.recv div{font-size:13px;color:var(--ink-2);padding:9px 0;border-top:1px solid var(--line)}
+.recv div b{color:var(--ink);font-weight:700}
+
+/* ---- сповіщення ---- */
+.toast{position:fixed;right:22px;bottom:78px;z-index:70;background:var(--brand);color:#fff;
+  padding:0;display:flex;align-items:stretch;max-width:360px;
+  opacity:0;transform:translateY(10px);transition:.26s cubic-bezier(.32,.72,0,1)}
+.toast.in{opacity:1;transform:none}
+.toast .ti{width:46px;background:var(--plate);color:var(--plate-fg);
+  display:grid;place-items:center;font-size:15px;flex:0 0 auto}
+.toast>span:last-child{padding:12px 16px}
+.toast b{display:block;font-size:13.5px;font-weight:700}
+.toast i{display:block;font-style:normal;font-size:12px;color:var(--mint);margin-top:2px}
+
+/* ---- службова панель прототипу, у проді не існує ---- */
+.demo{position:fixed;right:22px;bottom:22px;z-index:60;
+  background:#111112;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);padding:7px 8px 7px 16px;
+  display:flex;align-items:center;gap:14px;font-size:12.5px}
+.demo b{font-weight:700;color:rgba(255,255,255,.55)}
+.demo button{background:rgba(255,255,255,.16);padding:6px 13px;font-size:12px;color:#fff}
+.demo button:hover{background:rgba(255,255,255,.3)}
+
+@media(max-width:1300px){:root{--w-doc:512px;--w-side:224px}.who-name,.hdots{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <!-- Логотип KSE Business School. Вектор, вбудований у файл: колір береться
+     з currentColor, тому той самий знак працює і на темному, і на світлому.
+     У проді: <img src="/brand/kse-business-school.svg"> або цей же inline. -->
+    <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3039 567" fill="currentColor" role="img" aria-label="KSE Business School"><path fill-rule="evenodd" d="M0 284L0 1L51.5 1L102.99 1L103.25 118.75L103.5 236.5L162.07 236.76L220.63 237.02L312.33 119.01L404.03 1L460.52 1L517 1L517 47.99L517 94.97L486.77 95.24L456.54 95.5L383.81 189C343.8 240.43 311.17 283.09 311.28 283.8C311.4 284.52 344.12 327.14 384 378.52L456.5 471.92L486.75 471.96L517 472L517 519.5L517 567L460.74 567L404.48 567L312.98 449.25L221.48 331.5L162.24 331.24L103 330.98L103 448.99L103 567L51.5 567L0 567L0 284ZM587 496L587 425L638.5 425L690 425L690 448.5L690 472L845.5 472L1001 472L1001 401.53L1001 331.06L827.75 330.77L654.5 330.47L646.75 328.28C637.89 325.77 626.65 320.38 619.83 315.37C610.56 308.57 600.54 296.72 595.67 286.79C587.02 269.18 587.63 277.53 587.23 170.5C586.84 68.16 586.89 66.87 592.04 52.74C601.19 27.62 623.78 7.97 649.86 2.44C655.45 1.26 691.8 1.03 880.25 1.02L1104 1L1104 71.5L1104 142L1052.5 142L1001 142L1001 118.5L1001 94.99L845.75 95.25L690.5 95.5L690.5 166L690.5 236.5L865.5 237.02C1060.97 237.61 1043.8 236.94 1059.5 244.61C1075.81 252.57 1087.7 264.56 1096.09 281.5C1104.31 298.07 1103.96 292.82 1103.98 402C1103.99 493.88 1103.89 498.88 1102.06 506.5C1098.39 521.71 1091.62 533.35 1079.89 544.58C1067.5 556.45 1052.23 563.86 1035.74 566C1031.42 566.56 939.54 566.95 807.75 566.97L587 567L587 496ZM1174.02 475.75C1174.04 378.73 1174.26 373.42 1178.98 355.7C1185.52 331.12 1197.36 310.84 1215.61 292.94L1225.03 283.7L1214.22 272.6C1194.51 252.37 1183.29 231.46 1176.73 202.78C1174.67 193.73 1174.61 191.07 1174.26 97.25L1173.91 1L1432.45 1L1691 1L1691 71.5L1691 142L1639.5 142L1588 142L1588 118.5L1588 94.99L1432.75 95.25L1277.5 95.5L1277.21 136C1277.04 161.15 1277.34 179.67 1278.02 184.87C1281.14 208.83 1294.98 225.9 1318 234.17L1324.5 236.5L1404.25 236.79L1484 237.08L1484 284.04L1484 331L1405.25 331.01C1318.72 331.02 1321.7 330.83 1309.01 337.22C1299.85 341.84 1289.28 352.46 1284.62 361.75C1277.66 375.59 1277.67 375.5 1277.24 426.25L1276.86 472L1432.43 472L1588 472L1588 448.5L1588 425L1639.5 425L1691 425L1691 496L1691 567L1432.5 567L1174 567L1174.02 475.75ZM1952.91 520.51C1919.44 514.16 1898.04 493.14 1892.6 461.25L1892.05 458L1913.32 458L1934.59 458L1935.75 462.36C1937.53 469.01 1943.86 476.32 1950.62 479.51C1966.31 486.94 1994.05 486.31 2005.37 478.28C2010.95 474.32 2013.26 469.68 2012.61 463.71C2011.32 451.87 2003.71 448.12 1963.5 439.5C1954.15 437.5 1942.45 434.51 1937.5 432.87C1909.92 423.71 1896.98 407.94 1897.01 383.54C1897.05 360.48 1909.92 343.41 1934.14 334.3C1954.31 326.7 1984.92 325.97 2007 332.56C2021.15 336.77 2036.21 347.42 2043.01 358.01C2046.3 363.14 2050.3 373.69 2051.44 380.25L2052.09 384L2030.24 384L2008.39 384L2005.31 379.64C2001.22 373.83 1996.74 370.58 1989.5 368.18C1976.98 364.02 1957.56 364.53 1948 369.27C1940.07 373.2 1937.13 380.59 1940.39 388.4C1943.55 395.94 1952.42 399.58 1984.42 406.46C1996.48 409.05 2010.43 412.5 2015.42 414.13C2043.98 423.46 2056 437.93 2056 462.98C2056 485.21 2045.75 501.03 2024.5 511.57C2010.1 518.72 1998.88 521.13 1978 521.58C1965.56 521.84 1958.31 521.53 1952.91 520.51ZM2125.66 521.01C2097.94 516.01 2078.99 498.85 2071.84 472.29C2068.83 461.08 2068.82 438.76 2071.82 427.7C2077.09 408.34 2089.24 393.19 2106.31 384.76C2117.07 379.43 2123.81 377.9 2139.09 377.29C2156.15 376.62 2165.99 378.34 2177.74 384.07C2194.92 392.45 2204.81 406.23 2208.39 426.77L2208.96 430.04L2188.29 429.77L2167.63 429.5L2166.73 426C2165.8 422.36 2162.03 416.75 2158.53 413.78C2151.89 408.16 2135.12 407.4 2126.71 412.33C2117.76 417.57 2112.96 426.41 2110.93 441.4C2109.65 450.81 2110.98 463.2 2114.19 471.79C2118.44 483.13 2128.73 490 2141.5 490C2153.78 490 2164.86 482.92 2168.18 472.95L2169.67 468.5L2188.83 468.23C2210.69 467.92 2209.16 467.14 2206.51 477.3C2203.94 487.15 2199.31 494.92 2191.11 503.1C2182.92 511.28 2174.09 516.36 2162.5 519.55C2155.56 521.45 2133.06 522.35 2125.66 521.01ZM2442.83 521.04C2426.46 518.06 2415.37 512.44 2404.39 501.55C2397.84 495.05 2395.5 491.87 2392.23 485C2386.38 472.69 2384.7 464.87 2384.72 450C2384.74 440.57 2385.25 435.62 2386.8 429.86C2393.4 405.38 2410.77 387.72 2436 379.84C2442.52 377.81 2445.54 377.5 2459 377.51C2470.67 377.51 2476.11 377.95 2481 379.28C2504.38 385.62 2521.33 401.33 2528.72 423.5C2531.16 430.83 2531.39 432.88 2531.44 448C2531.5 463.59 2531.34 464.99 2528.6 473.35C2521.35 495.45 2502.42 513.25 2479.5 519.52C2472.6 521.4 2449.99 522.34 2442.83 521.04ZM2605 520.5C2579.8 515.43 2561.12 499.72 2553.5 477.2C2548.59 462.7 2547.8 443.43 2551.54 429.5C2558.34 404.14 2578.23 385.21 2604.7 378.88C2616.27 376.12 2636.46 376.63 2647.98 379.97C2666.27 385.27 2681.23 397.36 2688.85 413C2695.28 426.21 2696.5 432.08 2696.44 449.5C2696.39 463 2696.12 465.3 2693.72 472.5C2689.94 483.83 2684.67 492.3 2675.9 501.15C2669.52 507.59 2666.64 509.62 2657.9 513.85C2651.6 516.91 2644.46 519.5 2639.79 520.44C2630.6 522.3 2614.06 522.33 2605 520.5ZM2231 423.5L2231 328L2251 328L2271 328L2271 362.1L2271 396.2L2276.75 390.94C2283.25 385 2293.57 379.65 2301.85 377.93C2310.44 376.15 2328.2 377.22 2335.28 379.94C2343.24 383 2352.12 391.36 2355.92 399.36C2361.6 411.32 2362 415.95 2362 469.96L2362 519L2342.08 519L2322.16 519L2321.76 473.75C2321.34 425.21 2321.14 423.22 2315.97 415.96C2311.53 409.73 2299.84 407.19 2289.62 410.22C2283.12 412.15 2276.63 419.33 2273.87 427.62C2271.66 434.27 2271.57 435.91 2271.23 476.75L2270.86 519L2250.93 519L2231 519L2231 423.5ZM2720 423.5L2720 328L2740 328L2760 328L2760 423.5L2760 519L2740 519L2720 519L2720 423.5ZM2468.97 488.42C2483.96 483.96 2493.18 463.57 2490.21 441.4C2487.45 420.76 2476.01 408.99 2458.71 409.01C2450.96 409.01 2446.42 410.25 2441.16 413.78C2432.13 419.84 2427.19 430.58 2426.32 446C2424.57 477.13 2443.52 495.98 2468.97 488.42ZM2638.09 486.34C2649 480.21 2654.1 469.83 2654.78 452.35C2655.45 435.1 2652.52 425.46 2644 416.92C2638.6 411.5 2632.21 409 2623.76 409C2615.38 409 2610.03 410.62 2604.51 414.83C2595.67 421.57 2591 433.56 2591 449.5C2591 469.21 2598.16 482.75 2611.33 487.97C2619.26 491.11 2630.85 490.4 2638.09 486.34ZM2107.79 237.2C2100.4 235.2 2091.48 229.64 2087.7 224.67C2083.97 219.77 2080.15 211.67 2078.33 204.77C2076.92 199.44 2076.61 190.83 2076.27 147.25L2075.86 96L2096.37 96L2116.89 96L2117.25 142.75C2117.65 194.36 2117.66 194.47 2123.98 201.09C2127.83 205.13 2132.89 206.99 2140 206.99C2147.87 206.99 2152.11 205.21 2157.5 199.65C2166.47 190.39 2166.38 190.93 2166.98 140.5L2167.5 96.5L2187.75 96.23L2208 95.96L2208 165.98L2208 236L2188 236L2168 236L2168 227.28L2168 218.57L2162.75 223.63C2155.75 230.38 2152.43 232.55 2144.32 235.64C2135.06 239.18 2117.81 239.91 2107.79 237.2ZM2276.36 237.59C2258.05 234.1 2244.77 226.4 2237.01 214.78C2232.74 208.38 2229 197.94 2229 192.39L2229 189L2248.86 189L2268.73 189L2271.15 193.71C2272.94 197.18 2274.76 199.03 2278.06 200.73C2290.87 207.32 2315.04 205.3 2318.05 197.38C2320.08 192.03 2317 186.46 2310.68 184.06C2309.12 183.48 2300.21 181.62 2290.87 179.95C2261.51 174.68 2250.86 170.73 2241.89 161.79C2235.01 154.92 2232.74 148.22 2233.17 136C2233.45 128 2233.95 125.59 2236.34 120.72C2241.85 109.5 2254.17 100.55 2270 96.26C2275.11 94.88 2280.44 94.5 2295 94.51C2311.29 94.52 2314.45 94.8 2321.46 96.82C2342.22 102.8 2354.63 115.61 2356.71 133.24L2357.28 138L2336.14 138C2319.38 138 2315 137.73 2315 136.69C2315 134.31 2309.18 129.37 2304.85 128.07C2299.52 126.48 2285.29 126.42 2280.58 127.97C2276.5 129.32 2273 133.26 2273 136.5C2273 143.03 2280.19 146.43 2302.5 150.44C2331.96 155.74 2342.71 159.61 2351.05 167.95C2358.03 174.93 2360.28 181.76 2359.83 194.51C2359.52 203.06 2359.05 205.38 2356.61 210.36C2350.85 222.13 2337.6 231.8 2321.3 236.13C2311.21 238.81 2286.9 239.6 2276.36 237.59ZM2663.83 238.04C2647.7 235.09 2636.33 229.4 2625.91 219.04C2617.54 210.73 2611.54 200.19 2608.26 188C2605.79 178.85 2605.86 154.14 2608.38 145.04C2613.44 126.73 2626.03 110.8 2641.92 102.59C2655.36 95.65 2665.12 93.66 2682.5 94.3C2698.29 94.89 2704.86 96.36 2716 101.8C2730.9 109.06 2742.84 124.63 2747.48 142.84C2749.48 150.65 2750.97 167.06 2750.27 173.33L2749.74 178L2697.87 178C2638.57 178 2644.13 176.92 2648.15 187.68C2651.14 195.66 2658.81 203.27 2666.03 205.42C2672.87 207.45 2686.12 207.45 2692.94 205.42C2696.79 204.28 2699.59 202.5 2703.17 198.92L2708.1 194L2728.16 194L2748.22 194L2747.53 196.75C2746.43 201.18 2742.15 209.1 2737.85 214.68C2730.57 224.14 2718.16 231.94 2703.83 236.06C2695.64 238.41 2672.21 239.57 2663.83 238.04ZM2810.5 237.59C2785.56 232.76 2769.8 219.69 2764.53 199.46C2763.69 196.23 2763 192.55 2763 191.29L2763 189L2783.25 189.04L2803.5 189.07L2805.5 193.28C2809.11 200.9 2816.88 204.29 2831 204.42C2841.74 204.52 2846.16 203.58 2849.97 200.37C2852.4 198.32 2853 197.04 2853 193.87C2853 186.14 2848.04 183.73 2823.5 179.52C2815.25 178.11 2805.22 176.06 2801.2 174.97C2785.93 170.81 2775.24 163.27 2770.27 153.14C2767.8 148.12 2767.5 146.4 2767.5 137.48C2767.5 128.2 2767.74 126.97 2770.74 120.87C2774.98 112.26 2781.82 105.94 2792.26 100.99C2804.5 95.19 2813.97 93.63 2832.93 94.3C2856.55 95.13 2869.46 99.33 2879.61 109.48C2885.56 115.43 2888.2 120.13 2890.42 128.7C2893.05 138.86 2894.82 138 2871.25 137.99L2850.5 137.98L2848.26 134.52C2847.03 132.62 2844.69 130.38 2843.07 129.54C2835.38 125.56 2816.79 125.88 2810.89 130.08C2808.53 131.76 2808 132.87 2808 136.11C2808 144.08 2811.65 145.72 2842 151.44C2868.09 156.36 2876.28 159.44 2885.03 167.63C2890.95 173.16 2894.01 180.04 2894.71 189.39C2896.4 211.76 2882.64 228.33 2856 236.02C2846.38 238.8 2821.24 239.67 2810.5 237.59ZM2955.66 237.95C2927.58 233.24 2909.98 217.42 2906.48 193.75L2905.77 189L2926.14 189L2946.5 189L2948.55 193.24C2952.26 200.95 2959.87 204.29 2974 204.42C2984.74 204.52 2989.16 203.58 2992.97 200.37C2995.4 198.32 2996 197.04 2996 193.87C2996 186.33 2990.67 183.59 2969 180C2940.87 175.35 2926.82 170.05 2918.71 161.02C2905.41 146.23 2908.05 120.93 2924.27 107.64C2930.47 102.55 2942.05 97.46 2951.94 95.45C2963.44 93.12 2987.99 93.86 2999.32 96.88C3017.93 101.82 3029.24 112.32 3033.47 128.53C3036.16 138.86 3037.9 138.01 3014.25 137.96L2993.5 137.92L2991.5 134.71C2990.4 132.94 2987.39 130.45 2984.78 129.16C2975.81 124.71 2954.92 126.55 2951.97 132.05C2949.28 137.08 2952.06 142.88 2958.44 145.54C2960.17 146.26 2971.07 148.69 2982.65 150.93C3011.81 156.58 3020.69 159.9 3028.7 168.17C3035.6 175.28 3037.5 180.65 3037.49 193C3037.48 202.29 3037.17 204.16 3034.8 209.25C3027.91 224 3011.38 234.59 2990 237.96C2982.49 239.14 2962.74 239.14 2955.66 237.95ZM1899 142L1899 48L1943.78 48C2000.06 48 2009.86 49.07 2026.6 57.05C2036.56 61.8 2044.62 69.9 2048.14 78.72C2050.1 83.62 2050.46 86.33 2050.48 96.5C2050.5 107.43 2050.26 109.01 2047.84 114.18C2044.67 120.94 2038.51 127.88 2031.85 132.2C2029.18 133.92 2027 135.66 2027 136.05C2027 136.44 2029.5 137.99 2032.55 139.48C2040.79 143.51 2049.34 151.92 2053.23 159.82C2056.25 165.96 2056.53 167.33 2056.85 178.12C2057.38 195.58 2054.22 204.58 2043.64 215.79C2037.66 222.12 2030.04 226.87 2020.35 230.33C2005.49 235.64 2000.85 236 1947.89 236L1899 236L1899 142ZM2381.24 166.25L2381.5 96.5L2401.75 96.23L2422 95.96L2422 165.98L2422 236L2401.49 236L2380.99 236L2381.24 166.25ZM2452 166L2452 96L2472 96L2492 96L2492 105.16L2492 114.32L2498.25 108.32C2509.49 97.55 2522.01 93.35 2540.25 94.24C2565.45 95.47 2579.22 108.81 2582.95 135.58C2583.56 139.98 2584 162.53 2584 189.57L2584 236L2563.55 236L2543.11 236L2542.8 189.25C2542.51 144.03 2542.43 142.35 2540.38 138C2536.34 129.43 2530.37 125.98 2519.6 126.02C2506.67 126.07 2498.36 133.45 2494.37 148.46C2493.35 152.29 2493.02 163.43 2493.01 194.75L2493 236L2472.5 236L2452 236L2452 166ZM1997.81 197.57C2008.4 194.21 2013.84 186.07 2012.79 175.13C2011.83 165.14 2004.91 159.16 1991.86 157.05C1988.36 156.48 1975.49 156.01 1963.25 156.01L1941 156L1941 178.12L1941 200.24L1966.75 199.74C1987.07 199.36 1993.62 198.9 1997.81 197.57ZM2708.4 147.25C2706.33 138.34 2700.71 131.17 2693 127.61C2689.34 125.92 2686.53 125.53 2678 125.53C2668.59 125.54 2666.98 125.81 2662.5 128.18C2655.12 132.07 2650.49 137.54 2647.58 145.77L2646.09 150L2677.56 150L2709.04 150L2708.4 147.25ZM1997.53 119.94C2004.66 116.27 2007.18 111.58 2006.76 102.78C2006.37 94.61 2004.43 91.53 1997.45 88C1992.61 85.56 1991.93 85.49 1966.75 85.19L1941 84.88L1941 104L1941 123.12L1966.78 122.81C1992.19 122.5 1992.63 122.46 1997.53 119.94ZM2381 59.5L2381 42L2401.5 42L2422 42L2422 59.5L2422 77L2401.5 77L2381 77L2381 59.5Z"/></svg></div>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="hdots" aria-hidden="true"></div>
+    <div class="who">
+      <span class="who-name">Professor’s Tutor</span>
+      <span class="who-av">OG</span>
+      <button class="theme" id="themeBtn" onclick="toggleTheme()" title="Light / dark theme">☾</button>
+    </div>
+  </div>
+
+  <div class="body" style="position:relative" id="shell">
+
+    <div class="card side">
+      <div class="side-list" id="list"></div>
+      <div class="side-foot">
+        <div class="rd-top"><span class="rd-l">Readiness</span><span class="rd-v" id="rv">—</span></div>
+        <div class="bar"><i id="rb"></i></div>
+        <div class="rd-sub" id="rs">No document yet</div>
+        <button class="btn btn-fill btn-s btn-w" id="dl" disabled onclick="downloadDocx()">Download .docx</button>
+      </div>
+    </div>
+
+    <div class="card chat">
+      <div class="scroll" id="scroll"><div class="thread" id="thread"></div></div>
+      <div class="compose">
+        <div class="compose-in" id="cbox">
+          <input id="inp" placeholder="Ask, or tell me what to change…" onkeydown="if(event.key==='Enter')speak()">
+          <button class="send" onclick="speak()">↑</button>
+        </div>
+        <div class="foot-hint">Nothing changes until you confirm it.</div>
+      </div>
+    </div>
+
+    <div class="card doc">
+      <div class="doc-bar">
+        <span class="doc-lbl">Live document</span>
+        <div class="seg"><button class="on">Clean</button><button>Changes</button></div>
+      </div>
+      <div class="paper" id="paper"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="demo"><b>Demo</b><span id="dstep">Step 1 of 8</span><button onclick="location.reload()">Restart</button></div>
+
+<script>
+/* ================= state ================= */
+const S=[
+ {id:'s0',n:'At a Glance',st:''},{id:'s1',n:'Summary',st:''},
+ {id:'s2',n:'Instructor',st:''},{id:'s3',n:'Schedule',st:''},
+ {id:'s4',n:'Assessment',st:''},{id:'s5',n:'Materials',st:''},
+ {id:'s6',n:'Policies',st:''},{id:'s7',n:'Use of AI',st:''}];
+let started=false, awaiting=null, sel=null, step=1;
+const TOTAL=8;
+
+const $=id=>document.getElementById(id);
+function setStep(n){step=n;$('dstep').textContent=`Step ${n} of ${TOTAL}`}
+
+/* ================= chrome ================= */
+function tabs(){
+  $('tabs').innerHTML = started
+   ? `<button class="tab on"><span class="tdot wip"></span>Risk Management</button>
+      <button class="tab"><span class="tdot ok"></span>Business Ethics</button>
+      <button class="tab-add">+ New</button>`
+   : `<button class="tab"><span class="tdot ok"></span>Business Ethics</button>
+      <button class="tab on"><span class="tdot new"></span>New syllabus</button>`;
+}
+function draw(){
+  $('list').innerHTML=S.map(s=>`<button class="item ${s.on?'on':''}" onclick="go('${s.id}')">
+    <span class="dot ${s.st}"></span><span class="nm">${s.n}</span></button>`).join('');
+  if(!started){$('rv').textContent='—';$('rb').style.width='0';$('rs').textContent='No document yet';
+    $('dl').disabled=true;return}
+  const d=S.filter(s=>s.st==='done').length,p=Math.round(d/S.length*100);
+  $('rv').textContent=p+'%';$('rb').style.width=p+'%';
+  $('rs').textContent = d===S.length ? 'Complete · all 8 sections approved' : `${d} of ${S.length} approved`;
+  $('dl').disabled=false;
+}
+function set(id,st){S.find(x=>x.id===id).st=st;draw()}
+function go(id){const e=$(id);if(!e)return;
+  e.scrollIntoView({behavior:'smooth',block:'start'});
+  e.classList.add('flash');setTimeout(()=>e.classList.remove('flash'),1200);
+  S.forEach(s=>s.on=false);const t=S.find(s=>s.id===id);if(t)t.on=true;draw()}
+
+function turn(html,me){
+  const d=document.createElement('div');d.className='turn'+(me?' me':'');d.innerHTML=html;
+  $('thread').appendChild(d);
+  setTimeout(()=>$('scroll').scrollTo({top:$('scroll').scrollHeight,behavior:'smooth'}),40);
+  return d;
+}
+function think(fn,ms){
+  const t=turn('<div class="typing"><i></i><i></i><i></i></div>');
+  setTimeout(()=>{t.remove();fn()},ms||900);
+}
+function ask(slot,ph){awaiting=slot;$('cbox').classList.add('hot');$('inp').placeholder=ph;$('inp').focus()}
+function unask(){awaiting=null;$('cbox').classList.remove('hot');$('inp').placeholder='Ask, or tell me what to change…'}
+function speak(){
+  const v=$('inp').value.trim(); if(!v) return;
+  $('inp').value=''; turn(`<div class="said">${v}</div>`,1);
+  const a=awaiting; unask();
+  if(a==='about') think(()=>aboutDone(v),1300);
+  else if(a==='policy') think(()=>policyDraft(v),1200);
+  else think(()=>turn('<div class="said"><p class="quiet">Noted — in the real build this goes through the same draft → confirm cycle.</p></div>'),800);
+}
+function pick(el){el.parentElement.querySelectorAll('.opt').forEach(o=>o.classList.remove('on'));
+  el.classList.add('on');sel=el.querySelector('.o-q').textContent}
+
+/* ================= screen 0 : entry ================= */
+function entry(){
+  setStep(1);
+  $('paper').innerHTML=`<div class="doc-empty"><div class="big">◻</div>
+    <div>Your syllabus appears here as we build it.<br>Every confirmed answer lands on this side.</div></div>`;
+  $('thread').innerHTML='';
+  turn(`<div class="empty">
+    <h2>Let's build your syllabus</h2>
+    <p>I'll take you through it section by section. Most of it I already know — you'll answer about seven questions.</p>
+    <div class="drop" onclick="upload()">
+      <div class="drop-i">⬆</div>
+      <div class="drop-t">Drop your draft here</div>
+      <div class="drop-s">or click to browse · DOCX, PDF</div>
+    </div>
+    <div class="orr">or</div>
+    <button class="btn btn-soft btn-lg" onclick="scratch()">Start from scratch</button>
+    <div class="howto">Format and your instructor details are carried over automatically.</div>
+  </div>`);
+  tabs();draw();
+}
+
+/* ================= track 2 : upload ================= */
+function upload(){
+  started=true;tabs();
+  $('thread').innerHTML='';
+  turn('<div class="said">Risk_Management_MBA_2026.docx</div>',1);
+  think(()=>{
+    fillDoc(); S[0].st='done';S[1].st='draft';S[2].st='done';S[3].st='draft';
+    S[4].st='need';S[5].st='';S[6].st='';S[7].st='';S[4].on=true;draw();
+    setStep(2);
+    turn(`<div class="said">
+      <p>I read your file. It maps onto <b>5 of 8</b> sections of the KSE template.</p>
+      <p class="quiet">Instructor details are carried over from your last syllabus — you won't be asked about those.</p></div>
+      <div class="panel">
+        <div class="p-lead"><b>Assessment weights total 90%, not 100.</b> At a Glance says 35 · 25 · 40, but the table lists the final project at 30.</div>
+        <div class="row" style="margin-top:0">
+          <button class="btn btn-soft btn-s" onclick="w40()">Final project is 40%</button>
+          <button class="btn btn-ghost btn-s" onclick="w30()">It's 30%</button>
+        </div></div>`);
+  },1500);
+}
+
+/* ================= track 1 : scratch ================= */
+function scratch(){
+  started=true;tabs();
+  $('thread').innerHTML='';
+  emptyDoc(); S[0].st='done';S[2].st='done';draw();
+  setStep(2);
+  turn(`<div class="said">
+    <p>Starting from the KSE template. Format and your instructor details are already in.</p>
+    <p>Tell me about the course — what it covers and what actually happens in the room.</p>
+    <p class="quiet">One answer here gives me the description, the objectives, the learning outcomes and the capstone link.</p></div>`);
+  ask('about','Tell me about the course…');
+}
+function aboutDone(txt){
+  $('s1').innerHTML=`<div class="h">1 · Summary</div>
+    <div class="sub">Short course description</div>
+    <p class="p"><span class="new">This course gives you a practical command of enterprise risk — how to identify what can go wrong, price it, and decide what to do about it.</span></p>
+    <div class="sub">Learning outcomes</div>
+    <ul class="ul">
+      <li><span class="new">Identify and classify the principal risk exposures of a business unit.</span></li>
+      <li><span class="new">Build and defend a quantified risk assessment under incomplete information.</span></li>
+      <li><span class="new">Design mitigation strategies and argue their trade-offs to a board.</span></li>
+    </ul>
+    <div class="sub">Connection to capstone</div>
+    <span class="blank">Drafted once the schedule is in.</span>`;
+  set('s1','draft');go('s1');
+  turn(`<div class="said"><p>Four drafts from that one answer — description, objectives, outcomes, capstone link.</p>
+    <p class="quiet">They're mine, not the school's. Change any of them by telling me what's off.</p></div>
+    <div class="panel"><div class="p-lead">Looks right?</div>
+      <div class="row" style="margin-top:0">
+        <button class="btn btn-fill btn-s" onclick="afterSummary()">Confirm all four</button>
+        <button class="btn btn-ghost btn-s" onclick="afterSummary()">Reword the outcomes</button>
+      </div></div>`);
+}
+function afterSummary(){
+  set('s1','done');setStep(3);
+  turn(`<div class="said"><p>Approved.</p>
+    <p>Next: the topic of each session. Dates are already set — six sessions, 25.04 to 09.05.</p></div>
+    <div class="panel">
+      <div class="p-lead"><b>This is the longest stretch of the whole flow</b> — six rows in a row. Everything else is one answer or one click.</div>
+      <div class="row" style="margin-top:0">
+        <button class="btn btn-soft btn-s" onclick="topics()">Fill the six topics</button>
+      </div></div>`);
+}
+function topics(){
+  fillDoc(true);
+  S[3].st='done';S[4].st='need';S[4].on=true;draw();go('s3');
+  setStep(4);
+  turn(`<div class="said"><p>Schedule is in.</p>
+    <p class="quiet">Now grading — and here the two tracks meet: the same questions, whether you started blank or uploaded a file.</p></div>
+    <div class="panel"><div class="p-lead"><b>How do you assess the course?</b></div>
+      <div class="row" style="margin-top:0">
+        <button class="btn btn-soft btn-s" onclick="w40()">Participation 35 · Exam 25 · Project 40</button>
+      </div></div>`);
+}
+
+/* ================= shared : weights → criteria ================= */
+function w30(){turn('<div class="said">It\'s 30%</div>',1);
+  think(()=>turn('<div class="said"><p>Then we need a fourth component worth 10%. What is it?</p></div>'))}
+function w40(){
+  turn('<div class="said">Final project is 40%</div>',1);
+  const fp=$('fp'); if(fp){fp.innerHTML='<span class="new">40%</span>';
+    $('tot').textContent='100%';$('tot').classList.remove('bad')}
+  setStep(5);
+  think(()=>turn(`<div class="said"><p>Weights total 100% and match At a Glance.</p>
+    <p class="quiet">Participation is 35% of the grade but has no criteria — the exact question your Academic Director raised in June.</p></div>
+    <div class="panel"><div class="p-lead">How do you actually assess it?</div>
+      <div class="row" style="margin-top:0">
+        <button class="btn btn-soft btn-s" onclick="crit1()">Quality of contribution</button>
+        <button class="btn btn-ghost btn-s" onclick="comp1()">Skip</button></div></div>`));
+}
+function crit1(){
+  turn('<div class="said">Quality of contribution, not attendance</div>',1);
+  think(()=>turn(`<div class="panel">
+    <div class="was">— empty —</div>
+    <div class="now">Assessed on the quality and relevance of contributions to case discussions, not on attendance alone. Students are expected to engage with the readings and support arguments with evidence.</div>
+    <div class="why">My wording, from what you just said.</div>
+    <div class="row">
+      <button class="btn btn-fill btn-s" onclick="crit2()">Confirm</button>
+      <button class="btn btn-ghost btn-s">Reword</button></div></div>`));
+}
+function crit2(){
+  const c=$('crit'); if(c){c.className='';c.innerHTML='<span class="new">Quality &amp; relevance of contribution</span>'}
+  go('s4');comp1();
+}
+
+/* ================= library choice + write my own ================= */
+function comp1(){
+  setStep(6);
+  turn(`<div class="said"><p>Section 4 still can't be approved — it's missing the <b>compensatory measures</b> clause that Regulation 2.5.6(1) makes mandatory. No syllabus at the school currently has one.</p></div>
+  <div class="panel">
+    <button class="opt" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">Equivalent task, rescheduled</span>
+      <span class="o-q">If a student misses an assessment for valid reasons, an equivalent alternative assessment covering the same learning outcomes will be arranged with the instructor.</span>
+      <span class="o-note">Closest to how you already work</span></span></button>
+    <button class="opt" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">One make-up at course end</span>
+      <span class="o-q">Students who missed an assessment for valid reasons may complete a single make-up assignment at the end of the course, covering the same learning outcomes.</span></span></button>
+    <button class="opt" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">Redistribute the weight</span>
+      <span class="o-q">Where a student misses an assessment for valid reasons, its weight may be redistributed across the remaining components at the instructor's discretion.</span></span></button>
+    <div class="why">Fixed wordings from the school's library. Pick one, or tell me how yours should read.</div>
+    <div class="row">
+      <button class="btn btn-fill btn-s" onclick="comp2()">Apply</button>
+      <button class="btn btn-ghost btn-s" onclick="ownStart()">Write my own</button></div></div>`);
+}
+function ownStart(){
+  turn(`<div class="said"><p>Tell me how it should work — plain words are fine, I'll put it in syllabus language.</p></div>`);
+  ask('policy','e.g. they can hand it in later, but tell me in advance…');
+}
+function policyDraft(txt){
+  turn(`<div class="panel">
+    <div class="now">If a student misses an assessment for valid reasons and notifies the instructor <span class="val">at least 48 hours</span> in advance, an equivalent alternative assessment covering the same learning outcomes will be arranged.</div>
+    <div class="why">One number here is mine, not yours — you didn't name a notice period. Confirm it or change it.</div>
+    <div class="row">
+      <button class="btn btn-fill btn-s" onclick="comp2(1)">Confirm · including 48 hours</button>
+      <button class="btn btn-soft btn-s" onclick="changeVal()">Change the value</button>
+      <button class="btn btn-ghost btn-s" onclick="comp1()">Use a library option instead</button></div></div>`);
+}
+function changeVal(){
+  turn(`<div class="said"><p class="quiet">Just the notice period — how long?</p></div>
+    <div class="panel"><div class="row" style="margin-top:0">
+      <button class="btn btn-soft btn-s" onclick="comp2(2,'24 hours')">24 hours</button>
+      <button class="btn btn-soft btn-s" onclick="comp2(2,'one week')">One week</button>
+      <button class="btn btn-ghost btn-s" onclick="comp2(2,'no fixed period')">No fixed period</button>
+    </div><div class="why">The rest of the wording stays as it was — only this value changes.</div></div>`);
+}
+function comp2(mode,v){
+  let text;
+  if(mode===1) text='If a student misses an assessment for valid reasons and notifies the instructor at least 48 hours in advance, an equivalent alternative assessment covering the same learning outcomes will be arranged.';
+  else if(mode===2){ text='If a student misses an assessment for valid reasons and notifies the instructor '+(v==='no fixed period'?'in advance':'at least '+v+' in advance')+', an equivalent alternative assessment covering the same learning outcomes will be arranged.';
+    turn('<div class="said">'+v+'</div>',1); }
+  else { if(!sel) return; text=sel; }
+  const c=$('comp'); if(c) c.outerHTML='<p class="p"><span class="new">'+text+'</span></p>';
+  set('s4','done');go('s4');sel=null;
+  think(()=>{ turn('<div class="said"><p>Section 4 approved.</p><p class="quiet">One left — and it\'s the one no instructor keeps in their head.</p></div>'); setTimeout(aiStep,500) },700);
+}
+
+/* ================= AI mode ================= */
+function aiStep(){
+  setStep(7);
+  turn(`<div class="said"><p>What are the AI rules on your course?</p>
+  <p class="quiet">Any of these is a valid answer — the Policy lets the rules live in the syllabus, in the assignment briefs, or just point at the school policy.</p></div>
+  <div class="panel">
+    <button class="opt on" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">Follow the school policy</span>
+      <span class="o-q">The use of generative AI in this course is governed by the KSE Artificial Intelligence Usage Policy.</span>
+      <span class="o-note">Default — nothing more to decide</span></span></button>
+    <button class="opt" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">Defined per assignment</span>
+      <span class="o-q">Rules on the use of generative AI are specified in the instructions for each assessment component.</span></span></button>
+    <button class="opt" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">Not permitted in assessed work</span>
+      <span class="o-q">The use of generative AI tools is not permitted in any assessed work for this course.</span></span></button>
+    <button class="opt" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">Research support only</span>
+      <span class="o-q">Generative AI may be used for literature search and for generating hypotheses, provided the student personally reviews all sources.</span></span></button>
+    <button class="opt" onclick="pick(this)"><span class="ring"></span><span>
+      <span class="o-t">Permitted with defence</span>
+      <span class="o-q">Generative AI may be used in project work that includes a subsequent defence and explanation of results by the student.</span>
+      <span class="o-note">Fits your final project</span></span></button>
+    <div class="why">If you permit AI, I add the school's disclosure clause and check your choice against the exam — Policy §3 doesn't allow AI for exam answers, and that part isn't yours to set.</div>
+    <div class="row"><button class="btn btn-fill btn-s" onclick="aiApply()">Apply</button></div></div>`);
+  sel=document.querySelector('.opt.on .o-q').textContent;
+}
+function aiApply(){
+  if(!sel)return;
+  const permits=/may be used/.test(sel);
+  $('s7').innerHTML=`<div class="h">7 · Use of AI</div><p class="p"><span class="new">${sel}</span></p>`+
+    (permits?`<p class="p"><span class="new">The use of generative AI is not permitted for the written exam.</span></p>
+    <p class="p small">Where AI use is permitted, the student must verify the accuracy of the information obtained and explicitly state which AI tool was used.</p>`:'');
+  set('s7','done');go('s7');sel=null;
+  setStep(8);
+  think(()=>{
+    S.forEach(s=>{if(s.st!=='done')s.st='done'});draw();
+    turn(`<div class="said">
+      <p>${permits?'Written — plus the exam carve-out and the disclosure clause, both added automatically.':'Done — one line, no extra clauses needed.'}</p>
+      <p>All checks pass — the syllabus reads as complete. <b>Download it from the left panel</b> whenever you like.</p>
+      <p class="quiet">You could have downloaded it at any point, half-finished — the percentage just tells you where it stands.</p></div>`);
+  },900);
+}
+
+/* ================= download ================= */
+function downloadDocx(){
+  const done=S.filter(x=>x.st==='done').length, all=done===S.length;
+  const t=document.createElement('div');t.className='toast';
+  t.innerHTML=`<span class="ti">↓</span><span>
+      <b>Risk_Management_MBA_2026.docx</b>
+      <i>${all?'Complete — all 8 sections approved':`Work in progress — ${done} of ${S.length} sections approved`}</i>
+    </span>`;
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('in'));
+  setTimeout(()=>{t.classList.remove('in');setTimeout(()=>t.remove(),300)},3400);
+}
+
+/* ================= document ================= */
+function emptyDoc(){
+  $('paper').innerHTML=`
+  <div class="d-head"><div class="d-plates"><span class="d-kicker">Course Syllabus</span><span class="d-title">Risk Management</span></div></div>
+  <div class="sec" id="s0"><div class="h">At a Glance</div>
+    <table class="kv">
+      <tr><td>Program</td><td>MBA 2026</td></tr>
+      <tr><td>Term</td><td>25.04 – 09.05.2026</td></tr>
+      <tr><td>Delivery mode</td><td>Hybrid</td></tr>
+      <tr><td>Credits / ECTS</td><td class="miss">to be specified</td></tr>
+      <tr><td>Contact hours</td><td>20</td></tr>
+      <tr><td>Instructor</td><td>Oleksii Gromyko</td></tr>
+    </table></div>
+  <div class="sec" id="s1"><div class="h">1 · Summary</div><span class="blank">Not drafted yet.</span></div>
+  <div class="sec" id="s2"><div class="h">2 · Instructor</div>
+    <p class="p"><b>Oleksii Gromyko</b><br><span class="p small">Adjunct Professor · oleksii.gromyko@kse.org.ua</span></p>
+    <ul class="ul"><li>Enterprise risk management</li><li>Financial modelling under uncertainty</li></ul></div>
+  <div class="sec" id="s3"><div class="h">3 · Schedule</div>
+    <table>
+      <tr><td>25.04</td><td class="miss">topic needed</td><td>4h</td></tr>
+      <tr><td>26.04</td><td class="miss">topic needed</td><td>4h</td></tr>
+      <tr><td>02.05</td><td class="miss">topic needed</td><td>4h</td></tr>
+      <tr><td>03.05</td><td class="miss">topic needed</td><td>4h</td></tr>
+      <tr><td>08.05</td><td class="miss">topic needed</td><td>1h</td></tr>
+      <tr><td>09.05</td><td class="miss">topic needed</td><td>3h</td></tr>
+    </table></div>
+  <div class="sec" id="s4"><div class="h">4 · Assessment</div><span class="blank">Not set yet.</span></div>
+  <div class="sec" id="s5"><div class="h">5 · Materials</div><span class="blank">Not provided yet.</span></div>
+  <div class="sec" id="s6"><div class="h">6 · Policies</div><span class="blank">Not selected yet.</span></div>
+  <div class="sec" id="s7"><div class="h">7 · Use of AI</div><span class="blank">Not decided yet.</span></div>`;
+}
+function fillDoc(keepSummary){
+  const summary = keepSummary && $('s1') ? $('s1').innerHTML : `<div class="h">1 · Summary</div>
+    <p class="p">This course gives you a practical command of enterprise risk — how to identify what can go wrong, price it, and decide what to do about it.</p>
+    <div class="sub">Learning outcomes</div>
+    <ul class="ul"><li>Identify and classify the principal risk exposures of a business unit.</li>
+    <li>Build and defend a quantified risk assessment under incomplete information.</li>
+    <li>Design mitigation strategies and argue their trade-offs to a board.</li></ul>
+    <div class="sub">Connection to capstone</div><span class="blank">Not drafted yet.</span>`;
+  $('paper').innerHTML=`
+  <div class="d-head"><div class="d-plates"><span class="d-kicker">Course Syllabus</span><span class="d-title">Risk Management</span></div></div>
+  <div class="sec" id="s0"><div class="h">At a Glance</div>
+    <table class="kv">
+      <tr><td>Program</td><td>MBA 2026</td></tr>
+      <tr><td>Term</td><td>25.04 – 09.05.2026</td></tr>
+      <tr><td>Delivery mode</td><td>Hybrid</td></tr>
+      <tr><td>Credits / ECTS</td><td class="miss">to be specified</td></tr>
+      <tr><td>Contact hours</td><td>20</td></tr>
+      <tr><td>Self-study hours</td><td>14</td></tr>
+      <tr><td>Instructor</td><td>Oleksii Gromyko</td></tr>
+      <tr><td>Assessment</td><td>35 · 25 · 40</td></tr>
+    </table></div>
+  <div class="sec" id="s1">${summary}</div>
+  <div class="sec" id="s2"><div class="h">2 · Instructor</div>
+    <p class="p"><b>Oleksii Gromyko</b><br><span class="p small">Adjunct Professor · oleksii.gromyko@kse.org.ua</span></p>
+    <ul class="ul"><li>Enterprise risk management</li><li>Financial modelling under uncertainty</li><li>Corporate governance</li></ul></div>
+  <div class="sec" id="s3"><div class="h">3 · Schedule</div>
+    <table>
+      <tr><td>25.04</td><td>Risk landscape &amp; taxonomy</td><td>4h</td></tr>
+      <tr><td>26.04</td><td>Quantifying exposure</td><td>4h</td></tr>
+      <tr><td>02.05</td><td>Mitigation &amp; transfer</td><td>4h</td></tr>
+      <tr><td>03.05</td><td>Risk governance</td><td>4h</td></tr>
+      <tr><td>08.05</td><td>Written exam</td><td>1h</td></tr>
+      <tr><td>09.05</td><td>Final project defence</td><td>3h</td></tr>
+    </table></div>
+  <div class="sec" id="s4"><div class="h">4 · Assessment</div>
+    <table>
+      <tr><th>Component</th><th>Weight</th><th>Criteria</th></tr>
+      <tr><td>Class participation</td><td>35%</td><td class="miss" id="crit">missing</td></tr>
+      <tr><td>Written exam</td><td>25%</td><td>Closed-book, 60 min</td></tr>
+      <tr><td>Final project</td><td id="fp">30%</td><td>Board-style defence</td></tr>
+      <tr><td class="tot">Total</td><td class="tot bad" id="tot">90%</td><td></td></tr>
+    </table>
+    <p class="p small" style="margin-top:12px">Scores convert to letter grades under the KSE Regulations. A minimum of 60 of 100 points is required to pass.</p>
+    <div class="sub">Compensatory measures</div>
+    <span class="blank need" id="comp">Required by Regulation 2.5.6(1) — not present.</span></div>
+  <div class="sec" id="s5"><div class="h">5 · Materials</div>
+    <p class="p small">Required readings listed per session.</p></div>
+  <div class="sec" id="s6"><div class="h">6 · Policies</div>
+    <div class="sub">Attendance</div>
+    <p class="p small">Attendance is mandatory. If a student misses more than 40% of classes, they will be required to retake the course.</p>
+    <div class="sub">Academic integrity</div>
+    <p class="p small">Academic integrity requires submitting original work and properly acknowledging all sources and collaborations.</p></div>
+  <div class="sec" id="s7"><div class="h">7 · Use of AI</div>
+    <span class="blank">A link only. Course rules not decided yet.</span></div>`;
+}
+
+entry();
+</script>
+
+<script>
+/* Перемикач теми. Значення живе лише в атрибуті data-theme на <html>,
+   жодного сховища браузера — усі токени перевизначаються в CSS. */
+function toggleTheme(){
+  var r=document.documentElement;
+  var n=r.getAttribute('data-theme')==='dark'?'light':'dark';
+  r.setAttribute('data-theme',n);
+  var b=document.getElementById('themeBtn');
+  if(b) b.textContent = n==='dark' ? '\u2600' : '\u263e';
+}
+</script>
+</body>
+</html>

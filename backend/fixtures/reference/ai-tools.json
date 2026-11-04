@@ -1,15 +1,1061 @@
 {
-  "version": "0.0",
-  "status": "pending",
-  "note": "Каталог «AI in Your Course» ще не надано (ТЗ §12): ~90 прикладів із 84 бізнес-шкіл, згруповані за дисципліною, з позначками рівня зусиль і 12 універсальними структурами завдань. Поки items порожній, services/ai/prompts/aiTools.js повертає [] без виклику LLM. Форма запису — у полі shape.",
-  "shape": {
-    "id": "унікальний рядок (напр. \"ait-001\"): enum у strict json_schema вибору; обов'язковий",
-    "title": "назва формату завдання з AI, дослівно з каталогу; обов'язкова",
-    "school": "школа, яка вже запровадила формат; обов'язкова",
-    "disciplines": ["дисципліни, до яких належить приклад (finance, marketing, strategy, …)"],
-    "structure": "одна з 12 універсальних структур завдань (рядок) або null",
-    "effort": "low | medium | high — позначка зусиль викладача або null",
-    "description": "що саме робить студент і викладач; уривок із каталогу, без вигаданих деталей"
+ "version": "1.0",
+ "status": "approved",
+ "note": "57 прикладів у 13 галузях; галузь patterns — 8 універсальних структур завдань (а не 12, як у ТЗ). effort: low = «Easy to adapt», medium = «Needs prepared materials», high = «Needs a build / tool».",
+ "shape": {
+  "id": "унікальний рядок (напр. \"ait-001\"): enum у strict json_schema вибору; обов'язковий",
+  "title": "назва формату завдання з AI, дослівно з каталогу; обов'язкова",
+  "school": "школа, яка вже запровадила формат; обов'язкова",
+  "disciplines": [
+   "дисципліни, до яких належить приклад (finance, marketing, strategy, …)"
+  ],
+  "structure": "одна з 12 універсальних структур завдань (рядок) або null",
+  "effort": "low | medium | high — позначка зусиль викладача або null",
+  "description": "що саме робить студент і викладач; уривок із каталогу, без вигаданих деталей",
+  "course": "курс, у якому школа веде формат (довільний текст)",
+  "topic": "тема всередині галузі",
+  "what": "що роблять студенти",
+  "why": "навіщо",
+  "adapt": "як адаптувати",
+  "source": "сторінки звіту-джерела"
+ },
+ "items": [
+  {
+   "id": "ait-001",
+   "title": "Independent answer → AI answer → verification",
+   "school": "Northeastern University, D'Amore-McKim",
+   "course": "Financial Accounting core",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Verification",
+   "structure": "Verification",
+   "effort": "low",
+   "description": "Students do the underlying work themselves, then use AI, compare the two, document discrepancies, and reflect on what the model got right or wrong.",
+   "what": "Students iterate prompts, validate AI outputs against independent calculations, and submit the process documentation alongside a reflection. The workflow makes checking—not generating—the central assessed skill.",
+   "why": "The assignment preserves foundational mastery while still teaching students to work with AI as a professional analytical partner.",
+   "adapt": "Use this whenever a course contains a calculable, evidence-based, or model-based answer. Ask students to produce a human baseline first, then test an AI result against it and explain every material difference.",
+   "source": "Supplement p.23; Main report pp.49, 66"
   },
-  "items": []
+  {
+   "id": "ait-002",
+   "title": "The three-step assignment: solve alone, use AI, evaluate AI",
+   "school": "Lake Superior State University, Lukenda School of Business",
+   "course": "MRKT 481 / BUSN 630 + expansion across disciplines",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Sequencing",
+   "structure": "Sequencing",
+   "effort": "low",
+   "description": "One structure used across Management, Marketing, Accounting and Finance: students first analyse independently, then explore where AI could help, then prompt the tool and evaluate its output.",
+   "what": "Step 1 protects the student’s own problem framing. Step 2 asks where AI has legitimate value in that discipline. Step 3 requires direct tool use, prompt writing, and critical evaluation of the result.",
+   "why": "It changes AI from a shortcut into a decision-support tool and is deliberately designed to travel across disciplines without changing the learning objective.",
+   "adapt": "A strong default template for any existing assignment you do not want to redesign from scratch. Keep the original assignment, add an explicit AI phase, and grade the comparison and judgement.",
+   "source": "Supplement p.21; Main report p.66"
+  },
+  {
+   "id": "ait-003",
+   "title": "The five-step verification loop",
+   "school": "University of South Florida, Muma College of Business",
+   "course": "Required business analytics course",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Verification",
+   "structure": "Verification",
+   "effort": "medium",
+   "description": "Define the question → build evidence with analytics tools → use AI to test hypotheses → verify against the data → produce an executive-ready recommendation.",
+   "what": "AI is embedded inside the analytical workflow rather than added at the end. Students use it to test ideas and sharpen the narrative, but must verify outputs against their own evidence.",
+   "why": "This is one of the few cases with measured learning outcomes: analytics competency stayed strong while AI-augmented analytics and responsible verification scores were higher.",
+   "adapt": "Use the same loop for finance, marketing research, operations, strategy, or any course where students move from evidence to a recommendation.",
+   "source": "Supplement p.42; Main report pp.24, 49, 66"
+  },
+  {
+   "id": "ait-004",
+   "title": "Prompt it, then attack it",
+   "school": "Florida State University",
+   "course": "MAN 5721 Strategic Management",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Critique",
+   "structure": "Critique",
+   "effort": "low",
+   "description": "Students prompt ChatGPT, critique the response, and identify where the tool is useful, weak, or inappropriate while building their own case analysis.",
+   "what": "The deliverable is not the generated answer. Students must identify advantages, disadvantages, limitations, and appropriate use cases in relation to a concrete strategic problem.",
+   "why": "The model can generate content, but it cannot replace the student’s judgement about whether that content is fit for a specific managerial purpose.",
+   "adapt": "Replace “use AI to answer” with “use AI to produce a position you must audit.” Grade the quality of the critique, not the fluency of the AI output.",
+   "source": "Supplement p.17; Main report p.32"
+  },
+  {
+   "id": "ait-005",
+   "title": "Use AI on a real task, then reflect on where it helped and failed",
+   "school": "St. John's University, Tobin College of Business",
+   "course": "Fintech / Accounting Fraud",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Reflection",
+   "structure": "Reflection",
+   "effort": "low",
+   "description": "Students use AI in authentic disciplinary work and then make the reflection on usefulness and limitations part of the assessed output.",
+   "what": "In the accounting-fraud example, students use AI to detect possible fraud in transaction data; in fintech, they interact directly with AI systems. In both, the student must judge the tool’s contribution rather than simply report a result.",
+   "why": "The school frames the shift as moving learning from passive recall toward active critical reasoning.",
+   "adapt": "Add a short “AI post-mortem” to any project: What did AI improve? What did it distort? What did you have to correct? What would you never delegate next time?",
+   "source": "Supplement p.27; Main report p.66"
+  },
+  {
+   "id": "ait-006",
+   "title": "Group AI Use Log",
+   "school": "Mount Royal University, Bissett School of Business",
+   "course": "Cross-course policy and assignment practice",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Transparency",
+   "structure": "Transparency",
+   "effort": "low",
+   "description": "Teams document why they used AI, which tools they used, prompts, outputs, verification, and reflections as part of the submission.",
+   "what": "The log sits beside a policy requiring students to verify factual claims, acknowledge AI use, and retain accountability. It turns disclosure from a vague statement into observable evidence of process.",
+   "why": "The same artefact supports assessment and gives faculty visibility into how students actually work with AI.",
+   "adapt": "Attach a one-page AI use log to group projects. Keep it structured and short enough that students can complete it honestly rather than treating it as compliance paperwork.",
+   "source": "Supplement p.47; Main report p.50"
+  },
+  {
+   "id": "ait-007",
+   "title": "Assess a “substantial and substantive” share of verifiable human work",
+   "school": "University of Oregon, Lundquist College of Business",
+   "course": "School-wide assessment principle",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Assessment design",
+   "structure": "Assessment design",
+   "effort": "low",
+   "description": "Rather than trying to ban tools, the school requires a meaningful portion of assessment to rest on work that can be verified as the student’s own.",
+   "what": "The rule protects genuine learning while allowing AI productivity gains elsewhere. It defines an assessment floor rather than a list of prohibited technologies.",
+   "why": "It is tool-agnostic and therefore more durable than policies that name specific platforms.",
+   "adapt": "For each course, identify which outcomes must remain visibly human: live defence, in-class analysis, oral reasoning, calculation, field evidence, or a decision trail. Build grading weight around those parts.",
+   "source": "Supplement p.42; Main report p.49"
+  },
+  {
+   "id": "ait-008",
+   "title": "Ask for information before you are allowed to analyse",
+   "school": "Western University, Ivey Business School",
+   "course": "Case-method redesign",
+   "disciplines": [
+    "patterns"
+   ],
+   "topic": "Case method",
+   "structure": "Case method",
+   "effort": "medium",
+   "description": "Students first decide what information they need and why. Only after making those requests do they receive the relevant information and proceed to analysis.",
+   "what": "The learning event is upstream: framing the problem and deciding what evidence is necessary. Students later see what they failed to request, making omissions visible.",
+   "why": "Ivey’s stated aim is to protect productive struggle and teach students how to question AI rather than simply use it.",
+   "adapt": "For any case, release only a short brief first. Require students to submit their information requests and rationale before unlocking exhibits or data.",
+   "source": "Supplement pp.52–53; Main report p.64"
+  },
+  {
+   "id": "ait-009",
+   "title": "Students build valuation agents",
+   "school": "University of Washington, Foster School of Business",
+   "course": "Finance & Accounting",
+   "disciplines": [
+    "finance"
+   ],
+   "topic": "Valuation",
+   "structure": null,
+   "effort": "high",
+   "description": "Students build AI valuation agents so the deliverable is the analytical instrument itself—not merely a valuation result.",
+   "what": "Foster’s discipline-specific approach asks finance and accounting students to build tools that embody valuation work. The school pairs this with an AI bootcamp for all incoming students.",
+   "why": "Building the instrument exposes assumptions, data requirements, and the logic of professional judgement more clearly than asking AI for a final number.",
+   "adapt": "Have students design a valuation copilot with explicit inputs, assumptions, checks, and escalation rules, then test it on two companies with different risk profiles.",
+   "source": "Supplement p.43; Main report p.33"
+  },
+  {
+   "id": "ait-010",
+   "title": "Use AI to detect fraud, then audit the detector",
+   "school": "St. John's University, Tobin College of Business",
+   "course": "Accounting Fraud",
+   "disciplines": [
+    "accounting"
+   ],
+   "topic": "Audit & Fraud",
+   "structure": null,
+   "effort": "medium",
+   "description": "Students use AI to identify potential fraud in financial transaction data and then reflect on where the system was useful and where it was limited.",
+   "what": "The important design choice is that the assignment does not stop at detection. Students must evaluate false confidence, missed patterns, and the evidentiary quality of the AI result.",
+   "why": "Fraud detection is a natural setting for teaching that an anomaly flag is not the same thing as a professional conclusion.",
+   "adapt": "Use a prepared transaction dataset with planted and ambiguous anomalies. Grade both detection quality and the student’s reasoning about what requires human investigation.",
+   "source": "Supplement p.27; Main report pp.33, 66"
+  },
+  {
+   "id": "ait-011",
+   "title": "AI-powered risk simulation built by the lecturer",
+   "school": "Florida State University",
+   "course": "RMI 5810 Personal Financial Planning",
+   "disciplines": [
+    "finance"
+   ],
+   "topic": "Risk",
+   "structure": null,
+   "effort": "high",
+   "description": "A faculty member built a risk simulation game on a no-code platform to teach human-capital risk management; students also beta-test it.",
+   "what": "Students experience risk decisions inside a simulation and provide structured feedback that informs the next version of the tool.",
+   "why": "It shows that “build” does not necessarily mean a large development project; a subject lecturer can create a narrow simulation around one difficult concept.",
+   "adapt": "Choose one decision in your course that becomes clearer when students can see consequences unfold. Build a narrow branching simulation rather than a full platform.",
+   "source": "Supplement p.17; Main report pp.32, 65"
+  },
+  {
+   "id": "ait-012",
+   "title": "AI for ideation and fact-checking — not for the maths",
+   "school": "Florida State University",
+   "course": "REE 5105 Real Estate Valuation",
+   "disciplines": [
+    "finance"
+   ],
+   "topic": "Quantitative integrity",
+   "structure": null,
+   "effort": "low",
+   "description": "AI is explicitly allowed for ideation, fact-checking and copy editing in discussion boards, while computational work remains independent.",
+   "what": "The permission is precise and tied to one assessment channel. Students can use AI as a secondary brainstorming tool without outsourcing the core quantitative skill the course is designed to develop.",
+   "why": "A precise boundary is easier to teach and follow than a blanket ban or blanket permission.",
+   "adapt": "Map each assignment into “AI can support” and “student must own” steps. Publish the boundary next to the assignment rather than in a generic policy page.",
+   "source": "Supplement p.17; Main report p.32"
+  },
+  {
+   "id": "ait-013",
+   "title": "AI-supported case analysis and financial modelling",
+   "school": "Iowa State University, Ivy College of Business",
+   "course": "Accounting & Finance courses",
+   "disciplines": [
+    "accounting"
+   ],
+   "topic": "Financial modelling",
+   "structure": null,
+   "effort": "low",
+   "description": "Accounting and finance classes integrate AI tools into case analysis and financial modelling as part of a broader discipline-specific curriculum.",
+   "what": "The school positions AI alongside the field’s existing analytical tasks rather than as a separate technology topic.",
+   "why": "This keeps the AI work close to the decisions finance students are expected to make professionally.",
+   "adapt": "Give students a model they already build manually, then ask AI to stress-test assumptions, propose scenarios, or explain sensitivity—but require students to validate every numerical claim.",
+   "source": "Supplement p.20; Main report p.33"
+  },
+  {
+   "id": "ait-014",
+   "title": "Portfolio management on top of a universal AI baseline",
+   "school": "Georgia Southern University, Parker College of Business",
+   "course": "Finance",
+   "disciplines": [
+    "finance"
+   ],
+   "topic": "Portfolio",
+   "structure": null,
+   "effort": "low",
+   "description": "Finance students use AI in portfolio-management work after completing mandatory AI literacy before their first class.",
+   "what": "Because the baseline is handled upstream, the discipline course can focus on portfolio decisions rather than teaching prompting from zero.",
+   "why": "It is a useful programme-design lesson: shared foundations free faculty to spend course time on domain judgement.",
+   "adapt": "If your students already have baseline AI literacy, skip generic tool instruction. Start with a real portfolio decision and require explicit investment rationale plus model verification.",
+   "source": "Supplement p.18; Main report p.24"
+  },
+  {
+   "id": "ait-015",
+   "title": "A course-specific AI Accounting Tutor",
+   "school": "University College Dublin, College of Business",
+   "course": "Accounting",
+   "disciplines": [
+    "accounting"
+   ],
+   "topic": "Tutoring",
+   "structure": null,
+   "effort": "high",
+   "description": "One of UCD’s funded faculty projects is a dedicated AI Accounting Tutor built as a subject-specific teaching tool.",
+   "what": "The tutor is part of a portfolio of seven funded AI use cases across six subject areas. The college then shares the lessons through peer-led teaching sessions and its internal AI resource hub.",
+   "why": "It shows a practical path from a small faculty experiment to a reusable subject resource without trying to build a school-wide platform first.",
+   "adapt": "Start narrow: one course, one recurring student difficulty, and a tutor grounded only in approved course materials. Decide explicitly whether it should explain, ask questions, give hints, or check reasoning.",
+   "source": "Supplement p.51"
+  },
+  {
+   "id": "ait-016",
+   "title": "Marketing students rethink consumer privacy",
+   "school": "University of Washington, Foster School of Business",
+   "course": "Marketing",
+   "disciplines": [
+    "marketing"
+   ],
+   "topic": "Privacy",
+   "structure": null,
+   "effort": "low",
+   "description": "Instead of focusing only on AI-generated content, marketing students examine how AI changes consumer privacy.",
+   "what": "Foster assigns discipline-specific questions. In marketing, the emphasis is on what AI makes newly difficult for the field, not merely what it makes faster.",
+   "why": "It moves AI integration from productivity to strategic and ethical judgement about the market itself.",
+   "adapt": "Ask students to redesign a customer-data or personalization strategy under an explicit privacy constraint, then defend what data they would not collect even if technically available.",
+   "source": "Supplement p.43"
+  },
+  {
+   "id": "ait-017",
+   "title": "A dedicated AI session inside Marketing Research",
+   "school": "SUNY Oswego, College of Business and Entrepreneurship",
+   "course": "Marketing Research",
+   "disciplines": [
+    "marketing"
+   ],
+   "topic": "Research",
+   "structure": null,
+   "effort": "low",
+   "description": "Generative AI is inserted as one focused session inside an existing course to explore how it can strengthen marketing research.",
+   "what": "The integration is deliberately small: a single course session rather than a new course, making it a realistic entry point for faculty who are not ready for a full redesign.",
+   "why": "It demonstrates that meaningful integration can begin with one well-bounded task in an existing syllabus.",
+   "adapt": "Choose one research step—question design, desk research, qualitative coding, hypothesis generation—and redesign only that session around AI plus verification.",
+   "source": "Supplement p.28"
+  },
+  {
+   "id": "ait-018",
+   "title": "Customer Analytics + AI as the disciplinary frame",
+   "school": "Northwestern University, Kellogg School of Management",
+   "course": "MKTG 482 Customer Analytics and AI",
+   "disciplines": [
+    "marketing"
+   ],
+   "topic": "Customer analytics",
+   "structure": null,
+   "effort": "medium",
+   "description": "AI is taught as part of customer analytics rather than as a generic capability, inside Kellogg’s broader data and analytics pathway.",
+   "what": "The course title itself pairs the functional discipline and AI, reinforcing that the tool belongs inside customer analysis and decision-making.",
+   "why": "This is exactly the “domain + AI” framing the report identifies as closer to how employers hire.",
+   "adapt": "Structure a module around a customer decision—segmentation, churn, targeting, experimentation—and make AI one analytical layer rather than the topic of the module.",
+   "source": "Supplement p.23; Main report p.33"
+  },
+  {
+   "id": "ait-019",
+   "title": "Assess students on explaining what the AI is actually solving",
+   "school": "UC San Diego, Rady School of Management",
+   "course": "Graduate AI-enabled business courses",
+   "disciplines": [
+    "marketing"
+   ],
+   "topic": "Problem framing",
+   "structure": null,
+   "effort": "low",
+   "description": "Students are assessed on their ability to clearly articulate how generative AI is solving a business or technical problem.",
+   "what": "The school combines “learn by doing” with explicit assessment of problem articulation, contribution to discussion, and application to a real challenge in a capstone.",
+   "why": "Poor AI work often begins with a badly framed problem; grading the problem statement makes that invisible weakness visible.",
+   "adapt": "Add a required “What problem is the AI solving?” section to any AI-enabled assignment, including what is out of scope and what success would look like.",
+   "source": "Supplement pp.34–35; Main report p.33"
+  },
+  {
+   "id": "ait-020",
+   "title": "AI inside a sales competition",
+   "school": "Georgia Southern University, Parker College of Business",
+   "course": "Marketing / Sales",
+   "disciplines": [
+    "marketing"
+   ],
+   "topic": "Sales",
+   "structure": null,
+   "effort": "low",
+   "description": "AI is incorporated into an assessment format students already take seriously: the sales competition.",
+   "what": "Rather than inventing a new AI assessment, the school folds AI into preparation and analysis around an existing performance-based activity.",
+   "why": "The format keeps AI tied to persuasive judgement, customer context, and human performance.",
+   "adapt": "Use AI to prepare objections, persona hypotheses, or call plans, then assess the live human interaction separately from the AI-supported preparation.",
+   "source": "Supplement p.18; Main report p.33"
+  },
+  {
+   "id": "ait-021",
+   "title": "GenAI analysis of the customer journey",
+   "school": "Academic College of Tel Aviv-Yaffo (MTA)",
+   "course": "Management / customer experience applications",
+   "disciplines": [
+    "marketing"
+   ],
+   "topic": "Customer journey",
+   "structure": null,
+   "effort": "medium",
+   "description": "The school uses discipline-specific GenAI applications including analysis of customer journeys.",
+   "what": "AI is applied to a familiar marketing/CX artefact rather than taught as a standalone tool.",
+   "why": "Customer journeys are rich in qualitative evidence and assumptions, making them a useful place to teach both pattern recognition and challenge of model-generated interpretations.",
+   "adapt": "Give students real or synthetic interview data and ask AI to propose a journey map; then require students to challenge missing moments, false generalizations, and unsupported pain points.",
+   "source": "Supplement p.50; Main report p.34"
+  },
+  {
+   "id": "ait-022",
+   "title": "Configure → Audit → Reframe → Defend",
+   "school": "Suffolk University, Sawyer Business School",
+   "course": "ISOM 260 AI for Business",
+   "disciplines": [
+    "strategy"
+   ],
+   "topic": "Strategic judgement",
+   "structure": null,
+   "effort": "high",
+   "description": "Students configure an organisation of AI agents to handle a business decision, audit what the system missed, reframe the problem, and defend the final decision.",
+   "what": "Each scenario contains a hidden “Second Question”—a governance or fairness issue students only find if they refuse the framing handed to them. In one hiring scenario the mean reframe score was 28/100, and eight of nine teams failed to rebuild after the flaw was revealed.",
+   "why": "The design makes strategic judgement and responsibility measurable instead of treating AI ethics as discussion-only content.",
+   "adapt": "Take a familiar strategy case and deliberately hide a second-order issue: excluded stakeholders, biased data, an assumption embedded in the KPI, or a boundary the model never questions.",
+   "source": "Supplement pp.29–30; Main report pp.48, 66"
+  },
+  {
+   "id": "ait-023",
+   "title": "Faculty-built AI simulation labs across business disciplines",
+   "school": "Carnegie Mellon University, Tepper School of Business",
+   "course": "Marketing, finance, economics, operations, ethics",
+   "disciplines": [
+    "strategy"
+   ],
+   "topic": "Simulation",
+   "structure": null,
+   "effort": "high",
+   "description": "Tepper faculty have built 14 interactive AI-powered learning labs that simulate real business scenarios.",
+   "what": "The labs sit inside a Collaborative AI Initiative focused on designing workflows that balance automated systems with human judgement and accountability.",
+   "why": "A simulation lets students experience consequences and workflow design—skills that are difficult to assess on a conventional written assignment.",
+   "adapt": "Do not start by building “an AI lab.” Start with one decision that has a consequence and at least one plausible wrong path. Build the simulation around that decision.",
+   "source": "Supplement p.14; Main report pp.32, 65"
+  },
+  {
+   "id": "ait-024",
+   "title": "AI simulations, case preparation, and progressively harder tutoring",
+   "school": "Western University, Ivey Business School",
+   "course": "Case-method teaching",
+   "disciplines": [
+    "strategy"
+   ],
+   "topic": "Case method",
+   "structure": null,
+   "effort": "high",
+   "description": "Ivey is redesigning case learning with simulations, AIBEL for case preparation, and Sidekick for progressive theory mastery.",
+   "what": "The common principle is to preserve productive struggle while using AI to structure practice and questioning rather than simply give answers.",
+   "why": "It treats structure—the order and difficulty of questions—as the educator’s value even when students have powerful generative tools.",
+   "adapt": "Build a tutor that asks increasingly demanding questions and withholds the next layer until the student explains their reasoning, instead of a chatbot that answers immediately.",
+   "source": "Supplement pp.52–53; Main report p.64"
+  },
+  {
+   "id": "ait-025",
+   "title": "Student teams build agentic systems for real organisations",
+   "school": "University of Miami, Miami Herbert Business School",
+   "course": "Product Design in the Age of AI",
+   "disciplines": [
+    "strategy"
+   ],
+   "topic": "Agents",
+   "structure": null,
+   "effort": "high",
+   "description": "Student teams create AI-powered agents, applications, analytics, and prototypes for real business partners.",
+   "what": "The learning experience is deliberately AI-native and tied to consequential client problems rather than toy tasks.",
+   "why": "Real clients force students to deal with requirements, constraints, handoff, and responsibility—not only the technical build.",
+   "adapt": "Turn a capstone into a client brief where the deliverable is a functioning AI-enabled workflow plus a governance note explaining where humans remain in the loop.",
+   "source": "Supplement p.39"
+  },
+  {
+   "id": "ait-026",
+   "title": "Futureproof your career in the age of AI",
+   "school": "Michigan State University, Broad College of Business",
+   "course": "Experiential assignment",
+   "disciplines": [
+    "strategy"
+   ],
+   "topic": "Career strategy",
+   "structure": null,
+   "effort": "low",
+   "description": "Students use AI tools to research how skill requirements are changing in their own field, then present their findings to peers.",
+   "what": "The task makes AI personally relevant and requires students to investigate a moving labour-market question rather than consume a generic lecture on the future of work.",
+   "why": "Students have a strong incentive to check the output because the conclusions affect their own career choices.",
+   "adapt": "Ask each student to choose a target role and compare current job descriptions, emerging AI-related tasks, and human capabilities that remain essential; require source checking.",
+   "source": "Supplement p.22; Main report p.66"
+  },
+  {
+   "id": "ait-027",
+   "title": "AI in real client consulting projects",
+   "school": "Wake Forest University, School of Business",
+   "course": "MSBA Business Analytics Practicum",
+   "disciplines": [
+    "strategy"
+   ],
+   "topic": "Consulting",
+   "structure": null,
+   "effort": "medium",
+   "description": "AI supports problem framing, hypothesis generation, and client preparation in real-world consulting projects.",
+   "what": "The tool is used at specific stages of the consulting workflow rather than as a substitute for the final recommendation.",
+   "why": "It exposes students to the professional skill of deciding where AI accelerates the work and where client context and human judgement dominate.",
+   "adapt": "Mark AI-eligible moments in an existing consulting project: framing, hypothesis generation, interview guide drafting, synthesis, and red-team critique. Require the team to justify each use.",
+   "source": "Supplement p.44"
+  },
+  {
+   "id": "ait-028",
+   "title": "A political-savvy simulator",
+   "school": "IESA, Instituto de Estudios Superiores de Administración",
+   "course": "The Leader and the Organization",
+   "disciplines": [
+    "leadership"
+   ],
+   "topic": "Leadership practice",
+   "structure": null,
+   "effort": "high",
+   "description": "An AI agent plays a protagonist from a leadership case so students can practise organisational conflict and power dynamics in real time.",
+   "what": "Students’ dialogue is used to develop and assess political astuteness and emotional intelligence, anchored in named leadership frameworks.",
+   "why": "The simulation converts a static case into deliberate practice: students must act, adapt, and respond rather than only analyse what someone else should have done.",
+   "adapt": "Choose one leadership case with a difficult stakeholder. Turn that stakeholder into a role-play agent with a clear agenda, constraints, and behavioural cues; debrief the student’s choices afterward.",
+   "source": "Supplement p.46; Main report p.64"
+  },
+  {
+   "id": "ait-029",
+   "title": "LLMs for people analytics instruction",
+   "school": "University College Dublin, College of Business",
+   "course": "People analytics",
+   "disciplines": [
+    "leadership"
+   ],
+   "topic": "People analytics",
+   "structure": null,
+   "effort": "medium",
+   "description": "One of UCD’s funded faculty projects explores the use of large language models for teaching people analytics.",
+   "what": "The project sits inside a portfolio of seven small AI teaching use cases funded across six subject areas, with peer dissemination afterward.",
+   "why": "It is a practical model for faculty experimentation: narrow scope, subject-specific question, small funding, then internal sharing.",
+   "adapt": "Use AI to analyse a controlled set of qualitative people data—engagement comments, interview notes, or competency evidence—then compare results with a human coding approach and discuss bias.",
+   "source": "Supplement p.51"
+  },
+  {
+   "id": "ait-030",
+   "title": "AI for personality analysis and team formation",
+   "school": "Iowa State University / CENTRUM PUCP",
+   "course": "Organisational Behaviour / team formation",
+   "disciplines": [
+    "leadership"
+   ],
+   "topic": "Team dynamics",
+   "structure": null,
+   "effort": "medium",
+   "description": "Iowa State uses AI for personality analysis and team building; CENTRUM PUCP uses automated team formation based on Belbin Team Role Theory.",
+   "what": "In these cases AI is not only teaching content—it shapes how student teams are formed or how interpersonal data is interpreted.",
+   "why": "That makes the algorithm itself a teachable object: students can question what the system optimises and what it overlooks.",
+   "adapt": "Let AI propose teams from a transparent set of criteria, then ask students to critique the composition and identify what the model cannot know about collaboration.",
+   "source": "Supplement pp.20, 49; Main report p.65"
+  },
+  {
+   "id": "ait-031",
+   "title": "Hiring bias as the object of the assignment",
+   "school": "Suffolk University / Florida State University",
+   "course": "AI for Business / staffing strategy",
+   "disciplines": [
+    "leadership"
+   ],
+   "topic": "Hiring",
+   "structure": null,
+   "effort": "medium",
+   "description": "Students examine AI-supported hiring decisions where the important failure is accepting a shortlist without questioning how it was produced.",
+   "what": "Suffolk’s scenario reveals an AI screener that filtered out almost all women before human review; Florida State uses AI in organisational staffing strategy evaluation.",
+   "why": "The core HR lesson is not “AI is biased.” It is that managers are accountable for the decision pipeline, including what happened before the output reached them.",
+   "adapt": "Give students a seemingly reasonable shortlist plus limited process information. Grade whether they ask for selection criteria, excluded candidates, and adverse-impact evidence before deciding.",
+   "source": "Supplement pp.17, 29–30; Main report p.48"
+  },
+  {
+   "id": "ait-032",
+   "title": "Use AI to strengthen the capabilities that become more valuable because of AI",
+   "school": "University of Miami, Miami Herbert Business School",
+   "course": "Human Intelligence @ Miami Herbert",
+   "disciplines": [
+    "leadership"
+   ],
+   "topic": "Human skills",
+   "structure": null,
+   "effort": "medium",
+   "description": "The school explicitly develops and documents human capabilities such as communication, analysis, nurturance, execution, and strategy alongside AI.",
+   "what": "The premise is that as AI becomes more capable, distinctively human skills become more—not less—important and should be intentionally assessed.",
+   "why": "It prevents AI integration from crowding out the interpersonal and judgement capabilities business education is supposed to build.",
+   "adapt": "For an AI-enabled assignment, add a second rubric dimension for the human capability the tool cannot provide: stakeholder empathy, negotiation, judgement, persuasion, or accountability.",
+   "source": "Main report p.49"
+  },
+  {
+   "id": "ait-033",
+   "title": "Supply Chain AI Consulting with real employers",
+   "school": "Purdue University, Mitch Daniels School of Business",
+   "course": "MGMT 46900 Supply Chain & Operations Analytics Consulting",
+   "disciplines": [
+    "operations"
+   ],
+   "topic": "Consulting",
+   "structure": null,
+   "effort": "high",
+   "description": "Students use AI tools in real projects with Amazon, KPMG, and Rolls-Royce and can earn a Supply Chain AI Consultant credential.",
+   "what": "The course ties AI, operations analytics, employer projects, and a discipline-specific credential together. Purdue is also developing agentic and autonomous-systems capability with industry partners.",
+   "why": "It shows what “domain + AI” looks like when made legible to employers: not a generic AI badge, but a supply-chain AI capability.",
+   "adapt": "If you already run a live company project, define one AI-enabled workstream and make the student team document the operational decision, evidence, AI contribution, and human sign-off.",
+   "source": "Supplement pp.24–25; Main report pp.33, 56"
+  },
+  {
+   "id": "ait-034",
+   "title": "Use AI to solve optimisation problems",
+   "school": "University of Washington, Foster School of Business",
+   "course": "Operations",
+   "disciplines": [
+    "operations"
+   ],
+   "topic": "Optimisation",
+   "structure": null,
+   "effort": "medium",
+   "description": "Operations students work with AI on optimisation problems as part of Foster’s discipline-specific AI design.",
+   "what": "The AI activity is tied to a task the profession already performs rather than a general AI exercise.",
+   "why": "Optimisation creates a natural opportunity to teach the difference between proposing a solution and verifying feasibility, constraints, and objective functions.",
+   "adapt": "Let AI propose or explain an optimisation approach, but require students to specify constraints, verify the solution, and show how the recommendation changes when one constraint moves.",
+   "source": "Supplement p.43"
+  },
+  {
+   "id": "ait-035",
+   "title": "AI negotiation practice inside logistics",
+   "school": "Georgia Southern University, Parker College of Business",
+   "course": "Logistics & Supply Chain Management",
+   "disciplines": [
+    "operations"
+   ],
+   "topic": "Negotiation",
+   "structure": null,
+   "effort": "medium",
+   "description": "The logistics and supply-chain department uses AI specifically for negotiation practice.",
+   "what": "The skill is taught where the profession uses it, rather than being separated into a generic management elective.",
+   "why": "It is a reminder that useful AI integration often means moving a familiar skill into its actual functional context.",
+   "adapt": "Create supplier, carrier, or procurement role-plays with AI counterparties. Debrief on concessions, information gathering, BATNA, and total-cost trade-offs.",
+   "source": "Supplement p.18; Main report pp.24, 33"
+  },
+  {
+   "id": "ait-036",
+   "title": "Specify software and digitalise a supply chain with GenAI",
+   "school": "University of East Anglia, Norwich Business School",
+   "course": "Digital Business / AI modules",
+   "disciplines": [
+    "operations"
+   ],
+   "topic": "Digital supply chain",
+   "structure": null,
+   "effort": "medium",
+   "description": "Students learn to specify software, write code using generative AI, and digitalise supply chains.",
+   "what": "The emphasis is not coding for its own sake but using AI-enabled development to redesign a business process.",
+   "why": "It connects technical prototyping to the operational question of how a supply chain should work differently.",
+   "adapt": "Ask students to pick one broken handoff in a supply chain, specify an AI-enabled solution, create a lightweight prototype or workflow, and justify controls and metrics.",
+   "source": "Supplement p.51; Main report p.34"
+  },
+  {
+   "id": "ait-037",
+   "title": "Required analytics course rebuilt around verification",
+   "school": "University of South Florida, Muma College of Business",
+   "course": "Required undergraduate business analytics",
+   "disciplines": [
+    "analytics"
+   ],
+   "topic": "Analytics workflow",
+   "structure": null,
+   "effort": "medium",
+   "description": "AI is embedded into the full data-to-decision workflow, with verification as a required step.",
+   "what": "Students define a business question, build evidence with analytics tools such as Tableau, use GenAI to test hypotheses and refine narratives, verify outputs against data, and produce executive-ready recommendations.",
+   "why": "The course generated reusable prompt templates, lab modules, and rubrics and reported measured gains in AI-augmented analytics and responsible verification.",
+   "adapt": "Use this as the template for any data-heavy course: AI may interpret and challenge, but the evidence base remains explicit and auditable.",
+   "source": "Supplement p.42; Main report pp.24, 49, 66"
+  },
+  {
+   "id": "ait-038",
+   "title": "Direct coding agents as an architect, not a typist",
+   "school": "Santa Clara University, Leavey School of Business",
+   "course": "AI-Assisted Software Development (Vibe Coding)",
+   "disciplines": [
+    "analytics"
+   ],
+   "topic": "Coding with AI",
+   "structure": null,
+   "effort": "medium",
+   "description": "Students learn to direct AI coding agents as architects, with the course treated as a distinct learning design rather than simple AI augmentation.",
+   "what": "Leavey distinguishes ordinary AI augmentation of an existing course from new-course status, which is reserved for genuinely distinct learning outcomes.",
+   "why": "The focus is orchestration and specification: students must define what should be built, structure the work, and evaluate the result.",
+   "adapt": "For a nontechnical business course, you can borrow the same principle without teaching software engineering: have students specify and supervise a simple AI-built tool for a real process.",
+   "source": "Supplement p.27"
+  },
+  {
+   "id": "ait-039",
+   "title": "Teach orchestration rather than single-model prompting",
+   "school": "University of Illinois, Gies College of Business",
+   "course": "AI-native project-based curriculum / AgentLab",
+   "disciplines": [
+    "analytics"
+   ],
+   "topic": "Agent orchestration",
+   "structure": null,
+   "effort": "high",
+   "description": "Students learn to design systems where multiple agents work together under human direction.",
+   "what": "Gies centres its emerging work on AI orchestration, supported by an AgentLab and project-based learning. The human-in-the-loop remains explicit.",
+   "why": "The capability is closer to how advanced AI systems are actually deployed in organisations: as workflows and systems, not isolated chat interactions.",
+   "adapt": "Have students design a multi-step agent workflow on paper before building anything: inputs, agent roles, handoffs, checks, failure points, and where human approval is mandatory.",
+   "source": "Supplement p.37; Main report p.66"
+  },
+  {
+   "id": "ait-040",
+   "title": "Hint-based AI tutor instead of answer-giving chatbot",
+   "school": "MIT Sloan School of Management",
+   "course": "AskTim — Tutor AI",
+   "disciplines": [
+    "analytics"
+   ],
+   "topic": "Tutoring",
+   "structure": null,
+   "effort": "high",
+   "description": "MIT Sloan uses a course-grounded assistant alongside a tutor that gives hints on problem sets rather than direct answers.",
+   "what": "The instructional distinction is intentional: the tutor supports the student’s reasoning process without removing the productive work of solving the problem.",
+   "why": "A hinting system can scale support while preserving the learning objective that would disappear if the model simply solved the task.",
+   "adapt": "If you build a course bot, write a refusal policy around “no final answers.” Design a hint ladder: concept reminder → guiding question → partial structure → worked analogue.",
+   "source": "Supplement p.22"
+  },
+  {
+   "id": "ait-041",
+   "title": "Personalised synthetic datasets for every student",
+   "school": "St. John's University, Tobin College of Business",
+   "course": "Econometrics",
+   "disciplines": [
+    "analytics"
+   ],
+   "topic": "Synthetic data",
+   "structure": null,
+   "effort": "high",
+   "description": "An AI-enabled tool generates personalised synthetic data for homework so each student works with a different dataset.",
+   "what": "Students can complete the same analytical learning objective without sharing identical numbers or outputs.",
+   "why": "It designs the copying problem out of the assignment rather than relying on policing or detection.",
+   "adapt": "Generate equivalent but non-identical datasets, cases, or scenarios per student. Keep difficulty and learning outcomes constant while varying the surface data.",
+   "source": "Supplement p.27"
+  },
+  {
+   "id": "ait-042",
+   "title": "Personalised synthetic data for every student",
+   "school": "St. John's University, Tobin College of Business",
+   "course": "Econometrics",
+   "disciplines": [
+    "economics"
+   ],
+   "topic": "Assessment design",
+   "structure": null,
+   "effort": "high",
+   "description": "An econometrics tool generates personalised synthetic data for homework so each student works with a different dataset.",
+   "what": "Students still perform the econometric work, but the input data is individualised. The design reduces the value of copying without relying on a prohibition or detection mechanism.",
+   "why": "It tackles academic integrity through assignment architecture while preserving the quantitative skill being assessed.",
+   "adapt": "Use a common analytical question but generate a different clean dataset, parameter set, or scenario for each student. Keep the learning objective identical and grade the reasoning and model interpretation.",
+   "source": "Supplement p.27"
+  },
+  {
+   "id": "ait-043",
+   "title": "Use AI to build econometrics coding skill — not to replace the analysis",
+   "school": "University College Dublin, College of Business",
+   "course": "Econometrics",
+   "disciplines": [
+    "economics"
+   ],
+   "topic": "Coding",
+   "structure": null,
+   "effort": "medium",
+   "description": "A funded faculty project uses AI to strengthen students’ coding skills in econometrics.",
+   "what": "The project is one of UCD’s seven subject-area AI use cases. The emphasis is on using AI as support for learning how to code rather than as a black-box solver.",
+   "why": "This lets less technical students get unstuck while keeping interpretation, model choice, and validation with the student.",
+   "adapt": "Allow AI for code explanation, debugging, and alternative syntax. Require students to annotate what changed, explain the econometric choice, and validate outputs independently.",
+   "source": "Supplement p.51"
+  },
+  {
+   "id": "ait-044",
+   "title": "Economics inside AI-powered business simulations",
+   "school": "Carnegie Mellon University, Tepper School of Business",
+   "course": "Economics",
+   "disciplines": [
+    "economics"
+   ],
+   "topic": "Simulation",
+   "structure": null,
+   "effort": "high",
+   "description": "Economics is one of the five disciplines covered by Tepper’s faculty-built AI-powered interactive learning labs.",
+   "what": "The labs simulate business scenarios and are designed around workflows that balance automated systems with human judgement and accountability.",
+   "why": "Simulation is useful when the learning objective is not only to calculate an answer but to make a decision under changing conditions.",
+   "adapt": "Choose one economic decision with a trade-off—pricing, market response, resource allocation, or policy impact—and let the simulation react to the student’s choices before the debrief.",
+   "source": "Supplement p.14; Main report p.32"
+  },
+  {
+   "id": "ait-045",
+   "title": "AI + Entrepreneurship accelerator modelled on Y Combinator",
+   "school": "UC Berkeley, Haas School of Business",
+   "course": "AI and Entrepreneurship",
+   "disciplines": [
+    "entrepreneurship"
+   ],
+   "topic": "Startup accelerator",
+   "structure": null,
+   "effort": "medium",
+   "description": "A hands-on accelerator course lets students prototype and test ideas in the market faster before raising capital.",
+   "what": "AI changes the pace of experimentation: students can move from concept to prototype and market feedback within the course window, alongside Haas’s existing lean-startup approach.",
+   "why": "The value is not “using AI in startups” but compressing the build-test-learn cycle enough that students can gather real evidence earlier.",
+   "adapt": "Set a weekly evidence target—prototype, user test, market signal—not a slide-deck target. Let AI reduce build cost but keep customer evidence as the grading anchor.",
+   "source": "Supplement p.33; Main report p.66"
+  },
+  {
+   "id": "ait-046",
+   "title": "Build MVPs through AI-enabled “vibe coding”",
+   "school": "University of Wisconsin–Madison, Wisconsin School of Business",
+   "course": "Gen Bus 210",
+   "disciplines": [
+    "entrepreneurship"
+   ],
+   "topic": "MVP building",
+   "structure": null,
+   "effort": "medium",
+   "description": "Students build minimum viable products inside an AI-enabled business solutions lab.",
+   "what": "The course sits after a required introductory AI course in a three-course experiential sequence, so students build on a shared baseline instead of learning AI and product development simultaneously.",
+   "why": "The order matters: foundation first, then construction. This keeps the lab focused on solving business problems.",
+   "adapt": "Give students a narrow operational or customer problem and require a working MVP plus user evidence. Grade usefulness and iteration more than code sophistication.",
+   "source": "Supplement pp.43–44; Main report pp.26, 64"
+  },
+  {
+   "id": "ait-047",
+   "title": "Thirty-day AI product sprint with a real budget",
+   "school": "Rensselaer Polytechnic Institute, Lally School of Management",
+   "course": "Lally AI Academy",
+   "disciplines": [
+    "entrepreneurship"
+   ],
+   "topic": "Product sprint",
+   "structure": null,
+   "effort": "high",
+   "description": "Cross-disciplinary teams receive a budget to design, build, and deploy production-ready AI products in 30 days.",
+   "what": "The deliverable is a working product that can serve as portfolio evidence, not a concept presentation.",
+   "why": "A real budget forces prioritisation and trade-offs, making resource allocation part of the learning experience.",
+   "adapt": "Give teams a fixed micro-budget and a 3–4 week deadline. Require them to choose what not to build, document assumptions, and deploy something testable.",
+   "source": "Supplement p.25; Main report p.66"
+  },
+  {
+   "id": "ait-048",
+   "title": "AI competition with working MVPs and real organisational problems",
+   "school": "UMass Lowell, Manning School of Business",
+   "course": "Annual AI competition",
+   "disciplines": [
+    "entrepreneurship"
+   ],
+   "topic": "Competition",
+   "structure": null,
+   "effort": "medium",
+   "description": "Student teams develop business plans and working MVPs, including tools for medical coding, operations, coaching, exercise form, and academic advising.",
+   "what": "The competition creates a funnel for practical ideas, including solutions to problems inside the university itself.",
+   "why": "It gives students a visible reason to build while helping the school discover potentially reusable tools and operational improvements.",
+   "adapt": "Run a challenge around 3–5 real problems submitted by internal teams or partner companies. Require a demo, evidence of use, and a short risk assessment.",
+   "source": "Supplement p.38; Main report p.66"
+  },
+  {
+   "id": "ait-049",
+   "title": "NAIT — Negotiations AI Tutor",
+   "school": "Florida State University",
+   "course": "MAN 4441 Negotiation and Conflict Resolution",
+   "disciplines": [
+    "negotiation"
+   ],
+   "topic": "Negotiation",
+   "structure": null,
+   "effort": "high",
+   "description": "A purpose-built AI tutor explains topics, helps students prepare for negotiation activities, and answers routine course questions.",
+   "what": "The tutor supports both learning and course administration, giving students a low-friction place to prepare before live negotiation exercises.",
+   "why": "It targets a specific discipline and specific moments in the course instead of trying to become a general “everything bot.”",
+   "adapt": "Ground a tutor in your course materials and restrict it to three jobs: concept clarification, practice preparation, and administrative Q&A. Keep live negotiation itself human.",
+   "source": "Supplement p.17; Main report pp.31, 32, 65"
+  },
+  {
+   "id": "ait-050",
+   "title": "Redesign communication assessments with AI feedback",
+   "school": "Stetson University, School of Business Administration",
+   "course": "Business communication",
+   "disciplines": [
+    "communication"
+   ],
+   "topic": "Communication assessment",
+   "structure": null,
+   "effort": "medium",
+   "description": "Stetson uses AI-enabled feedback, redesigned communication assessments, and tools that can simulate case protagonists.",
+   "what": "AI becomes a practice partner that can provide repeated feedback before the student performs or submits the final human communication.",
+   "why": "Communication skill improves through iteration; AI can increase the number of low-stakes practice cycles without turning the final performance into AI-generated text.",
+   "adapt": "Use AI for rehearsal feedback on structure, clarity, objections, or tone. Make the graded deliverable a live, recorded, or defended human performance.",
+   "source": "Supplement p.29; Main report pp.26, 65"
+  },
+  {
+   "id": "ait-051",
+   "title": "Use résumés and interviews as the practice ground",
+   "school": "Iowa State / Nebraska–Lincoln / Narayana MBA",
+   "course": "Career and professional development",
+   "disciplines": [
+    "communication"
+   ],
+   "topic": "Career communication",
+   "structure": null,
+   "effort": "low",
+   "description": "Students use AI for résumé optimisation, interview practice, profile improvement, and business communication.",
+   "what": "These are personally consequential but academically lower-risk tasks where students have a strong incentive to scrutinise the output.",
+   "why": "Because the content is about the student, generic or inaccurate AI suggestions are easier to notice and discuss.",
+   "adapt": "Have students ask AI to critique a résumé or interview answer, then require them to accept, reject, or rewrite each major suggestion with a reason.",
+   "source": "Supplement pp.20, 40, 48"
+  },
+  {
+   "id": "ait-052",
+   "title": "Make ethics a graded, falsifiable capability",
+   "school": "Suffolk University, Sawyer Business School",
+   "course": "AI for Business",
+   "disciplines": [
+    "ethics"
+   ],
+   "topic": "Bias & fairness",
+   "structure": null,
+   "effort": "high",
+   "description": "Students are scored on whether they detect and reframe a hidden fairness or governance problem inside an AI-supported decision.",
+   "what": "The exercise produces a measurable result rather than an ethics discussion everyone can “pass.” In the published hiring scenario, teams performed poorly even after seeing the flaw, revealing a real learning challenge.",
+   "why": "It teaches that responsible AI requires active refusal of a system’s framing, not passive awareness of bias concepts.",
+   "adapt": "Put an ethical issue inside the task mechanics rather than in a separate reflection question. The student should have to notice it to succeed.",
+   "source": "Supplement pp.29–30; Main report p.48"
+  },
+  {
+   "id": "ait-053",
+   "title": "Green / Yellow / Red AI use by course",
+   "school": "DePaul University, Driehaus College of Business",
+   "course": "College-wide course framework",
+   "disciplines": [
+    "ethics"
+   ],
+   "topic": "Disclosure",
+   "structure": null,
+   "effort": "low",
+   "description": "Every course is designated Green (full AI use with disclosure), Yellow (limited), or Red (no AI use).",
+   "what": "The framework reduces ambiguity and treats transparent disclosure as a professional competency. The same school tracks student progress through a badge system.",
+   "why": "Students do not have to interpret a vague institution-wide statement for every assignment; expectations are visible at course level.",
+   "adapt": "Adopt a simple status at course or assignment level and define what “limited” means. Put the rule next to the assessment, not only in the syllabus.",
+   "source": "Supplement pp.14–15; Main report p.48"
+  },
+  {
+   "id": "ait-054",
+   "title": "Explore legal and ethical implications inside existing law courses",
+   "school": "Iowa State University, Ivy College of Business",
+   "course": "Business law / employment law / ethics",
+   "disciplines": [
+    "ethics"
+   ],
+   "topic": "Business law",
+   "structure": null,
+   "effort": "low",
+   "description": "Students examine AI’s legal and ethical implications in courses where those questions already naturally belong.",
+   "what": "The school does not require a new standalone AI ethics course to address the topic; it integrates AI into existing legal and ethical reasoning.",
+   "why": "Students encounter responsible AI in the disciplinary context where they must actually make or defend a decision.",
+   "adapt": "Use a current business process—hiring, pricing, marketing personalization, monitoring—and ask students to analyse legal, ethical, and governance risks as part of the core case.",
+   "source": "Supplement p.20; Main report p.48"
+  },
+  {
+   "id": "ait-055",
+   "title": "Question AI before mastering it",
+   "school": "American University, Kogod School of Business",
+   "course": "First-year and MBA learning",
+   "disciplines": [
+    "ethics"
+   ],
+   "topic": "Critical evaluation",
+   "structure": null,
+   "effort": "low",
+   "description": "First-year students learn to question AI’s accuracy, ethics, and biases before focusing on capability; MBA students compare AI-driven analysis with traditional methods.",
+   "what": "The sequence makes scepticism and evaluation a prerequisite to fluency rather than an afterthought.",
+   "why": "It establishes a habit of comparison and verification early, reducing the chance that students equate fluent output with reliable analysis.",
+   "adapt": "Before teaching advanced prompting, give students two competing analyses—AI and non-AI—and grade their ability to identify evidence, assumptions, and failure modes.",
+   "source": "Supplement pp.9–10; Main report pp.24, 49"
+  },
+  {
+   "id": "ait-056",
+   "title": "Redesign assessment rather than rely on AI detection",
+   "school": "University of Oregon / USF / Suffolk",
+   "course": "Cross-course assessment design",
+   "disciplines": [
+    "ethics"
+   ],
+   "topic": "Assessment integrity",
+   "structure": null,
+   "effort": "low",
+   "description": "Several schools protect learning by requiring verifiable student work, built-in verification, and defended judgement instead of relying on surveillance.",
+   "what": "Oregon sets a floor for verifiable work, USF makes AI verification part of the workflow, and Suffolk makes defence and accountability part of the assessment.",
+   "why": "The common move is to redesign what gets graded so the human contribution is visible and necessary.",
+   "adapt": "For any high-stakes assignment, add at least one component AI cannot plausibly fake on its own: live defence, personal field evidence, in-class reasoning, process log, or verified calculation.",
+   "source": "Main report pp.49–52; Supplement pp.29–30, 42"
+  },
+  {
+   "id": "ait-057",
+   "title": "Teach privacy and accountability through the AI-use process itself",
+   "school": "Mount Royal University, Bissett School of Business",
+   "course": "Responsible AI framework",
+   "disciplines": [
+    "ethics"
+   ],
+   "topic": "Data protection",
+   "structure": null,
+   "effort": "low",
+   "description": "Students must verify claims, acknowledge AI use, maintain accountability, and keep structured group AI use logs.",
+   "what": "The framework is built around human-centredness, transparency, equity, privacy, accountability, and continuous improvement.",
+   "why": "Responsible use becomes observable behaviour rather than a policy students read once.",
+   "adapt": "Add three non-negotiable questions to AI-enabled assignments: What data did you share? What claims did you verify? Who is accountable for the final decision?",
+   "source": "Supplement p.47; Main report p.50"
+  }
+ ],
+ "source": "«AI in Your Course — Faculty Idea Catalogue», KSE Business School (Notion, вкладений HTML). Посилання src — сторінки звіту-джерела.",
+ "areas": [
+  {
+   "id": "patterns",
+   "name": "Assignment patterns — any course",
+   "blurb": "Verification, critique, reflection, disclosure, and human judgement."
+  },
+  {
+   "id": "finance",
+   "name": "Finance",
+   "blurb": "Valuation, portfolio management, financial modelling, risk, and quantitative judgement."
+  },
+  {
+   "id": "accounting",
+   "name": "Accounting & Audit",
+   "blurb": "Audit, fraud detection, financial accounting, verification, and accounting tutors."
+  },
+  {
+   "id": "marketing",
+   "name": "Marketing & Customer",
+   "blurb": "Customer research, privacy, analytics, sales, segmentation, and automation."
+  },
+  {
+   "id": "strategy",
+   "name": "Strategy & Management",
+   "blurb": "Case analysis, strategic decisions, agents, simulations, consulting, and transformation."
+  },
+  {
+   "id": "leadership",
+   "name": "Leadership, HR & Organisational Behaviour",
+   "blurb": "Hiring, people analytics, team formation, political judgement, and human skills."
+  },
+  {
+   "id": "operations",
+   "name": "Operations & Supply Chain",
+   "blurb": "Optimisation, logistics, supply-chain consulting, negotiation practice, and workflows."
+  },
+  {
+   "id": "analytics",
+   "name": "Analytics, IS & Technology",
+   "blurb": "Business analytics, coding with AI, agent orchestration, and AI-assisted software development."
+  },
+  {
+   "id": "economics",
+   "name": "Economics & Econometrics",
+   "blurb": "Personalised datasets, econometrics coding, modelling, and simulation."
+  },
+  {
+   "id": "entrepreneurship",
+   "name": "Entrepreneurship & Innovation",
+   "blurb": "MVPs, startup accelerators, vibe coding, product sprints, and market tests."
+  },
+  {
+   "id": "negotiation",
+   "name": "Negotiation",
+   "blurb": "AI tutors, preparation, role-play, and negotiation practice."
+  },
+  {
+   "id": "communication",
+   "name": "Business Communication & Career",
+   "blurb": "Communication feedback, résumés, interviews, professional writing, and practice conversations."
+  },
+  {
+   "id": "ethics",
+   "name": "Responsible AI, Ethics & Business Law",
+   "blurb": "Bias, disclosure, assessment integrity, governance, privacy, and defended judgement."
+  }
+ ]
 }

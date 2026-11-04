@@ -237,3 +237,92 @@ readiness = {
 | `services/ai/prompts/interviewer.js` | `nextQuestion` | K (W3) |
 
   Маршрути й сервіси чату (H) викликають лише ці сигнатури; у тестах H їх мокає через `jest.mock`.
+
+## 10. Доповнення до ТЗ від 29.10.2026 (хвиля W4)
+
+Джерела: `docs/TZ_ADDENDUM_2026-10-29.md` і прототипи в `docs/design/` (`layout-reference.html`, `instructor-walkthrough.html`, `cabinet.html`). Логотипи лежать у `frontend/public/brand/` і `backend/assets/brand/`.
+
+### 10.1 Ролі
+
+`User.role` ∈ `instructor | manager | director | admin`.
+- `admin` — технічний суперкористувач: користувачі, програми, усе інше.
+- `manager` і `director` — нові ролі (замість видаленої v4-ролі `manager`).
+
+Права на екрани кабінету:
+
+| Розділ | instructor | manager | director | admin |
+|---|---|---|---|---|
+| My syllabi, Account settings | ✓ | ✓ | ✓ | ✓ |
+| All syllabi | — | ✓ | ✓ | ✓ |
+| PLO coverage | — | читання | ✓ | ✓ |
+| Courses & cohorts | — | ✓ | ✓ | ✓ |
+| Library: course policies, programme outcomes, assessment components | читання | редагування | редагування | редагування |
+
+- Мутації силабуса в чаті, як і раніше, лише для власника.
+- Роль призначає адміністратор (`PATCH /cabinet/users/:id`).
+
+### 10.2 Курси й набори (cohorts)
+
+- **`Course`** `{ code (напр. «НД.4», унікальний разом із programmeFamily), title (en), titleUk, ects }`.
+- **`CourseOffering`** `{ courseId, programCode (набір: MBA27 | MBA28 | …), type: core|elective|internship|final, lecturerId (User), deadline }` — унікальний `(courseId, programCode)`.
+  - Тип курсу в наборі береться з offering.
+  - Сід створює offerings core / internship / final з `programme-courses.json` (за кодом: НД → core, ПР → internship, АТ → final).
+  - Вибіркові курси додає менеджер.
+- **Силабус належить парі курс × набір:** `Syllabus.offeringId`.
+  - `programCode`, `header.courseCode` і `courseKind` беруться з offering (core / internship / final → `courseKind: 'core'`, elective → `'elective'`).
+  - Силабус без offering (старі дані) працює як раніше.
+- **Ендпоінти** (manager, director, admin):
+  - `GET/POST/PATCH/DELETE /api/cabinet/courses`;
+  - `GET/POST/PATCH/DELETE /api/cabinet/offerings?programCode=`;
+  - `GET /api/cabinet/offerings/mine` — offerings, де користувач — `lecturerId` (для входу «Start from scratch»).
+- **Коди в матриці:** латинська літера типу: `C` core, `E` elective, `I` internship, `F` final project.
+
+### 10.3 Кабінет
+
+- **Вхід:** аватар у правому куті шапки відкриває меню: my syllabi, all syllabi, library, account settings, перемикач теми, вихід.
+- **Ліва навігація згрупована:**
+  - **My work:** my syllabi, account settings;
+  - **Programme:** all syllabi, PLO coverage, courses & cohorts — лише для ролей із правами;
+  - **Library:** course policies, programme outcomes, assessment components.
+- **Перемикач набору (cohort):** один на застосунок, у контенті екранів All syllabi, PLO coverage, Programme outcomes.
+- **Ендпоінти:**
+  - `GET /api/cabinet/syllabi?scope=mine|all&programCode=` повертає рядки: курс, викладач, походження (`uploaded` | `scratch`), стан, readiness, `updatedAt`. `scope=all` — лише manager, director, admin.
+  - `GET /api/cabinet/coverage?programCode=` повертає `{ plo: [{ code, label, text }], courses: [{ offeringId, code, letter, title, type, syllabusId|null }], cells: [{ ploCode, offeringId, weight: 1|0.5, cloId, cloText, assessment: [names] }], totals: { [ploCode]: Σ } }`.
+    - Дані беруться з `state.outcomes[].plo` силабусів набору: `coverage` full = 1, partial = 0.5.
+    - Доступ: director і admin повністю, manager — лише читання.
+  - Library:
+    - `GET /api/references/:programCode/outcomes` (є);
+    - `PATCH /api/cabinet/outcomes/:id` (`label`, manager+) — офіційне `text` лишається українським і не редагується з UI;
+    - `GET/PATCH /api/cabinet/assessment-components` — довідник компонентів оцінювання.
+    - Довідник компонентів сідиться з шаблону школи: individual assignment, group project, case analysis, presentation, quiz, exam.
+
+### 10.4 Account settings
+
+- `GET/PUT /api/users/account`: `{ photoUrl, firstName, lastName, email, language: 'en', theme: 'light'|'dark'|'system' }`.
+- Фото завантажується через `POST /api/users/account/photo` (png / jpg ≤ 2 MB) у `uploads/avatars/`.
+- Пароль змінюється наявним маршрутом зміни пароля.
+- Роль лише показується.
+
+### 10.5 Розділ 2 силабуса без зовнішніх джерел
+
+- Lecturers CRM не використовується (доповнення §6).
+- У новому силабусі автора розділ 2 (`instructors[0]`) підставляється з **попереднього силабуса того самого автора** (останній за `updatedAt`, з непорожнім `instructors[0]`), а якщо такого немає — з `User.lecturerProfile`.
+- Викладач лише підтверджує або править: картка «Is it up to date?» уже є.
+- Фото викладача (`instructors[].photoUrl`) береться з account settings і йде в `.docx`.
+
+### 10.6 Оформлення за брендбуком
+
+- **Палітра:**
+  - `#004641` — основний;
+  - `#003632` — глибокий;
+  - `#2EC195`, `#60BE98` — акценти;
+  - `#94D4C1` — м'ята;
+  - `#EDEFEE` — світле тло;
+  - `#111112` — чорний;
+  - `#62005F` — критичне (`--flag`; на темному тлі `#D79BD4`).
+- **Шрифт:** Arial.
+- **Радіуси:** 0. Круглими лишаються тільки статусні крапки й кільце вибору.
+- **Межі площин:** лінія 1px.
+- **Дві теми:** світла (біла шапка, зелений логотип) і темна (`#111112`, білий логотип).
+- **Точні токени** — CSS-змінні в `docs/design/layout-reference.html`.
+- **`.docx` теж за брендом:** Arial, кольори, логотип KSE Business School у верхньому колонтитулі, фото викладача в картці розділу 2.

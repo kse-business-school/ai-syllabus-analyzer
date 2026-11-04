@@ -11,7 +11,8 @@
 **Документи:**
 - контракт API — `docs/api-v5.md`;
 - план v5 і відповідність ТЗ ↔ код — `docs/V5_PLAN.md`;
-- аудит після W2 — `docs/AUDIT_W2.md`.
+- аудит після W2 — `docs/AUDIT_W2.md`;
+- доповнення до ТЗ від 29.10.2026 — `docs/TZ_ADDENDUM_2026-10-29.md`, прототипи — `docs/design/*.html` (джерело оформлення і кабінету).
 
 ## 0. Інваріанти (порушувати не можна)
 
@@ -138,7 +139,7 @@ frontend/src/
   - Instructor бачить тільки свої силабуси. `/cabinet/syllabi` рахує readiness наживо зі `state`.
   - Метрики: `total`, `inProgress`, `downloads`, `ready100`.
 - **Адміни.** 409, якщо зміна лишає систему без активного адміна. Видалення програми з силабусами → 409.
-- **Роль** береться з БД на кожен запит. Ролі — лише `instructor` і `admin` (`manager` видалено; `scripts/migrate-v2.js` понижує старих).
+- **Роль** береться з БД на кожен запит. Ролі: `instructor`, `manager`, `director`, `admin` (доповнення до ТЗ 29.10.2026; права на екрани — `docs/api-v5.md` §10.1).
 - **Rate limits:**
   - суворий per-IP на login / forgot / reset (`LOGIN_RATE_LIMIT_*`);
   - загальні per-IP на сайт і на `/api`;
