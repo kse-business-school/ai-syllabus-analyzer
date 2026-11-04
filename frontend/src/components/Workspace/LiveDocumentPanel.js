@@ -6,15 +6,15 @@ import CircularProgress from '@mui/material/CircularProgress';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import LinearProgress from '@mui/material/LinearProgress';
 import Paper from '@mui/material/Paper';
-import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
-import Download from '@mui/icons-material/Download';
+import Tooltip from '@mui/material/Tooltip';
+import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
+import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
+import ChatBubbleOutline from '@mui/icons-material/ChatBubbleOutline';
 import DocumentBlocks from './document/DocumentBlocks';
 import { S } from '../../strings';
 
-// Права зона: живий документ (GET /chat/:id/document), тумблер Diff проти baselineState і головна кнопка Download .docx.
-// Документ перечитується на кожну нову ревізію стану (useWorkspace); завантаження доступне на будь-якому етапі.
 const LiveDocumentPanel = ({
   document,
   templateSections = [],
@@ -24,88 +24,262 @@ const LiveDocumentPanel = ({
   downloading = false,
   canDownload = true,
   focusedKey = null,
+  onApproveSection,
+  onDiscussSection,
+  readOnly = false,
 }) => {
   const scrollRef = useRef(null);
   const sections = document?.sections;
   const titles = new Map(templateSections.map((s) => [s.key, s]));
 
-  // Стрибок у розділ: прокручуємо лише власний контейнер панелі
   useEffect(() => {
     if (!focusedKey || !scrollRef.current) return;
     const el = scrollRef.current.querySelector(`[data-section="${focusedKey}"]`);
-    if (el) scrollRef.current.scrollTo({ top: el.getBoundingClientRect().top - scrollRef.current.getBoundingClientRect().top + scrollRef.current.scrollTop - 12, behavior: 'smooth' });
+    if (el) {
+      scrollRef.current.scrollTo({
+        top: el.getBoundingClientRect().top - scrollRef.current.getBoundingClientRect().top + scrollRef.current.scrollTop - 16,
+        behavior: 'smooth',
+      });
+    }
   }, [focusedKey, sections]);
 
   let lastDocNumber = null;
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.default', minWidth: 0 }}>
-      <Box sx={{ p: 1.5, px: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
-          <Typography variant="subtitle2">{S.document}</Typography>
+    <Box
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'background.default',
+        minWidth: 0,
+        borderLeft: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      {/* Шапка документа */}
+      <Box
+        sx={{
+          p: 1.5,
+          px: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h2" sx={{ fontSize: '0.9375rem', fontWeight: 600 }}>
+            {S.document}
+          </Typography>
           <FormControlLabel
-            sx={{ mr: 0 }}
-            control={<Switch size="small" checked={diff} onChange={(e) => onToggleDiff?.(e.target.checked)} />}
-            label={<Typography variant="body2">{S.showChanges}</Typography>}
+            sx={{ m: 0 }}
+            control={
+              <Switch
+                size="small"
+                checked={diff}
+                onChange={(e) => onToggleDiff?.(e.target.checked)}
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                {S.showChanges}
+              </Typography>
+            }
           />
-        </Stack>
+        </Box>
+
         <Button
-          fullWidth
+          size="small"
           variant="contained"
-          startIcon={downloading ? <CircularProgress size={16} color="inherit" /> : <Download />}
+          startIcon={downloading ? <CircularProgress size={14} color="inherit" /> : <FileDownloadOutlined fontSize="small" />}
           disabled={!canDownload || downloading}
           onClick={onDownload}
-          sx={{ mt: 1 }}
+          sx={{ height: 28, fontSize: '0.8125rem' }}
         >
           {downloading ? S.downloading : S.downloadDocx}
         </Button>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, textAlign: 'center' }}>
-          {S.documentHint}
-        </Typography>
       </Box>
+
       {document?.loading && <LinearProgress sx={{ height: 2 }} />}
-      <Box ref={scrollRef} sx={{ flexGrow: 1, overflow: 'auto', p: 2, position: 'relative' }}>
-        {document?.error && <Alert severity="error" sx={{ mb: 2 }}>{document.error}</Alert>}
-        {!sections && !document?.error && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress size={24} /></Box>
+
+      {/* Контейнер листа документа */}
+      <Box
+        ref={scrollRef}
+        sx={{
+          flexGrow: 1,
+          overflowY: 'auto',
+          p: { xs: 2, md: 3 },
+          position: 'relative',
+        }}
+      >
+        {document?.error && (
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 1 }}>
+            {document.error}
+          </Alert>
         )}
+
+        {!sections && !document?.error && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
+            <CircularProgress size={28} />
+          </Box>
+        )}
+
         {sections && (
-          <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+          <Paper
+            variant="outlined"
+            sx={{
+              maxWidth: 760,
+              mx: 'auto',
+              p: { xs: 2.5, md: 4 },
+              bgcolor: 'var(--bg-canvas)',
+              borderColor: 'divider',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            }}
+          >
             {sections.map((sec) => {
               const meta = titles.get(sec.key);
               const docTitle = meta?.docTitle;
-              // Підрозділи одного пункту шаблону (1 Summary → кілька розділів) отримують спільний заголовок
-              const groupHeading = sec.docNumber && sec.docNumber !== lastDocNumber && docTitle && docTitle !== sec.title
-                ? `${sec.docNumber}. ${docTitle}` : null;
+              const groupHeading =
+                sec.docNumber && sec.docNumber !== lastDocNumber && docTitle && docTitle !== sec.title
+                  ? `${sec.docNumber}. ${docTitle}`
+                  : null;
               const ownHeading = groupHeading
                 ? sec.title
-                : sec.docNumber && sec.docNumber !== lastDocNumber ? `${sec.docNumber}. ${sec.title}` : sec.title;
+                : sec.docNumber && sec.docNumber !== lastDocNumber
+                ? `${sec.docNumber}. ${sec.title}`
+                : sec.title;
               lastDocNumber = sec.docNumber ?? lastDocNumber;
               const focused = focusedKey === sec.key;
+              const hasContent = Boolean(sec.blocks?.length);
+
               return (
                 <Box
                   key={sec.key}
                   data-section={sec.key}
                   sx={{
-                    mb: 2.5,
-                    pl: 1.5,
-                    ml: -1.5,
+                    mb: 3.5,
+                    pl: 2,
                     borderLeft: '3px solid',
                     borderColor: focused ? 'primary.main' : 'transparent',
-                    transition: 'border-color 0.3s',
+                    transition: 'border-color 0.2s ease',
                   }}
                 >
-                  {groupHeading && <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>{groupHeading}</Typography>}
-                  <Typography variant={groupHeading || !sec.docNumber ? 'subtitle1' : 'h6'} sx={{ fontWeight: 600, mb: 0.75 }}>
-                    {ownHeading}
-                  </Typography>
-                  {sec.blocks?.length
-                    ? <DocumentBlocks blocks={sec.blocks} diff={diff} />
-                    : <Typography variant="body2" sx={{ color: 'text.disabled', fontStyle: 'italic' }}>Not filled in yet</Typography>}
+                  {groupHeading && (
+                    <Typography
+                      variant="h1"
+                      sx={{
+                        fontSize: '1.125rem',
+                        fontWeight: 700,
+                        mb: 1.5,
+                        color: 'text.primary',
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        pb: 0.5,
+                      }}
+                    >
+                      {groupHeading}
+                    </Typography>
+                  )}
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      mb: 1,
+                      gap: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="h2"
+                      sx={{
+                        fontSize: '0.9375rem',
+                        fontWeight: 600,
+                        color: 'text.primary',
+                      }}
+                    >
+                      {ownHeading}
+                    </Typography>
+
+                    {/* Інтерактивні кнопки секції */}
+                    {!readOnly && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        {onDiscussSection && (
+                          <Tooltip title="Discuss or draft this section in chat">
+                            <Button
+                              size="small"
+                              variant="text"
+                              startIcon={<ChatBubbleOutline sx={{ fontSize: 13 }} />}
+                              onClick={() => onDiscussSection(sec.key, ownHeading)}
+                              sx={{
+                                fontSize: '0.6875rem',
+                                py: 0.2,
+                                px: 0.75,
+                                color: 'text.secondary',
+                                '&:hover': { color: 'text.primary' },
+                              }}
+                            >
+                              Discuss
+                            </Button>
+                          </Tooltip>
+                        )}
+                        {hasContent && onApproveSection && (
+                          <Tooltip title="Approve this section">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<CheckCircleOutline sx={{ fontSize: 13 }} />}
+                              onClick={() => onApproveSection(sec.key)}
+                              sx={{
+                                fontSize: '0.6875rem',
+                                py: 0.2,
+                                px: 0.75,
+                                borderColor: 'divider',
+                                color: 'success.main',
+                                '&:hover': { borderColor: 'success.main', bgcolor: 'var(--status-approved-bg)' },
+                              }}
+                            >
+                              Approve
+                            </Button>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+
+                  {hasContent ? (
+                    <DocumentBlocks blocks={sec.blocks} diff={diff} />
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: 'text.muted',
+                        fontStyle: 'italic',
+                        fontSize: '0.8125rem',
+                        bgcolor: 'background.default',
+                        p: 1.5,
+                        borderRadius: 1,
+                        border: '1px dashed',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      {S.documentEmpty}
+                    </Typography>
+                  )}
                 </Box>
               );
             })}
-            {!sections.length && <Typography variant="body2" color="text.secondary">{S.documentEmpty}</Typography>}
+
+            {!sections.length && (
+              <Typography variant="body2" color="text.secondary">
+                {S.documentEmpty}
+              </Typography>
+            )}
           </Paper>
         )}
       </Box>

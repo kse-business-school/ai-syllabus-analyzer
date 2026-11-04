@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
-import LinearProgress from '@mui/material/LinearProgress';
+import CircularProgress from '@mui/material/CircularProgress';
 import { useAuth } from '../../contexts/AuthContext';
 
 const ResetPassword = () => {
@@ -30,13 +30,15 @@ const ResetPassword = () => {
 
   const handleRequest = async (e) => {
     e.preventDefault();
-    setError(''); setSuccess(''); setLoading(true);
+    setError('');
+    setSuccess('');
+    setLoading(true);
     try {
       const res = await forgotPassword(email);
-      if (!res.success) throw new Error(res.error || "Request failed");
-      setSuccess("If an account exists for this email, we have sent password reset instructions.");
+      if (!res.success) throw new Error(res.error || 'Request failed');
+      setSuccess('If an account exists for this email, we have sent password reset instructions.');
     } catch (err) {
-      setError(err.message || "Request failed");
+      setError(err.message || 'Request failed');
     } finally {
       setLoading(false);
     }
@@ -44,63 +46,159 @@ const ResetPassword = () => {
 
   const handleReset = async (e) => {
     e.preventDefault();
-    setError(''); setSuccess('');
+    setError('');
+    setSuccess('');
     if (password.length < 6) {
-      setError("Your password must contain at least 6 characters");
+      setError('Your password must contain at least 6 characters.');
       return;
     }
     if (password !== confirm) {
-      setError("The passwords do not match");
+      setError('The passwords do not match.');
       return;
     }
     setLoading(true);
     try {
       const res = await resetPassword(existingToken, password);
-      if (!res.success) throw new Error(res.error || "Could not reset your password");
-      setSuccess("Your password has been changed. You can now sign in.");
+      if (!res.success) throw new Error(res.error || 'Could not reset your password');
+      setSuccess('Your password has been changed. You can now sign in.');
       setTimeout(() => navigate('/login'), 1200);
     } catch (err) {
-      setError(err.message || "Could not reset your password");
+      setError(err.message || 'Could not reset your password');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
-      <Paper elevation={8} sx={{ maxWidth: 480, width: '100%', p: 4, borderRadius: 3 }}>
-        <Typography variant="h5" fontWeight={700} gutterBottom>
-          {mode === 'request' ? "Password recovery" : "Reset password"}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {mode === 'request' ? "Enter your email to receive reset instructions" : "Enter a new password"}
-        </Typography>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+        p: 2,
+      }}
+    >
+      <Paper
+        variant="outlined"
+        sx={{
+          maxWidth: 420,
+          width: '100%',
+          p: { xs: 3, sm: 4 },
+          bgcolor: 'background.paper',
+          borderColor: 'divider',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+        }}
+      >
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <Box
+            sx={{
+              display: 'inline-block',
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              fontWeight: 800,
+              fontSize: '1rem',
+              letterSpacing: '0.06em',
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 0.5,
+              mb: 1.5,
+            }}
+          >
+            KSE
+          </Box>
+          <Typography variant="h1" sx={{ fontSize: '1.25rem', fontWeight: 600, mb: 0.5 }}>
+            {mode === 'request' ? 'Password Recovery' : 'Reset Password'}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8125rem' }}>
+            {mode === 'request'
+              ? 'Enter your academic email to receive reset instructions'
+              : 'Enter a new secure password'}
+          </Typography>
+        </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2.5, borderRadius: 1 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+        {success && (
+          <Alert severity="success" sx={{ mb: 2.5, borderRadius: 1 }}>
+            {success}
+          </Alert>
+        )}
 
         {mode === 'request' ? (
-          <form onSubmit={handleRequest}>
-            <TextField fullWidth type="email" label="Email" value={email} onChange={(e) => setEmail(e.target.value)} required sx={{ mb: 2 }} />
-            <Button type="submit" fullWidth variant="contained" disabled={loading}>
-              {loading ? "Sending…" : "Send instructions"}
+          <Box component="form" onSubmit={handleRequest}>
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              size="small"
+              autoFocus
+              sx={{ mb: 2.5 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
+              sx={{ py: 1, mb: 2 }}
+            >
+              {loading ? 'Sending instructions…' : 'Send reset link'}
             </Button>
-          </form>
+          </Box>
         ) : (
-          <form onSubmit={handleReset}>
-            <TextField fullWidth type="password" label="New password" value={password} onChange={(e) => setPassword(e.target.value)} required sx={{ mb: 2 }} />
-            <TextField fullWidth type="password" label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required sx={{ mb: 2 }} />
-            {password && (
-              <Box sx={{ mb: 2 }}>
-                <LinearProgress variant="determinate" value={Math.min(100, password.length * 10)} />
-                <Typography variant="caption" color="text.secondary">Password strength: {Math.min(100, password.length * 10)}%</Typography>
-              </Box>
-            )}
-            <Button type="submit" fullWidth variant="contained" disabled={loading}>
-              {loading ? "Saving…" : "Save password"}
+          <Box component="form" onSubmit={handleReset}>
+            <TextField
+              fullWidth
+              label="New Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              size="small"
+              autoFocus
+              sx={{ mb: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              label="Confirm New Password"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              size="small"
+              sx={{ mb: 2.5 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
+              sx={{ py: 1, mb: 2 }}
+            >
+              {loading ? 'Updating password…' : 'Save new password'}
             </Button>
-          </form>
+          </Box>
         )}
+
+        <Box sx={{ textAlign: 'center', mt: 1 }}>
+          <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
+            <Link to="/login" style={{ color: 'inherit', fontWeight: 500 }}>
+              Return to sign in
+            </Link>
+          </Typography>
+        </Box>
       </Paper>
     </Box>
   );

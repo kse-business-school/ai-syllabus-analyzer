@@ -1,48 +1,43 @@
-import React from 'react';
-import Toolbar from '@mui/material/Toolbar';
+import React, { useState } from 'react';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
-import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Divider from '@mui/material/Divider';
-import MenuIcon from '@mui/icons-material/Menu';
-import AccountCircle from '@mui/icons-material/AccountCircle';
-import Settings from '@mui/icons-material/Settings';
-import Logout from '@mui/icons-material/Logout';
-import DarkMode from '@mui/icons-material/DarkMode';
-import LightMode from '@mui/icons-material/LightMode';
-import BrightnessAuto from '@mui/icons-material/BrightnessAuto';
-import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { useThemeMode } from '../../contexts/ThemeContext';
+import Chip from '@mui/material/Chip';
+import Tooltip from '@mui/material/Tooltip';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import ToggleButton from '@mui/material/ToggleButton';
+import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined';
+import LightModeOutlined from '@mui/icons-material/LightModeOutlined';
+import SettingsBrightnessOutlined from '@mui/icons-material/SettingsBrightnessOutlined';
+import SettingsOutlined from '@mui/icons-material/SettingsOutlined';
+import LogoutOutlined from '@mui/icons-material/LogoutOutlined';
+import ColorLensOutlined from '@mui/icons-material/ColorLensOutlined';
 
-const Header = ({ onMenuClick, drawerOpen }) => {
+import { useAuth } from '../../contexts/AuthContext';
+import { useThemeMode } from '../../contexts/ThemeContext';
+import { useCohort } from '../../contexts/CohortContext';
+
+const Header = () => {
   const { user, logout } = useAuth();
-  const { mode, setMode } = useThemeMode();
-  const handleThemeChange = (e, newMode) => {
-    if (newMode) setMode(newMode);
-  };
+  const { mode, setMode, brandPreset, setBrandPreset } = useThemeMode();
+  const { currentProgram, currentCohort } = useCohort();
+  const location = useLocation();
   const navigate = useNavigate();
-  const [anchorEl, setAnchorEl] = React.useState(null);
 
-  const handleMenu = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
+  const [anchorEl, setAnchorEl] = useState(null);
+  const isWorkspace = location.pathname.startsWith('/workspace');
+  const isCabinet = location.pathname.startsWith('/cabinet');
 
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
+  const handleMenu = (event) => setAnchorEl(event.currentTarget);
+  const handleClose = () => setAnchorEl(null);
 
   const handleProfile = () => {
-    handleClose();
-    navigate('/profile');
-  };
-
-  const handleSettings = () => {
     handleClose();
     navigate('/settings');
   };
@@ -53,135 +48,269 @@ const Header = ({ onMenuClick, drawerOpen }) => {
     navigate('/login');
   };
 
-  const getUserInitials = (user) => {
-    if (!user) return 'U';
-    const first = user.firstName?.charAt(0) || '';
-    const last = user.lastName?.charAt(0) || '';
-    return (first + last).toUpperCase() || user.email.charAt(0).toUpperCase();
+  const handleThemeChange = (e, newMode) => {
+    if (newMode) setMode(newMode);
+  };
+
+  const toggleBrand = () => {
+    setBrandPreset(brandPreset === 'kse-green' ? 'kse-studio' : 'kse-green');
+  };
+
+  const getUserInitials = (u) => {
+    if (!u) return 'U';
+    const first = u.firstName?.charAt(0) || '';
+    const last = u.lastName?.charAt(0) || '';
+    return (first + last).toUpperCase() || u.email?.charAt(0).toUpperCase() || 'U';
   };
 
   return (
-    <Toolbar>
-      <IconButton
-        color="inherit"
-        aria-label="Open menu"
-        edge="start"
-        onClick={onMenuClick}
-        sx={{ mr: 2 }}
-      >
-        <MenuIcon />
-      </IconButton>
+    <Box
+      component="header"
+      sx={{
+        height: 52,
+        minHeight: 52,
+        maxHeight: 52,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        px: 2,
+        bgcolor: 'background.paper',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        position: 'sticky',
+        top: 0,
+        zIndex: 1100,
+      }}
+    >
+      {/* Ліва зона: Логотип + Назва */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 200 }}>
+        <Box
+          component={Link}
+          to="/"
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            textDecoration: 'none',
+            color: 'inherit',
+          }}
+        >
+          <Box
+            sx={{
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              fontWeight: 800,
+              fontSize: '0.8125rem',
+              letterSpacing: '0.05em',
+              px: 1,
+              py: 0.35,
+              borderRadius: 0.5,
+              lineHeight: 1,
+            }}
+          >
+            KSE
+          </Box>
+          <Typography
+            variant="h2"
+            sx={{
+              fontSize: '0.9375rem',
+              fontWeight: 600,
+              letterSpacing: '-0.01em',
+              color: 'text.primary',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Syllabus Studio
+          </Typography>
+        </Box>
+      </Box>
 
-      <Typography
-        variant="h6"
-        noWrap
-        component="div"
+      {/* Центральна зона: Назва курсу, Програма, Контекст готовності (якщо у Workspace) */}
+      <Box
+        id="kse-workspace-header-center"
         sx={{
-          flexGrow: 1,
-          fontWeight: 600,
-          color: 'common.white'
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: '1 1 auto',
+          justifyContent: 'center',
+          px: 2,
         }}
       >
-        AI Syllabus Analyzer
-      </Typography>
+        {isWorkspace && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, maxWidth: '100%' }}>
+            <Chip
+              label={`${currentProgram} · ${currentCohort}`}
+              size="small"
+              variant="outlined"
+              sx={{
+                height: 22,
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                borderColor: 'divider',
+                bgcolor: 'background.default',
+              }}
+            />
+          </Box>
+        )}
+      </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {/* Перемикач теми */}
+      {/* Права зона: Навігація, Тема, Профіль */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 280, justifyContent: 'flex-end' }}>
+        {/* Workspace / Cabinet switcher */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}>
+          <Button
+            component={Link}
+            to="/workspace"
+            size="small"
+            variant={isWorkspace ? 'contained' : 'text'}
+            color={isWorkspace ? 'primary' : 'inherit'}
+            sx={{
+              height: 28,
+              fontSize: '0.8125rem',
+              px: 1.5,
+              borderRadius: 1,
+              fontWeight: isWorkspace ? 600 : 500,
+            }}
+          >
+            Workspace
+          </Button>
+          <Button
+            component={Link}
+            to="/cabinet"
+            size="small"
+            variant={isCabinet ? 'contained' : 'text'}
+            color={isCabinet ? 'primary' : 'inherit'}
+            sx={{
+              height: 28,
+              fontSize: '0.8125rem',
+              px: 1.5,
+              borderRadius: 1,
+              fontWeight: isCabinet ? 600 : 500,
+            }}
+          >
+            Cabinet
+          </Button>
+        </Box>
+
+        {/* Перемикач пресету бренду (KSE Green vs Studio) */}
+        <Tooltip title={`Palette: ${brandPreset === 'kse-green' ? 'KSE Green' : 'KSE Studio'}`}>
+          <IconButton size="small" onClick={toggleBrand} sx={{ p: 0.5, color: 'text.secondary' }}>
+            <ColorLensOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+
+        {/* Перемикач теми Light/Dark/System */}
         <ToggleButtonGroup
           value={mode}
           exclusive
           size="small"
           onChange={handleThemeChange}
-          sx={{ mr: 1, bgcolor: 'background.paper', borderRadius: 2, '& .MuiToggleButton-root': { py: 0.5 } }}
+          sx={{
+            height: 28,
+            bgcolor: 'background.default',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            '& .MuiToggleButton-root': {
+              border: 0,
+              py: 0.25,
+              px: 0.75,
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                bgcolor: 'background.paper',
+                color: 'primary.main',
+                fontWeight: 600,
+              },
+            },
+          }}
         >
-          <ToggleButton value="system" aria-label="system" title="System theme">
-            <BrightnessAuto fontSize="small" />
+          <ToggleButton value="system" title="System Theme">
+            <SettingsBrightnessOutlined sx={{ fontSize: 15 }} />
           </ToggleButton>
-          <ToggleButton value="light" aria-label="light" title="Light theme">
-            <LightMode fontSize="small" />
+          <ToggleButton value="light" title="Light Theme">
+            <LightModeOutlined sx={{ fontSize: 15 }} />
           </ToggleButton>
-          <ToggleButton value="dark" aria-label="dark" title="Dark theme">
-            <DarkMode fontSize="small" />
+          <ToggleButton value="dark" title="Dark Theme">
+            <DarkModeOutlined sx={{ fontSize: 15 }} />
           </ToggleButton>
         </ToggleButtonGroup>
-        {/* Меню користувача */}
+
+        {/* Аватар та меню користувача */}
         <IconButton
-          size="large"
-          aria-label="Account"
-          aria-controls="menu-appbar"
-          aria-haspopup="true"
+          size="small"
           onClick={handleMenu}
-          color="inherit"
+          sx={{ ml: 0.5, p: 0.25 }}
+          aria-label="Account menu"
+          aria-controls="menu-account"
+          aria-haspopup="true"
         >
           <Avatar
             sx={{
-              width: 32,
-              height: 32,
+              width: 28,
+              height: 28,
               bgcolor: 'primary.main',
-              fontSize: '0.875rem'
+              color: 'primary.contrastText',
+              fontSize: '0.75rem',
+              fontWeight: 600,
             }}
-            src={user?.avatarUrl || undefined}
           >
             {getUserInitials(user)}
           </Avatar>
         </IconButton>
 
         <Menu
-          id="menu-appbar"
+          id="menu-account"
           anchorEl={anchorEl}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-          keepMounted
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
           open={Boolean(anchorEl)}
           onClose={handleClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
           sx={{
             mt: 1,
             '& .MuiPaper-root': {
-              minWidth: 200,
-              boxShadow: '0 4px 20px 0 rgba(0,0,0,0.12)',
-            }
+              minWidth: 220,
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+            },
           }}
         >
-          <Box sx={{ px: 2, py: 1 }}>
-            <Typography variant="subtitle2" color="text.primary">
+          <Box sx={{ px: 2, py: 1.25 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
               {user?.firstName} {user?.lastName}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
               {user?.email}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {user?.role === 'instructor' ? "Instructor" :
-               user?.role === 'admin' ? "Administrator" : user?.role}
-            </Typography>
+            <Chip
+              label={user?.role === 'admin' ? 'Administrator' : 'Instructor'}
+              size="small"
+              sx={{
+                height: 20,
+                fontSize: '0.6875rem',
+                fontWeight: 600,
+                bgcolor: 'background.default',
+                color: 'text.secondary',
+              }}
+            />
           </Box>
-
           <Divider />
-
-          <MenuItem onClick={handleProfile}>
-            <AccountCircle sx={{ mr: 2 }} />
-            Profile
+          <MenuItem onClick={handleProfile} sx={{ fontSize: '0.8125rem', py: 1 }}>
+            <SettingsOutlined sx={{ mr: 1.5, fontSize: 18, color: 'text.secondary' }} />
+            Account settings
           </MenuItem>
-
-          <MenuItem onClick={handleSettings}>
-            <Settings sx={{ mr: 2 }} />
-            Settings
-          </MenuItem>
-
           <Divider />
-
-          <MenuItem onClick={handleLogout}>
-            <Logout sx={{ mr: 2 }} />
+          <MenuItem onClick={handleLogout} sx={{ fontSize: '0.8125rem', py: 1, color: 'error.main' }}>
+            <LogoutOutlined sx={{ mr: 1.5, fontSize: 18 }} />
             Sign out
           </MenuItem>
         </Menu>
       </Box>
-    </Toolbar>
+    </Box>
   );
 };
 
