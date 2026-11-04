@@ -33,6 +33,16 @@ function findCoreCourse(refs, courseCode) {
   return (refs?.coreCourses || []).find((c) => normCode(c.code) === code) || null;
 }
 
+/**
+ * Тип курсу в наборі. Призначення (CourseOffering, refs.offeringTypes) мають пріоритет над переліком
+ * нормативних курсів програми; без призначення — за refs.coreCourses (лише за кодом, не за назвою).
+ */
+function courseKindOf(refs, courseCode) {
+  const assigned = refs?.offeringTypes?.[normCode(courseCode)];
+  if (assigned === 'core' || assigned === 'elective') return assigned;
+  return findCoreCourse(refs, courseCode) ? 'core' : 'elective';
+}
+
 function computeFields(state) {
   const sessions = state.sessions || [];
   const hoursOf = (type) => sumKnown(sessions.filter((s) => s.type === type).map((s) => s.hours));
@@ -55,7 +65,7 @@ function computeFields(state) {
  */
 function recompute(state, refs) {
   const header = { ...state.header, computed: computeFields(state) };
-  if (refs) header.courseKind = findCoreCourse(refs, state.header?.courseCode) ? 'core' : 'elective';
+  if (refs) header.courseKind = courseKindOf(refs, state.header?.courseCode);
   return { ...state, header };
 }
 
@@ -73,4 +83,4 @@ function computedWarnings(state) {
   ].filter((w) => w.ids.length);
 }
 
-module.exports = { recompute, computeFields, computedWarnings, findCoreCourse, isoDay };
+module.exports = { recompute, computeFields, computedWarnings, findCoreCourse, courseKindOf, isoDay };

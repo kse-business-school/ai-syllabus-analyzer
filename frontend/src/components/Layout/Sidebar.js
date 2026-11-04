@@ -14,6 +14,7 @@ import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
 import School from '@mui/icons-material/School';
 import Policy from '@mui/icons-material/Policy';
 import { useAuth } from '../../contexts/AuthContext';
+import { ALL_ROLES, ROLE_LABELS } from '../../utils/roles';
 
 const Sidebar = ({ onItemClick }) => {
   const location = useLocation();
@@ -54,24 +55,24 @@ const Sidebar = ({ onItemClick }) => {
       text: "Chat",
       icon: <Forum />,
       path: '/workspace',
-      roles: ['instructor', 'admin'],
+      roles: ALL_ROLES,
     },
     {
       text: user?.role === 'admin' ? "Cabinet" : "My syllabi",
       icon: <AdminPanelSettings />,
       path: '/cabinet',
-      roles: ['admin', 'instructor'],
+      roles: ALL_ROLES,
     },
     {
       text: "Documents",
       icon: <Policy />,
       path: '/policies',
-      roles: ['instructor', 'admin'],
+      roles: ALL_ROLES,
     },
   ].filter((item) => item.roles.includes(user?.role));
 
-  const roleColors = { admin: 'error', instructor: 'primary' };
-  const roleLabels = { admin: "Administrator", instructor: "Instructor" };
+  const roleColors = { admin: 'error', instructor: 'primary', manager: 'secondary', director: 'secondary' };
+  const roleLabels = ROLE_LABELS;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

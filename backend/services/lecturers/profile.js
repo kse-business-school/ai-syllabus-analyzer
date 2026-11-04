@@ -1,4 +1,5 @@
 const User = require('../../models/User');
+const Syllabus = require('../../models/Syllabus');
 const validator = require('validator');
 const crm = require('./crm');
 const { httpError } = require('../../utils/httpError');
@@ -38,11 +39,24 @@ function validateInput(input) {
   return patch;
 }
 
-async function resolveProfile(userId) {
+// Розділ 2 з попереднього силабуса того самого автора: викладач заповнює дані один раз.
+async function previousInstructor(userId, excludeSyllabusId) {
+  const filter = { instructor: userId, 'state.instructors.0': { $exists: true } };
+  if (excludeSyllabusId) filter._id = { $ne: excludeSyllabusId };
+  const previous = await Syllabus.find(filter).sort({ updatedAt: -1 }).limit(10).select('state.instructors updatedAt').lean();
+  const found = previous.find((s) => hasInstructor(s.state?.instructors?.[0]));
+  return found ? { ...found.state.instructors[0], updatedAt: found.updatedAt } : null;
+}
+
+async function resolveProfile(userId, { excludeSyllabusId = null } = {}) {
   const user = await User.findById(userId).select('email firstName lastName lecturerProfile').lean();
   if (!user) throw httpError(404, 'User not found', { code: 'NOT_FOUND' });
   const remote = await crm.getProfile({ userId: String(user._id), email: user.email });
-  const local = user.lecturerProfile || { name: `${user.firstName} ${user.lastName}`.trim(), email: user.email };
+  // Збережений профіль новіший за будь-який силабус лише якщо його справді редагували.
+  const saved = user.lecturerProfile?.updatedAt ? user.lecturerProfile : null;
+  const carried = remote || saved ? null : await previousInstructor(userId, excludeSyllabusId);
+  const local = saved || carried || user.lecturerProfile
+    || { name: `${user.firstName} ${user.lastName}`.trim(), email: user.email };
   const profile = {
     ...profileValues(remote || local),
     updatedAt: (remote || local).updatedAt || null,

@@ -23,7 +23,7 @@
 - **Реєстр слотів** — `services/syllabusState/slots.js`: тип A–E, `locked|library|free`, пороги повноти (ТЗ §8). Не дублювати ці правила в промптах чи маршрутах.
 - **Нічого не прив'язувати до MBA в коді.**
   - Шаблон, ПРН, нормативні курси, Capstone, політики — це дані з `programCode` (`services/references`, фікстури `backend/fixtures/reference/`, ідемпотентний сід).
-  - `courseKind` (core/elective) визначається лише за `programCode` + `courseCode`, ніколи за назвою.
+  - `courseKind` (core/elective) визначається за `programCode` + `courseCode`, ніколи за назвою: спершу призначення `CourseOffering` (`refs.offeringTypes`), без нього — перелік нормативних курсів програми.
 - **Перевірки ТЗ §2 — код, не промпт** (`services/checks`, чисті функції).
   - LLM використовується лише в `checks/llm.js` і лише для суджень. Результат іде в чат, а не в Readiness.
 - **Політики.**
@@ -74,10 +74,10 @@
 backend/
   server.js                 Express: fail-fast env, CORS, rate limits, таймаути (LONG_RUNNING_PATHS), DB-guard, сід (admin, програми, політики, довідники), sweepers
   fixtures/reference/       довідники: policies.library (13 блоків), learning-outcomes (ПРН MBA27/MBA28), programme-courses, capstone.criteria,
-                            template.sections; stub-каталоги assessment-components, prerequisites, compensation, ai-tools
+                            template.sections, ai-tools (57 прикладів); stub-каталоги assessment-components, prerequisites, compensation
   models/                   User (+lecturerProfile), Program (+editions), Syllabus (state, stateRevision, baselineState, programCode, track),
                             Suggestion (v5: target, draft, proposedValues), Conversation, Message, SlotChange, Policy (+syllabus-policy),
-                            TemplateSection, ProgramOutcome, OutcomeMapping, ProgramCourse, CapstoneGuide
+                            TemplateSection, ProgramOutcome, OutcomeMapping, ProgramCourse, CapstoneGuide, CourseOffering (курс × набір: type, lecturerId, deadline)
   routes/                   auth, syllabus (create/upload/status/analyze), chat (View, рішення, розділи, політики, документ, outputs), cabinet,
                             users (+profile/lecturer), policies, references
   services/
@@ -96,11 +96,12 @@ backend/
     chat/                   view, flow (старт, наступний крок, питання), decisions (accept/values/reject/refine/answer/reopen),
                             sections, policies, freeChat, draftSuggestions, slotWrite, known, state
     document/               loadDocument (docx/doc/pdf → blocks), extractors, convert (docToDocx), writers/templateDocx + templateStyles
-    lecturers/              profile (CRM → локальний профіль), crm (заглушка Lecturers CRM), cards
+    plo/                    coverage (матриця покриття ПРН набору, чиста функція)
+    lecturers/              profile (CRM → збережений профіль → розділ 2 попереднього силабуса автора), crm (заглушка Lecturers CRM), cards
     outputs.js, outputFormats.js   syllabus.docx (кеш за stateRevision)
     analysisRunner.js, analysisLease.js   фоновий аналіз з lease
     syllabusCleanup.js, emailService.js, userService.js
-scripts/                    міграції (idempotent, --dry-run): migrate-v5-policies, migrate-v5-references, migrate-v5-state (+ історичні v2–v4)
+scripts/                    міграції (idempotent, --dry-run): migrate-v5-policies, migrate-v5-references, migrate-v5-state, migrate-v5-offerings (+ історичні v2–v4)
 frontend/src/
   pages/ProfessorTutorWorkspace.js   три зони
   components/Workspace/     SyllabusStructurePanel, LiveDocumentPanel, EmptyState (два входи), messages/*, suggestions/* (DraftCard,
@@ -136,10 +137,12 @@ frontend/src/
   - `GET /:id` не віддає `state` і шляхи.
 - **Cabinet.**
   - Програми, користувачі й cleanup uploads доступні лише admin.
-  - Instructor бачить тільки свої силабуси. `/cabinet/syllabi` рахує readiness наживо зі `state`.
+  - За замовчуванням `/cabinet/syllabi` і `/cabinet/metrics` віддають лише власні силабуси; `?scope=all` — manager / director / admin (інакше 403). Readiness рахується наживо зі `state`.
+  - `/cabinet/offerings` (призначення курс × набір): читання — manager / director / admin бачать усі, викладач лише свої; запис — manager / director / admin.
+  - `/cabinet/plo-coverage?programCode=` (матриця ПРН × курси набору зі `state` силабусів, `services/plo/coverage.js`) і `/cabinet/lecturers` — manager / director / admin.
   - Метрики: `total`, `inProgress`, `downloads`, `ready100`.
 - **Адміни.** 409, якщо зміна лишає систему без активного адміна. Видалення програми з силабусами → 409.
-- **Роль** береться з БД на кожен запит. Ролі: `instructor`, `manager`, `director`, `admin` (доповнення до ТЗ 29.10.2026; права на екрани — `docs/api-v5.md` §10.1).
+- **Роль** береться з БД на кожен запит. Ролі: `instructor`, `manager`, `director`, `admin` (`services/roles.js`). `manager` / `director` бачать усі силабуси (лише читання), призначають курси до наборів (`CourseOffering`) і правлять довідники; мутації в чаті — лише власник.
 - **Rate limits:**
   - суворий per-IP на login / forgot / reset (`LOGIN_RATE_LIMIT_*`);
   - загальні per-IP на сайт і на `/api`;
@@ -171,7 +174,8 @@ frontend/src/
 
 - **LLM-виклики** — лише через `services/ai/client.js` (`createResponse`), strict `json_schema` або strict function tools.
   - Новий OpenAI-клієнт не створювати.
-  - Модель задається `LLM_MODEL` і має починатися з `gpt-`.
+  - Провайдер — `LLM_PROVIDER` (`openai` | `anthropic`); адаптер Anthropic — `services/ai/anthropicAdapter.js`, виклики лишаються в стилі Responses API.
+  - Модель задається `LLM_MODEL` і має починатися з `gpt-` (openai) або `claude-` (anthropic).
   - Текст документа в промптах обгортати `untrusted()` (`prompts/preamble.js`).
 - **Кожна чернетка моделі** проходить через `services/chat/draftSuggestions.js` (сканер фактів, вирізання неперевірених URL, `basisHash`). У стан чернетки потрапляють лише через accept.
 - **Нові слоти чи розділи** спершу йдуть у `schema.js`, `slots.js` і `template.sections.json`, а вже потім у промпти, перевірки, рендер і `templateDocx`.
@@ -186,11 +190,13 @@ frontend/src/
 
 ## 7. Конфігурація (ключові env)
 
-- **Backend.** Без `MONGODB_URI`, `JWT_SECRET`, `OPENAI_API_KEY` сервер не стартує.
+- **Backend.** Без `MONGODB_URI`, `JWT_SECRET` і ключа активного провайдера (`OPENAI_API_KEY` або `ANTHROPIC_API_KEY`) сервер не стартує.
 
 | Змінна | Значення за замовчуванням / призначення |
 |---|---|
-| `LLM_MODEL` | `gpt-5.4-mini` |
+| `LLM_PROVIDER` | `openai`; без нього `anthropic`, якщо задано лише `ANTHROPIC_API_KEY` |
+| `LLM_MODEL` | `gpt-5.4-mini` (openai), `claude-haiku-5-5` (anthropic) |
+| `ANTHROPIC_REFUSAL_FALLBACK` | `1`; `0` вимикає серверний fallback за відмови класифікаторів безпеки |
 | `LLM_REASONING_EFFORT` | `medium` |
 | `LLM_MAX_OUTPUT_TOKENS` | — |
 | `REQUEST_TIMEOUT_MS` | 20000 |
@@ -206,16 +212,16 @@ frontend/src/
 
 - **Frontend:** `REACT_APP_API_URL` (за замовчуванням `http://localhost:5000/api`), `REACT_APP_USE_MOCKS`.
 - **Запуск:** `cd backend && npm run dev` (порт 5000), `cd frontend && npm start` (порт 3000).
-- **Розгортання v5:** `scripts/migrate-v5-policies.js`, `migrate-v5-references.js`, `migrate-v5-state.js` (спершу з `--dry-run`).
+- **Розгортання v5:** `scripts/migrate-v5-policies.js`, `migrate-v5-references.js`, `migrate-v5-state.js`, `migrate-v5-offerings.js` (спершу з `--dry-run`).
 
 ## 8. Відомі прогалини
 
-- **Чого ще немає в пакеті ТЗ:**
+- **Вхідні матеріали та їхній стан:**
   - брендований шаблон `.docx` — стилі ізольовано в `templateStyles.js`;
   - каталоги `comp_*`, `prereq_*`, `proof_*`, `retake_*`, `improve_*` — відповідні B-слоти поки деградують до питань;
-  - каталог «AI in Your Course» — `suggest_ai_tools` повертає порожньо;
-  - поля Lecturers CRM — є лише локальний профіль і заглушка адаптера;
-  - Layout-референс із Notion.
+  - каталог «AI in Your Course» вже додано: 57 прикладів, `suggest_ai_tools` працює з нього;
+  - Lecturers CRM не потрібна за доповненням §6; використовується збережений профіль або розділ 2 попереднього силабуса;
+  - Layout-референс, walkthrough і кабінет уже збережені в `docs/design/`; точну відповідність UI ще не перевірено.
 - **Живий LLM не калібровано:** парсер і промпти перевірено лише на моках і детермінованих частинах.
 - **PDF:** скани без текстового шару не підтримуються, евристики абзаців pdf.js можуть зливати колонки.
 - **Аналіз** після рестарту починається з початку.

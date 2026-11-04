@@ -17,6 +17,24 @@ export const MOCK_PROGRAMS = [
   { id: 'prog-emba', code: 'EMBA', name: 'Executive MBA', editions: [] },
 ];
 
+export const MOCK_OFFERINGS = [
+  { _id: 'off-rm', programCode: 'MBA28', courseCode: 'RM.1', courseName: 'Risk Management', type: 'elective', lecturerId: { _id: 'u-lecturer', firstName: 'Olena', lastName: 'Khomenko' }, deadline: null },
+  { _id: 'off-st', programCode: 'MBA28', courseCode: 'ST.1', courseName: 'Strategy', type: 'core', lecturerId: null, deadline: null },
+];
+
+// Форма відповіді GET /cabinet/plo-coverage
+export const MOCK_PLO_COVERAGE = {
+  courses: [
+    { offeringId: 'off-rm', courseCode: 'RM.1', courseName: 'Risk Management', type: 'elective', syllabusId: 'mock-upload',
+      cells: { 'ПРН1': { weight: 1, clos: [{ id: 'clo1', text: 'Apply risk management frameworks', coverage: 'full', assessments: [{ id: 'as3', name: 'Final project', weight: 40 }] }] } } },
+    { offeringId: 'off-st', courseCode: 'ST.1', courseName: 'Strategy', type: 'core', syllabusId: null, cells: {} },
+  ],
+  outcomes: [
+    { code: 'ПРН1', text: 'Strategic thinking in conditions of uncertainty', sum: 1, uncovered: false },
+    { code: 'ПРН7', text: 'Digital technologies, data and AI', sum: 0, uncovered: true },
+  ],
+};
+
 // TemplateSection[] (backend/fixtures/reference/template.sections.json)
 export const MOCK_SECTIONS = [
   { key: 'at_a_glance', order: 1, docNumber: null, docTitle: 'At a Glance', title: 'At a Glance', required: true, nature: 'fixed' },
@@ -559,7 +577,7 @@ function toView(rec) {
     state: rec.state,
     revision: rec.revision,
     sections: MOCK_SECTIONS,
-    readiness: rec.conversation ? computeReadiness(rec.state, checks, rec.suggestions, rec.skipped) : null,
+    readiness: computeReadiness(rec.state, checks, rec.suggestions, rec.skipped),
     checks,
     suggestions: rec.suggestions.map(({ _snapshot, ...s }) => s),
     conversation: rec.conversation ? { ...rec.conversation, currentSlotKey: rec.currentSlotKey, skippedSlots: Object.keys(rec.skipped) } : null,
@@ -656,10 +674,13 @@ export function createMockClient() {
       }
       const pendingCount = r.suggestions.length;
       const policyCount = r.state.policies.filter((p) => !decided(p)).length;
-      r.messages.push(textMessage('ai', `Here's what I found in **${r.syllabus.title}**: the file maps onto all 11 template sections. ${pendingCount} items need your decision, and ${policyCount} policy blocks need a choice from the KSE library.`));
+      r.messages.push(textMessage('ai', `Here's what I found in **${r.syllabus.title}**: the file maps onto 5 of 8 sections of the KSE template. ${pendingCount} items need your decision, and ${policyCount} policy blocks need a choice from the KSE library.`));
       const sections = approveAllCandidates(r);
-      if (sections.length) r.messages.push(kindMessage('approve-all', { sections }));
-      postNext(r);
+      if (sections.length) {
+        r.messages.push(kindMessage('approve-all', { sections }));
+      } else {
+        postNext(r);
+      }
     }),
     document: async (id, { diff = false } = {}) => {
       await wait(150);
@@ -696,6 +717,7 @@ export function createMockClient() {
         }
       });
       if (approved.length) r.revision += 1;
+      postNext(r);
       return { approved, skipped };
     }),
     choosePolicy: (id, key, body) => respond(id, (r) => {
@@ -929,9 +951,59 @@ export function createMockClient() {
     deleteSyllabus: async (id) => { records.delete(id); return { data: { ok: true } }; },
   };
 
+  const cabinet = {
+    getSyllabi: async () => ({
+      data: [
+        {
+          id: MOCK_IDS.upload,
+          _id: MOCK_IDS.upload,
+          title: 'Risk Management v.2',
+          courseName: 'Risk Management v.2',
+          programCode: 'MBA28',
+          cohort: 'MBA28',
+          status: 'in_progress',
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: MOCK_IDS.scratch,
+          _id: MOCK_IDS.scratch,
+          title: 'Corporate Finance (from scratch)',
+          courseName: 'Corporate Finance (from scratch)',
+          programCode: 'MBA27',
+          cohort: 'MBA27',
+          status: 'in_progress',
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+    }),
+    getMetrics: async () => ({
+      data: {
+        totalSyllabi: 2,
+        approvedSyllabi: 0,
+        inProgressSyllabi: 2,
+        avgReadiness: 45,
+      },
+    }),
+    getUsers: async () => ({
+      data: [
+        { id: 'usr-1', email: 'instructor@kse.ua', role: 'instructor', name: 'KSE Instructor' },
+        { id: 'usr-2', email: 'admin@kse.ua', role: 'admin', name: 'KSE Admin' },
+      ],
+    }),
+    listPrograms: async () => ({ data: MOCK_PROGRAMS }),
+    createProgram: async (data) => ({ data: { id: `prog-${Date.now()}`, ...data } }),
+    updateProgram: async (id, data) => ({ data: { id, ...data } }),
+    deleteProgram: async () => ({ data: { ok: true } }),
+    updateUser: async (id, data) => ({ data: { id, ...data } }),
+    listOfferings: async () => ({ data: { offerings: MOCK_OFFERINGS } }),
+    listLecturers: async () => ({ data: { lecturers: [{ _id: 'u-lecturer', firstName: 'Olena', lastName: 'Khomenko', email: 'o.khomenko@example.com' }] } }),
+    getPloCoverage: async (programCode) => ({ data: { programCode, ...MOCK_PLO_COVERAGE } }),
+  };
+
   return {
     chat,
     syllabus,
+    cabinet,
     references: { programs: async () => ({ data: MOCK_PROGRAMS }) },
     policies: { syllabusLibrary: async () => ({ data: { policies: MOCK_POLICY_LIBRARY } }) },
   };
@@ -946,10 +1018,8 @@ export function mockView(id = MOCK_IDS.upload) {
     r.messages = [kindMessage('question', INTERVIEW[0])];
   } else {
     r.messages = [
-      textMessage('ai', "Here's what I found in Risk Management."),
+      textMessage('ai', "Here's what I found in Risk Management: the file maps onto 5 of 8 sections of the KSE template. 3 items need your decision, and 3 policy blocks need a choice from the KSE library."),
       kindMessage('approve-all', { sections: ['course_info', 'materials'] }),
-      kindMessage('suggestion', null, { relatedSuggestionId: 'sg-weights' }),
-      kindMessage('policy-choice', { policyKey: 'policy.attendance' }),
     ];
   }
   return toView(r);

@@ -1,21 +1,24 @@
 import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Collapse from '@mui/material/Collapse';
+import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import HelpOutline from '@mui/icons-material/HelpOutline';
 import SkipNext from '@mui/icons-material/SkipNext';
 import Bubble from './Bubble';
 import MarkdownText from './MarkdownText';
 import { S } from '../../../strings';
 
-// Повідомлення kind='question' { slotKey, question, why }: одне питання інтерв'юера за раз.
-// Відповідь іде звичайним повідомленням у чат; Skip лишає слот порожнім (його видно ліворуч).
-const QuestionMessage = ({ payload, active = false, busy, readOnly, onSkip }) => {
-  const [whyOpen, setWhyOpen] = useState(false);
+// Повідомлення kind='question' { slotKey, question, why, options }: одне питання інтерв'юера за раз.
+// Блок `why` видимий одразу без додаткового кліку; quick-answer chips лише для коротких варіантів;
+// Skip — тиха текстова дія.
+const QuestionMessage = ({ payload, active = false, busy, readOnly, onSkip, onQuickAnswer }) => {
   const [error, setError] = useState('');
   if (!payload?.question) return null;
+
+  const shortOptions = (payload.options || []).filter(
+    (opt) => typeof opt === 'string' && opt.trim().length > 0 && opt.trim().length <= 40
+  );
 
   const skip = async () => {
     setError('');
@@ -26,25 +29,36 @@ const QuestionMessage = ({ payload, active = false, busy, readOnly, onSkip }) =>
   return (
     <Bubble role="ai" sx={{ borderColor: active ? 'primary.main' : 'divider' }}>
       <MarkdownText>{payload.question}</MarkdownText>
-      {(payload.why || (active && !readOnly)) && (
-        <Stack direction="row" spacing={1} sx={{ mt: 1 }} useFlexGap flexWrap="wrap">
-          {payload.why && (
-            <Button size="small" variant="text" startIcon={<HelpOutline />} onClick={() => setWhyOpen((v) => !v)}>
-              {S.whyWeAsk}
-            </Button>
-          )}
-          {active && !readOnly && onSkip && payload.slotKey && (
-            <Button size="small" variant="text" color="inherit" startIcon={<SkipNext />} disabled={busy} onClick={skip}>
-              {S.skip}
-            </Button>
-          )}
-        </Stack>
-      )}
-      <Collapse in={whyOpen} unmountOnExit>
-        <Box sx={{ mt: 0.5, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+      {payload.why && (
+        <Box sx={{ mt: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.25 }}>
+            {S.whyWeAsk}
+          </Typography>
           <Typography variant="body2" color="text.secondary">{payload.why}</Typography>
         </Box>
-      </Collapse>
+      )}
+      {active && !readOnly && shortOptions.length > 0 && onQuickAnswer && (
+        <Stack direction="row" spacing={0.75} sx={{ mt: 1 }} useFlexGap flexWrap="wrap">
+          {shortOptions.map((opt) => (
+            <Chip
+              key={opt}
+              label={opt}
+              size="small"
+              variant="outlined"
+              clickable
+              disabled={busy}
+              onClick={() => onQuickAnswer(opt)}
+            />
+          ))}
+        </Stack>
+      )}
+      {active && !readOnly && onSkip && payload.slotKey && (
+        <Stack direction="row" spacing={1} sx={{ mt: 1 }} useFlexGap flexWrap="wrap">
+          <Button size="small" variant="text" color="inherit" startIcon={<SkipNext />} disabled={busy} onClick={skip}>
+            {S.skip}
+          </Button>
+        </Stack>
+      )}
       {error && <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>{error}</Typography>}
     </Bubble>
   );

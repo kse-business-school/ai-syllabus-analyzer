@@ -285,15 +285,30 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
   }), [mutate, client, setView]);
 
   // Вільне повідомлення: показуємо його одразу, відповідь (хід оркестратора) приходить у View.
+  // Stop обриває очікування відповіді на клієнті. Сервер міг уже обробити повідомлення,
+  // тому після обриву перечитуємо View: якщо повідомлення там є — воно вважається надісланим.
+  const abortRef = useRef(null);
   const sendMessage = useCallback(async (text) => {
     const id = idRef.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setError('');
     setPendingText(text);
-    const result = await mutate((id) => client.chat.sendMessage(id, text));
+    const result = await mutate((id) => client.chat.sendMessage(id, text, { signal: controller.signal }));
+    abortRef.current = null;
     if (idRef.current !== id) return result.ok;
+    if (controller.signal.aborted) {
+      await reload();
+      setPendingText(null);
+      const sent = (viewRef.current?.messages || []).slice(-3)
+        .some((m) => m.role === 'user' && m.content === text);
+      return sent;
+    }
     setPendingText(null);
     return reportFailure(result).ok;
-  }, [mutate, reportFailure, client]);
+  }, [mutate, reportFailure, reload, client]);
+
+  const stopMessage = useCallback(() => abortRef.current?.abort(), []);
 
   // Повторний аналіз або перебудова v4 → v5 (needsRebuild)
   const reanalyze = useCallback(async () => {
@@ -369,6 +384,7 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
     readOnly,
     actions,
     sendMessage,
+    stopMessage,
     reanalyze,
     downloadDocx,
   };

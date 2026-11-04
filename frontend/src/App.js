@@ -10,16 +10,15 @@ import ProtectedRoute from './components/Auth/ProtectedRoute';
 // Auth pages
 import Login from './components/Auth/Login';
 import ResetPassword from './components/Auth/ResetPassword';
+import ConfirmEmailChange from './pages/ConfirmEmailChange';
 
 // Main pages
 import ProfessorTutorWorkspace from './pages/ProfessorTutorWorkspace';
 import Cabinet from './pages/Cabinet';
-import Profile from './pages/Profile';
-import Settings from './pages/Settings';
+import AccountSettings from './pages/AccountSettings';
 import PoliciesPage from './pages/PoliciesPage';
-import ConfirmEmailChange from './pages/ConfirmEmailChange';
+import { ALL_ROLES } from './utils/roles';
 
-// Лише для розробки: сторінка з усіма картками на фікстурах (без бекенду).
 const DevCards = process.env.NODE_ENV === 'development'
   ? React.lazy(() => import('./pages/DevCards'))
   : null;
@@ -36,7 +35,7 @@ function App() {
         minHeight="100vh"
         bgcolor="background.default"
       >
-        <CircularProgress size={40} />
+        <CircularProgress size={36} />
       </Box>
     );
   }
@@ -55,7 +54,11 @@ function App() {
       {DevCards && (
         <Route
           path="/dev/cards"
-          element={<Suspense fallback={null}><DevCards /></Suspense>}
+          element={
+            <Suspense fallback={null}>
+              <DevCards />
+            </Suspense>
+          }
         />
       )}
 
@@ -74,13 +77,15 @@ function App() {
         <Route
           path="cabinet"
           element={
-            <ProtectedRoute requiredRoles={['admin', 'instructor']}>
+            <ProtectedRoute requiredRoles={ALL_ROLES}>
               <Cabinet />
             </ProtectedRoute>
           }
         />
-        <Route path="profile" element={<Profile />} />
-        <Route path="settings" element={<Settings />} />
+        {/* Unified Account Settings */}
+        <Route path="settings" element={<AccountSettings />} />
+        {/* Backward-compatibility redirect */}
+        <Route path="profile" element={<Navigate to="/settings" replace />} />
         <Route path="policies" element={<PoliciesPage />} />
       </Route>
 

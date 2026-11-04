@@ -488,12 +488,21 @@ describe('suggest_plo / suggest_readings', () => {
 });
 
 describe('suggest_ai_tools', () => {
-  test('порожній каталог → нічого не створює, LLM не викликається', async () => {
+  test('каталог із фікстури → картка з прикладом школи без зміни силабуса', async () => {
+    const { loadCatalog } = require('../../../services/ai/prompts/aiTools');
+    const item = loadCatalog()[0];
+    createResponse.mockResolvedValue(respond({ picks: [{
+      itemId: item.id, fit: 'Fits the course topics.', adaptation: 'Ask students to compare their reasoning with AI output.',
+    }] }));
     const { seed, tctx } = await turn('any AI ideas for assignments?');
     const out = await runTool(tctx, 'suggest_ai_tools', {});
-    expect(out).toMatchObject({ ok: true, created: 0 });
-    expect(await Suggestion.countDocuments({ syllabusId: seed.syllabus._id })).toBe(0);
-    expect(createResponse).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ ok: true, created: 1 });
+    expect(createResponse).toHaveBeenCalledTimes(1);
+    const card = await Suggestion.findById(out.draft_ids[0]).lean();
+    expect(card).toMatchObject({ kind: 'question', status: 'pending', origin: 'orchestrator' });
+    expect(card.description).toContain(item.title);
+    expect(card.description).toContain(item.school);
+    expect((await store.getState(seed.syllabus._id)).revision).toBe(seed.revision);
   });
 
   test('картка-питання origin orchestrator (не issue), слот schedule.additional', async () => {

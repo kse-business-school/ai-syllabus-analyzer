@@ -2,20 +2,22 @@ import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
-import CircularProgress from '@mui/material/CircularProgress';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
 import { S } from '../../strings';
 import Send from '@mui/icons-material/Send';
+import StopCircleOutlined from '@mui/icons-material/StopCircleOutlined';
 
-const ChatInput = ({ onSend, disabled, placeholder }) => {
+const ChatInput = ({ onSend, onStop, disabled, readOnly = false, placeholder }) => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
 
   const submit = async () => {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || readOnly) return;
     setSending(true);
     try {
-      // onSend повертає false при помилці — тоді текст лишається в полі.
+      // onSend повертає false при помилці чи Stop — тоді текст лишається в полі.
       const ok = await onSend(trimmed);
       if (ok !== false) setText('');
     } finally {
@@ -23,27 +25,48 @@ const ChatInput = ({ onSend, disabled, placeholder }) => {
     }
   };
 
+  const isDisabled = disabled || readOnly || sending;
+
   return (
-    <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1, bgcolor: 'background.paper' }}>
-      <TextField
-        fullWidth
-        size="small"
-        multiline
-        maxRows={4}
-        placeholder={placeholder || S.chatPlaceholder}
-        value={text}
-        disabled={disabled || sending}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            submit();
-          }
-        }}
-      />
-      <IconButton color="primary" aria-label={S.send} onClick={submit} disabled={disabled || sending || !text.trim()}>
-        {sending ? <CircularProgress size={20} /> : <Send />}
-      </IconButton>
+    <Box sx={{ p: 2, pb: 1, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+        <TextField
+          fullWidth
+          size="small"
+          multiline
+          maxRows={4}
+          placeholder={readOnly ? S.readOnlyNotice : placeholder || S.chatPlaceholder}
+          value={text}
+          disabled={isDisabled}
+          onChange={(e) => setText(e.target.value)}
+          inputProps={{ 'aria-label': placeholder || S.chatPlaceholder }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+        {sending && onStop ? (
+          <Button
+            variant="outlined"
+            size="small"
+            color="inherit"
+            startIcon={<StopCircleOutlined />}
+            onClick={onStop}
+            sx={{ flexShrink: 0, height: 40 }}
+          >
+            {S.stop}
+          </Button>
+        ) : (
+          <IconButton color="primary" aria-label={S.send} onClick={submit} disabled={isDisabled || !text.trim()}>
+            <Send />
+          </IconButton>
+        )}
+      </Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+        {readOnly ? S.readOnlyNotice : S.chatCaption}
+      </Typography>
     </Box>
   );
 };

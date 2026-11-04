@@ -9,12 +9,23 @@ const User = require('../models/User');
 const Syllabus = require('../models/Syllabus');
 const Suggestion = require('../models/Suggestion');
 const { computeReadiness } = require('../services/syllabusState/readiness');
-const { getRefs } = require('../services/references');
+const { getRefs, getOutcomes, assertKnownProgramCode } = require('../services/references');
+const { buildCoverage } = require('../services/plo/coverage');
 const { sendInvitationEmail } = require('../services/emailService');
 const { isLastActiveAdmin } = require('../services/userService');
 const { generateToken } = require('../utils/tokens');
+const CourseOffering = require('../models/CourseOffering');
+const { ROLES, PROGRAMME_ROLES, canSeeAll } = require('../services/roles');
 
 const admin = requireRole('admin');
+const programmeStaff = requireRole(...PROGRAMME_ROLES);
+
+// Кого повертають метрики й список: «mine» — лише власні силабуси; «all» дозволено manager/director/admin
+function ownerFilter(req) {
+  const wantsAll = req.query.scope === 'all';
+  if (wantsAll && !canSeeAll(req.user.role)) return { denied: true };
+  return wantsAll ? {} : { instructor: new mongoose.Types.ObjectId(req.user.userId) };
+}
 const MAX_LIMIT = 100;
 
 function validationFailed(req, res) {
@@ -116,10 +127,8 @@ async function countReady100(filter) {
 
 router.get('/metrics', auth, async (req, res) => {
   try {
-    const filter = {};
-    if (req.user.role !== 'admin') {
-      filter.instructor = new mongoose.Types.ObjectId(req.user.userId);
-    }
+    const filter = ownerFilter(req);
+    if (filter.denied) return res.status(403).json({ message: 'Доступ заборонено. Недостатньо прав.' });
     const [total, inProgress, downloads, ready100] = await Promise.all([
       Syllabus.countDocuments(filter),
       Syllabus.countDocuments({ ...filter, status: 'in_progress' }),
@@ -161,16 +170,15 @@ async function suggestionCounts(syllabusIds) {
 
 router.get('/syllabi', auth, async (req, res) => {
   try {
-    const { program, status } = req.query;
+    const { program, status, programCode } = req.query;
     const { page, limit, skip } = parsePaging(req.query, 20);
     if (program && !isValidId(program)) return res.status(400).json({ message: 'Некоректний id програми' });
 
-    const filter = {};
+    const filter = ownerFilter(req);
+    if (filter.denied) return res.status(403).json({ message: 'Доступ заборонено. Недостатньо прав.' });
     if (status) filter.status = String(status);
     if (program) filter.programId = new mongoose.Types.ObjectId(program);
-    if (req.user.role !== 'admin') {
-      filter.instructor = new mongoose.Types.ObjectId(req.user.userId);
-    }
+    if (programCode) filter.programCode = String(programCode).toUpperCase();
 
     const [syllabi, total] = await Promise.all([
       Syllabus.find(filter)
@@ -206,6 +214,115 @@ router.get('/syllabi', auth, async (req, res) => {
   }
 });
 
+// ─── Course offerings (course × cohort) ──────────────────────────────────────
+
+// Читання: manager/director/admin бачать усі призначення, викладач — лише свої
+router.get('/offerings', auth, async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.programCode) filter.programCode = String(req.query.programCode).toUpperCase();
+    if (!canSeeAll(req.user.role)) filter.lecturerId = new mongoose.Types.ObjectId(req.user.userId);
+    const offerings = await CourseOffering.find(filter)
+      .sort({ programCode: 1, courseCode: 1 })
+      .populate('lecturerId', 'firstName lastName email')
+      .lean();
+    res.json({ offerings });
+  } catch (err) {
+    console.error('List offerings error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
+const offeringBody = [
+  body('programCode').optional().trim().notEmpty().withMessage('programCode не може бути порожнім'),
+  body('courseCode').optional().trim().notEmpty().withMessage('courseCode не може бути порожнім'),
+  body('type').optional().isIn(['core', 'elective']).withMessage('type має бути core або elective'),
+  body('lecturerId').optional({ nullable: true }).custom((v) => v === null || isValidId(v)).withMessage('Некоректний lecturerId'),
+  body('deadline').optional({ nullable: true }).isISO8601().withMessage('deadline має бути датою ISO'),
+];
+
+router.post('/offerings', auth, programmeStaff, [
+  body('programCode').trim().notEmpty().withMessage('Потрібен programCode'),
+  body('courseCode').trim().notEmpty().withMessage('Потрібен courseCode'),
+  body('type').isIn(['core', 'elective']).withMessage('type має бути core або elective'),
+  ...offeringBody.slice(3),
+], async (req, res) => {
+  try {
+    if (validationFailed(req, res)) return;
+    const { programCode, courseCode, courseName, type, lecturerId = null, deadline = null } = req.body;
+    const offering = await CourseOffering.create({
+      programCode, courseCode, courseName, type, lecturerId, deadline, createdBy: req.user.userId,
+    });
+    res.status(201).json(offering);
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Цей курс уже призначено до цього набору' });
+    console.error('Create offering error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
+router.put('/offerings/:id', auth, programmeStaff, [param('id').isMongoId(), ...offeringBody], async (req, res) => {
+  try {
+    if (validationFailed(req, res)) return;
+    const update = {};
+    for (const key of ['courseName', 'type', 'lecturerId', 'deadline']) {
+      if (req.body[key] !== undefined) update[key] = req.body[key];
+    }
+    const offering = await CourseOffering.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!offering) return res.status(404).json({ message: 'Призначення не знайдено' });
+    res.json(offering);
+  } catch (err) {
+    console.error('Update offering error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
+router.delete('/offerings/:id', auth, programmeStaff, [param('id').isMongoId()], async (req, res) => {
+  try {
+    if (validationFailed(req, res)) return;
+    const used = await Syllabus.countDocuments({ offeringId: req.params.id });
+    if (used > 0) return res.status(409).json({ message: `Призначення не можна видалити: на нього посилаються силабуси (${used})` });
+    const offering = await CourseOffering.findByIdAndDelete(req.params.id);
+    if (!offering) return res.status(404).json({ message: 'Призначення не знайдено' });
+    res.json({ message: 'Видалено' });
+  } catch (err) {
+    console.error('Delete offering error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
+// Викладачі для вибору в призначенні (admin-список користувачів для manager/director закритий)
+router.get('/lecturers', auth, programmeStaff, async (req, res) => {
+  try {
+    const users = await User.find({ isActive: { $ne: false } })
+      .select('firstName lastName email role').sort({ lastName: 1, firstName: 1 }).lean();
+    res.json({ lecturers: users });
+  } catch (err) {
+    console.error('List lecturers error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
+// ─── PLO coverage (ТЗ, доповнення 29.10 §8) ──────────────────────────────────
+
+// Матриця ПРН × курси набору, зібрана зі state силабусів. Читають manager/director/admin
+router.get('/plo-coverage', auth, programmeStaff, async (req, res) => {
+  try {
+    const programCode = await assertKnownProgramCode(req.query.programCode);
+    const [outcomes, offerings, syllabi] = await Promise.all([
+      getOutcomes(programCode),
+      CourseOffering.find({ programCode }).sort({ courseCode: 1 }).lean(),
+      Syllabus.find({ programCode, state: { $exists: true, $ne: null } })
+        .select('course programCode offeringId status updatedAt state').lean(),
+    ]);
+    res.json({ programCode, ...buildCoverage({ outcomes, offerings, syllabi }) });
+  } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message, code: err.code });
+    console.error('PLO coverage error:', err);
+    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+  }
+});
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 const USER_SAFE_SELECT = '-password -resetPasswordToken -resetPasswordExpires -emailChangeToken -emailChangeTokenExpires';
@@ -235,7 +352,7 @@ router.post('/users', auth, admin, [
   body('email').isEmail().withMessage('Вкажіть коректний email'),
   body('firstName').trim().notEmpty().withMessage('Ім\'я обов\'язкове'),
   body('lastName').trim().notEmpty().withMessage('Прізвище обов\'язкове'),
-  body('role').optional().isIn(['instructor', 'admin']).withMessage('Роль має бути instructor або admin'),
+  body('role').optional().isIn(ROLES).withMessage(`Роль має бути одна з: ${ROLES.join(', ')}`),
 ], async (req, res) => {
   try {
     if (validationFailed(req, res)) return;
@@ -274,7 +391,7 @@ router.post('/users', auth, admin, [
 router.patch('/users/:id', auth, admin, [
   param('id').isMongoId().withMessage('Некоректний id користувача'),
   body('isActive').optional().isBoolean().withMessage('isActive має бути boolean').bail().toBoolean(),
-  body('role').optional().isIn(['instructor', 'admin']).withMessage('Роль має бути instructor або admin'),
+  body('role').optional().isIn(ROLES).withMessage(`Роль має бути одна з: ${ROLES.join(', ')}`),
   body().custom((value) => {
     if (value.isActive === undefined && value.role === undefined) {
       throw new Error('Потрібно вказати isActive або role');

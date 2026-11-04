@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
@@ -16,54 +15,75 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import Chat from '@mui/icons-material/Chat';
-import Delete from '@mui/icons-material/Delete';
-import Description from '@mui/icons-material/Description';
-import Refresh from '@mui/icons-material/Refresh';
+import ChatOutlined from '@mui/icons-material/ChatOutlined';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
+import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
+import RefreshOutlined from '@mui/icons-material/RefreshOutlined';
+import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { docxFallbackName, filenameFromDisposition, saveBlob } from '../../utils/files';
-import { describeError } from '../../utils/apiError';
+import { computeGroupedReadiness } from '../../utils/sectionGroups';
 
 const statusColor = { in_progress: 'warning', analyzing: 'info', error: 'error' };
-const statusLabel = { in_progress: 'In progress', analyzing: 'Analysing', error: 'Error' };
+const statusLabel = { in_progress: 'In progress', analyzing: 'Analyzing', error: 'Error' };
 
 const StatusChip = ({ status }) => (
-  <Chip label={statusLabel[status] || status || '—'} size="small" color={statusColor[status] || 'default'} />
+  <Chip
+    label={statusLabel[status] || status || '—'}
+    size="small"
+    color={statusColor[status] || 'default'}
+    sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 600 }}
+  />
 );
 
-const ReadinessCell = ({ syllabus }) => {
-  const score = Number(syllabus.readiness?.score || 0);
-  const counts = syllabus.readiness?.counts || {};
+const GroupedReadinessCell = ({ syllabus }) => {
+  const readiness = syllabus.readiness;
+  const grouped = computeGroupedReadiness(readiness);
+
+  if (grouped.isEmpty) {
+    return (
+      <Typography variant="body2" sx={{ color: 'text.muted', fontVariantNumeric: 'tabular-nums' }}>
+        —
+      </Typography>
+    );
+  }
+
   return (
-    <Box sx={{ minWidth: 130 }}>
+    <Box sx={{ minWidth: 140 }}>
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{score}%</Typography>
-        {counts.required > 0 && (
-          <Typography variant="caption" color="text.secondary">
-            {counts.approved}/{counts.required} approved
-          </Typography>
-        )}
+        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' }}>
+          {grouped.percent}%
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+          {grouped.approvedCount} of {grouped.totalCount} approved
+        </Typography>
       </Stack>
       <LinearProgress
         variant="determinate"
-        value={Math.max(0, Math.min(100, score))}
-        color="primary"
-        sx={{ height: 6, borderRadius: 1 }}
+        value={grouped.percent || 0}
+        sx={{
+          height: 5,
+          borderRadius: 999,
+          bgcolor: 'background.default',
+          '& .MuiLinearProgress-bar': {
+            bgcolor: grouped.approvedCount === grouped.totalCount ? 'success.main' : 'primary.main',
+          },
+        }}
       />
     </Box>
   );
 };
 
-const SyllabiTab = ({ programs, isAdmin, user, onChanged }) => {
+const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onChanged }) => {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
   const [program, setProgram] = useState('');
   const [status, setStatus] = useState('');
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState('');
   const [snack, setSnack] = useState('');
@@ -72,150 +92,224 @@ const SyllabiTab = ({ programs, isAdmin, user, onChanged }) => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.cabinet.getSyllabi({ program, status, page, limit: 20 });
+      const { data } = await api.cabinet.getSyllabi({ program, status, page: 1, limit: 50, scope: filterMineOnly ? 'mine' : 'all' });
       setRows(data.syllabi || []);
-      setTotal(data.total || 0);
     } catch (err) {
-      setSnack(err.response?.data?.message || "Could not load syllabi");
+      setSnack(err.response?.data?.message || 'Could not load syllabi');
     } finally {
       setLoading(false);
     }
-  }, [program, status, page]);
+  }, [program, status, filterMineOnly]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const download = async (syllabus) => {
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter((r) =>
+      (r.title || '').toLowerCase().includes(q) ||
+      (r.courseName || '').toLowerCase().includes(q) ||
+      (r.programCode || '').toLowerCase().includes(q)
+    );
+  }, [rows, search]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this syllabus? This action cannot be undone.')) return;
+    setDeletingId(id);
     try {
-      const response = await api.chat.downloadDocx(syllabus._id || syllabus.id);
-      saveBlob(response.data, filenameFromDisposition(response.headers?.['content-disposition']) || docxFallbackName(syllabus.title || syllabus.course?.name));
-      setRows((list) => list.map((row) => row === syllabus ? { ...row, downloads: (row.downloads || 0) + 1 } : row));
+      await api.syllabus.deleteSyllabus(id);
+      setSnack('Syllabus deleted');
+      load();
       onChanged?.();
-    } catch (err) { setSnack((await describeError(err)).message); }
-  };
-
-  const getOwnerId = (syllabus) => {
-    const owner = syllabus.instructor || syllabus.instructorId;
-    if (!owner) return '';
-    return typeof owner === 'object' ? String(owner._id || owner.id || '') : String(owner);
-  };
-
-  const canDeleteSyllabus = (syllabus) => isAdmin || (userId && getOwnerId(syllabus) === String(userId));
-
-  const clearDeletedWorkspaceState = (syllabusId) => {
-    const openTabsKey = `pt.openTabs.v1.${userId || 'anon'}`;
-    const lastChatKey = `pt.lastChat.v1.${userId || 'anon'}`;
-    try {
-      const tabs = JSON.parse(localStorage.getItem(openTabsKey) || '[]');
-      if (Array.isArray(tabs)) {
-        localStorage.setItem(openTabsKey, JSON.stringify(tabs.filter((tab) => tab.id !== syllabusId)));
-      }
-      if (localStorage.getItem(lastChatKey) === syllabusId) {
-        localStorage.removeItem(lastChatKey);
-      }
-    } catch {
-      // Очищення сховища браузера — best-effort; остаточним є видалення на сервері.
-    }
-  };
-
-  const deleteSyllabus = async (syllabus) => {
-    if (!canDeleteSyllabus(syllabus)) {
-      setSnack("You can only delete your own syllabi");
-      return;
-    }
-    const courseTitle = syllabus.course?.name || syllabus.title || "this syllabus";
-    if (!window.confirm(`Delete “${courseTitle}”? This cannot be undone.`)) return;
-    setDeletingId(syllabus._id);
-    try {
-      await api.syllabus.deleteSyllabus(syllabus._id);
-      clearDeletedWorkspaceState(syllabus._id);
-      setSnack("Syllabus deleted");
-      onChanged?.();
-      if (rows.length === 1 && page > 1) setPage((p) => p - 1);
-      else load();
     } catch (err) {
-      setSnack(err.response?.data?.message || "Could not delete");
+      setSnack(err.response?.data?.message || 'Could not delete syllabus');
     } finally {
       setDeletingId('');
     }
   };
 
+  const handleDownload = async (id, title) => {
+    try {
+      const res = await api.chat.downloadDocx(id);
+      const filename = filenameFromDisposition(res.headers['content-disposition']) || docxFallbackName(title);
+      saveBlob(res.data, filename);
+    } catch (err) {
+      setSnack('Could not download .docx document');
+    }
+  };
+
   return (
     <Box>
-      <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
-        <Select size="small" value={program} onChange={(e) => { setProgram(e.target.value); setPage(1); }} displayEmpty sx={{ minWidth: 160 }}>
-          <MenuItem value="">All programmes</MenuItem>
-          {programs.map((p) => <MenuItem key={p._id} value={p._id}>{p.name}</MenuItem>)}
-        </Select>
-        <Select size="small" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} displayEmpty sx={{ minWidth: 140 }}>
-          <MenuItem value="">All statuses</MenuItem>
-          {['analyzing', 'in_progress', 'error'].map((s) => <MenuItem key={s} value={s}>{statusLabel[s] || s}</MenuItem>)}
-        </Select>
-        <IconButton onClick={load} disabled={loading}><Refresh /></IconButton>
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>Total: {total}</Typography>
+      {/* Фільтри та панель пошуку */}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1.5}
+        alignItems={{ sm: 'center' }}
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
+      >
+        <Stack direction="row" spacing={1.5} alignItems="center" useFlexGap flexWrap="wrap">
+          <TextField
+            placeholder="Search by course or title…"
+            size="small"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ width: { xs: '100%', sm: 220 } }}
+          />
+
+          <Select
+            size="small"
+            value={program}
+            onChange={(e) => setProgram(e.target.value)}
+            displayEmpty
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="">All programmes</MenuItem>
+            {programs.map((p) => (
+              <MenuItem key={p.id || p.code} value={p.code}>
+                {p.name || p.code}
+              </MenuItem>
+            ))}
+          </Select>
+
+          <Select
+            size="small"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            displayEmpty
+            sx={{ minWidth: 130 }}
+          >
+            <MenuItem value="">All statuses</MenuItem>
+            <MenuItem value="in_progress">In progress</MenuItem>
+            <MenuItem value="analyzing">Analyzing</MenuItem>
+            <MenuItem value="error">Error</MenuItem>
+          </Select>
+        </Stack>
+
+        <IconButton size="small" onClick={load} disabled={loading} title="Refresh syllabi">
+          <RefreshOutlined fontSize="small" />
+        </IconButton>
       </Stack>
-      {loading && <CircularProgress size={20} sx={{ mb: 2 }} />}
-      <TableContainer component={Paper} variant="outlined">
+
+      {/* Таблиця силабусів */}
+      <TableContainer component={Paper} variant="outlined" sx={{ borderColor: 'divider' }}>
         <Table size="small">
-          <TableHead>
+          <TableHead sx={{ bgcolor: 'background.default' }}>
             <TableRow>
-              <TableCell>Course</TableCell>
-              <TableCell>Instructor</TableCell>
-              <TableCell>Programme</TableCell>
-              <TableCell>Readiness</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Downloads</TableCell>
-              <TableCell>Updated</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Course &amp; Title</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Programme</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Readiness</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1, textAlign: 'right' }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((s) => (
-              <TableRow key={s._id} hover>
-                <TableCell>{s.course?.name || s.title || '—'}</TableCell>
-                <TableCell>{`${(s.instructor || s.instructorId)?.firstName || ''} ${(s.instructor || s.instructorId)?.lastName || ''}`.trim() || '—'}</TableCell>
-                <TableCell>{s.programId?.name || '—'}</TableCell>
-                <TableCell><ReadinessCell syllabus={s} /></TableCell>
-                <TableCell><StatusChip status={s.status} /></TableCell>
-                <TableCell>{s.downloads ?? 0}</TableCell>
-                <TableCell>{new Date(s.updatedAt).toLocaleDateString('en-GB')}</TableCell>
-                <TableCell align="right">
-                  <Tooltip title="Open chat">
-                    <IconButton size="small" onClick={() => navigate(`/workspace/${s._id}`)}><Chat fontSize="small" /></IconButton>
-                  </Tooltip>
-                  {(s.outputs || []).includes('syllabus.docx') && (
-                    <Tooltip title="Download .docx"><IconButton size="small" onClick={() => download(s)}><Description fontSize="small" /></IconButton></Tooltip>
-                  )}
-                  {canDeleteSyllabus(s) && (
-                    <Tooltip title="Delete syllabus">
-                      <span>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          disabled={deletingId === s._id}
-                          onClick={() => deleteSyllabus(s)}
-                        >
-                          {deletingId === s._id ? <CircularProgress size={16} color="inherit" /> : <Delete fontSize="small" />}
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  )}
+            {loading && rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 5 }}>
+                  <CircularProgress size={24} />
                 </TableCell>
               </TableRow>
-            ))}
-            {!loading && rows.length === 0 && (
-              <TableRow><TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.secondary' }}>No syllabi found</TableCell></TableRow>
+            ) : filteredRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  No course syllabi found matching current criteria.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredRows.map((row) => {
+                const isOwner = row.ownerId === userId || row.userId === userId;
+                return (
+                  <TableRow key={row._id || row.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                    <TableCell sx={{ py: 1.25 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: '0.8125rem',
+                          color: 'text.primary',
+                          cursor: 'pointer',
+                          '&:hover': { color: 'primary.main', textDecoration: 'underline' },
+                        }}
+                        onClick={() => navigate(`/workspace/${row._id || row.id}`)}
+                      >
+                        {row.title || row.courseName || 'Untitled Course'}
+                      </Typography>
+                      {row.courseCode && (
+                        <Typography variant="caption" sx={{ color: 'text.muted', display: 'block' }}>
+                          Code: {row.courseCode}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    <TableCell sx={{ py: 1.25 }}>
+                      <Chip
+                        label={row.programCode || 'MBA'}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 500 }}
+                      />
+                    </TableCell>
+
+                    <TableCell sx={{ py: 1.25 }}>
+                      <StatusChip status={row.status} />
+                    </TableCell>
+
+                    <TableCell sx={{ py: 1.25 }}>
+                      <GroupedReadinessCell syllabus={row} />
+                    </TableCell>
+
+                    <TableCell align="right" sx={{ py: 1.25 }}>
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        <Tooltip title={isOwner ? 'Open workspace' : 'View syllabus (Read-only Admin)'}>
+                          <IconButton
+                            size="small"
+                            onClick={() => navigate(`/workspace/${row._id || row.id}`)}
+                            color="primary"
+                          >
+                            {isOwner ? <ChatOutlined fontSize="small" /> : <VisibilityOutlined fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+
+                        <Tooltip title="Export .docx">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDownload(row._id || row.id, row.title || row.courseName)}
+                          >
+                            <FileDownloadOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+
+                        {isOwner && (
+                          <Tooltip title="Delete syllabus">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(row._id || row.id)}
+                              disabled={deletingId === (row._id || row.id)}
+                              color="error"
+                            >
+                              <DeleteOutline fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </TableContainer>
-      {total > 20 && (
-        <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: 'center' }}>
-          <Button size="small" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Back</Button>
-          <Typography variant="body2" sx={{ alignSelf: 'center' }}>Page {page}</Typography>
-          <Button size="small" disabled={rows.length < 20} onClick={() => setPage((p) => p + 1)}>Next</Button>
-        </Stack>
-      )}
-      <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={4000}
+        onClose={() => setSnack('')}
+        message={snack}
+      />
     </Box>
   );
 };

@@ -250,7 +250,7 @@ async function initializeAdmin() {
 
 // Fail-fast: без цих змінних сервер не має сенсу
 function assertRequiredEnv() {
-  const missing = ['JWT_SECRET', 'MONGODB_URI', 'OPENAI_API_KEY'].filter((k) => !String(process.env[k] || '').trim());
+  const missing = ['JWT_SECRET', 'MONGODB_URI', require('./services/ai/client').apiKeyName].filter((k) => !String(process.env[k] || '').trim());
   if (missing.length) {
     console.error(`❌ Не задано обов'язкові змінні середовища: ${missing.join(', ')}`);
     process.exit(1);

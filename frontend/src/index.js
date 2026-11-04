@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeModeProvider } from './contexts/ThemeContext';
+import { CohortProvider } from './contexts/CohortContext';
 import CssBaseline from '@mui/material/CssBaseline';
 
 import App from './App';
@@ -16,8 +17,10 @@ root.render(
     <BrowserRouter>
       <AuthProvider>
         <ThemeModeProvider>
-          <CssBaseline />
-          <App />
+          <CohortProvider>
+            <CssBaseline />
+            <App />
+          </CohortProvider>
         </ThemeModeProvider>
       </AuthProvider>
     </BrowserRouter>

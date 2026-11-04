@@ -8,6 +8,7 @@ const Suggestion = require('../models/Suggestion');
 const workspaceService = require('../services/workspaceService');
 const { needsRebuildError } = require('../services/chat/state');
 const { sendError } = require('../utils/httpError');
+const { canSeeAll } = require('../services/roles');
 
 const router = express.Router();
 
@@ -49,12 +50,12 @@ async function loadSyllabusOrFail(syllabusId, res) {
   return syllabus;
 }
 
-// Читання: власник або admin. Мутації: лише власник (admin — read-only у чаті), не для силабусів v4.
+// Читання: власник, manager, director або admin. Мутації: лише власник (решта — read-only у чаті), не для силабусів v4.
 async function gateRead(req, res, next) {
   try {
     const syllabus = await loadSyllabusOrFail(req.params.syllabusId, res);
     if (!syllabus) return;
-    if (!isOwner(syllabus, req.user) && req.user.role !== 'admin') {
+    if (!isOwner(syllabus, req.user) && !canSeeAll(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
     req.syllabus = syllabus;

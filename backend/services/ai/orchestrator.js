@@ -63,7 +63,7 @@ async function analyzeSyllabus(syllabusId, { leaseToken } = {}) {
     course: { title: syllabus.course?.name || syllabus.title },
   });
   for (const warning of parsed.warnings) console.warn(`parse ${String(syllabusId)}: ${warning}`);
-  const instructorCard = prepareInstructor(parsed.state, await resolveProfile(syllabus.instructor));
+  const instructorCard = prepareInstructor(parsed.state, await resolveProfile(syllabus.instructor, { excludeSyllabusId: syllabusId }));
 
   await assertLease(syllabusId, leaseToken);
   await Suggestion.deleteMany({ syllabusId });
