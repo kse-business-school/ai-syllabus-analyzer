@@ -227,14 +227,18 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
   if (!syllabusId) {
     return (
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {openTabs.length > 0 && tabs}
-        <Box sx={{ overflow: 'auto', flex: 1 }}>
+        {tabs}
+        <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {isWideDesktop && <Box sx={{ width: 248, flexShrink: 0 }}><SyllabusStructurePanel /></Box>}
+        <Box sx={{ overflow: 'auto', flex: 1, minWidth: 0, bgcolor: 'background.paper' }}>
           <EmptyState
             onUploaded={(id) => {
               ensureTab(id, '');
               navigate(`/workspace/${id}`);
             }}
           />
+        </Box>
+        {isTabletOrUp && <Box sx={{ flex: '0 0 42%', minWidth: 420, borderLeft: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', display: 'grid', placeItems: 'center', p: 5 }}><Typography sx={{ color: 'text.muted', fontSize: 13, textAlign: 'center' }}>Your syllabus appears here as we build it.<br />Every confirmed answer lands on this side.</Typography></Box>}
         </Box>
       </Box>
     );
@@ -274,6 +278,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
 
   const documentComponent = (
     <LiveDocumentPanel
+      instructors={ws.state?.instructors}
       document={ws.loaded && !ws.state ? { sections: [], error: ws.needsRebuild ? S.rebuildBanner : '' } : ws.document}
       templateSections={ws.sections}
       diff={ws.diff}
@@ -413,7 +418,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
               role="region"
               aria-label="Consultation messages"
               aria-live="polite"
-              sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.5, md: 2 } }}
+              sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 } }}
             >
               {ws.loading && !ws.loaded ? (
                 <Box sx={{ textAlign: 'center', mt: 8 }}>
@@ -434,7 +439,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
               ) : ws.loaded && (
                 <>
                   {!messages.length && (
-                    <Alert severity="info" sx={{ borderRadius: 1.5 }}>
+                    <Alert severity="info" sx={{ borderRadius: 0 }}>
                       {S.noMessages}
                     </Alert>
                   )}

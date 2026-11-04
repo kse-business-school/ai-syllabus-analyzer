@@ -4,6 +4,7 @@ const { toInstructor, hasInstructor, sameProfile } = require('./profile');
 function prepareInstructor(state, resolved) {
   const first = state.instructors[0];
   const profileInstructor = toInstructor(resolved, first?.id);
+  if (first && !first.photo && profileInstructor.photo && sameProfile(first, profileInstructor)) first.photo = profileInstructor.photo;
   const empty = !state.instructors.some(hasInstructor);
   if (empty) state.instructors = [profileInstructor];
   const differs = !empty && !sameProfile(first, profileInstructor);

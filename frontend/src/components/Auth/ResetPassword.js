@@ -88,7 +88,7 @@ const ResetPassword = () => {
           p: { xs: 3, sm: 4 },
           bgcolor: 'background.paper',
           borderColor: 'divider',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+          boxShadow: 'none',
         }}
       >
         <Box sx={{ textAlign: 'center', mb: 3 }}>
@@ -102,7 +102,7 @@ const ResetPassword = () => {
               letterSpacing: '0.06em',
               px: 1.5,
               py: 0.5,
-              borderRadius: 0.5,
+              borderRadius: 0,
               mb: 1.5,
             }}
           >
@@ -119,12 +119,12 @@ const ResetPassword = () => {
         </Box>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2.5, borderRadius: 1 }} onClose={() => setError('')}>
+          <Alert severity="error" sx={{ mb: 2.5, borderRadius: 0 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
         {success && (
-          <Alert severity="success" sx={{ mb: 2.5, borderRadius: 1 }}>
+          <Alert severity="success" sx={{ mb: 2.5, borderRadius: 0 }}>
             {success}
           </Alert>
         )}

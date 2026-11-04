@@ -107,7 +107,7 @@ const Sidebar = ({ onItemClick }) => {
                 selected={isActive(item.path)}
                 onClick={() => handleNavigation(item.path)}
                 sx={{
-                  borderRadius: 2,
+                  borderRadius: 0,
                   mb: 0.5,
                   '&.Mui-selected': {
                     backgroundColor: 'primary.main',

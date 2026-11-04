@@ -5,7 +5,7 @@ import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import { S } from '../../strings';
-import Send from '@mui/icons-material/Send';
+import ArrowUpward from '@mui/icons-material/ArrowUpward';
 import StopCircleOutlined from '@mui/icons-material/StopCircleOutlined';
 
 const ChatInput = ({ onSend, onStop, disabled, readOnly = false, placeholder }) => {
@@ -29,7 +29,7 @@ const ChatInput = ({ onSend, onStop, disabled, readOnly = false, placeholder }) 
 
   return (
     <Box sx={{ p: 2, pb: 1, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+      <Box sx={{ display: 'flex', gap: 0, alignItems: 'flex-end' }}>
         <TextField
           fullWidth
           size="small"
@@ -59,8 +59,8 @@ const ChatInput = ({ onSend, onStop, disabled, readOnly = false, placeholder }) 
             {S.stop}
           </Button>
         ) : (
-          <IconButton color="primary" aria-label={S.send} onClick={submit} disabled={isDisabled || !text.trim()}>
-            <Send />
+          <IconButton color="primary" aria-label={S.send} onClick={submit} disabled={isDisabled || !text.trim()} sx={{ width: 40, height: 40, bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } }}>
+            <ArrowUpward sx={{ fontSize: 20 }} />
           </IconButton>
         )}
       </Box>

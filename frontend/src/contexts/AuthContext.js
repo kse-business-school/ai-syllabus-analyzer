@@ -210,6 +210,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshProfile = async () => {
+    const { data } = await api.auth.getProfile();
+    dispatch({ type: 'UPDATE_USER', payload: data.user });
+  };
+
   const value = {
     user: state.user,
     token: state.token,
@@ -218,6 +223,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     updateProfile,
+    refreshProfile,
     forgotPassword,
     resetPassword,
     changePassword,

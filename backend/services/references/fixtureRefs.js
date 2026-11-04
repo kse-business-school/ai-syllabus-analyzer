@@ -20,7 +20,7 @@ function loadFixtureRefs(programCode) {
   return {
     programCode,
     template: readFixture('template.sections.json').sections.map((s) => ({ programCode: null, ...s })),
-    outcomes: lo ? lo.outcomes.map(({ code, text, themeDraft }) => ({ code, text, themeDraft })) : [],
+    outcomes: lo ? lo.outcomes.map(({ code, text, themeDraft, label }) => ({ code, text, themeDraft, label: label || '' })) : [],
     coreCourses: pc ? pc.core : [],
     capstone: { projectTypes, structure, criteria, deliverables, plagiarismThreshold },
     policyLibrary: { version, blocks },

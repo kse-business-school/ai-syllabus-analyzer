@@ -136,7 +136,7 @@ export const S = {
   analysisTimedOut: 'Analysis timed out. You may open the workspace directly or retry.',
   retryAnalysis: 'Retry analysis',
   analysisProgress: 'Syllabus Alignment Progress',
-  welcomeTitle: 'Create or review a course syllabus',
+  welcomeTitle: 'Let’s build your syllabus',
   welcomeHint: 'Align your syllabus with Kyiv School of Economics academic standards and accreditation criteria.',
   fromScratch: 'Start from scratch',
   fromScratchHint: 'Define course parameters and let the AI Assistant draft sections collaboratively.',

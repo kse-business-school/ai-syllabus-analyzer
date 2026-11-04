@@ -30,7 +30,7 @@ const QuestionMessage = ({ payload, active = false, busy, readOnly, onSkip, onQu
     <Bubble role="ai" sx={{ borderColor: active ? 'primary.main' : 'divider' }}>
       <MarkdownText>{payload.question}</MarkdownText>
       {payload.why && (
-        <Box sx={{ mt: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+        <Box sx={{ mt: 1, p: 1, borderRadius: 0, bgcolor: 'action.hover' }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.25 }}>
             {S.whyWeAsk}
           </Typography>

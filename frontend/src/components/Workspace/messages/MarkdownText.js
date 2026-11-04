@@ -100,7 +100,7 @@ export const MarkdownText = ({ children, sx }) => (
       '& code': {
         px: 0.4,
         py: 0.1,
-        borderRadius: 0.5,
+        borderRadius: 0,
         bgcolor: 'action.hover',
         fontFamily: 'monospace',
       },

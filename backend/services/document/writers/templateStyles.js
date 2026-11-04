@@ -1,13 +1,13 @@
-// Стилі шаблонного .docx. Брендований шаблон KSE ще не готовий — після його появи міняються лише значення тут.
-const FONT = 'Calibri';
+// Брендбук KSE Business School, жовтень 2026: Arial, зелений, м'ятний та нейтральні площини.
+const FONT = 'Arial';
 const COLORS = {
-  heading: '1F3864',
-  text: '000000',
-  muted: '595959',
-  tableHeaderFill: 'D9E2F3',
-  tableLabelFill: 'F2F2F2',
-  border: '8EAADB',
-  link: '0563C1',
+  heading: '004641',
+  text: '111112',
+  muted: '4B5554',
+  tableHeaderFill: '94D4C1',
+  tableLabelFill: 'EDEFEE',
+  border: 'D2D8D6',
+  link: '004641',
 };
 // Підсвітка плейсхолдерів (поле, яке ще треба заповнити)
 const PLACEHOLDER_HIGHLIGHT = 'yellow';

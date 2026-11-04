@@ -6,6 +6,7 @@ const programOutcomeSchema = new mongoose.Schema({
   code: { type: String, required: true },
   text: { type: String, required: true },
   themeDraft: { type: String, default: '' },
+  label: { type: String, trim: true, maxlength: 120, default: '' },
   order: { type: Number, required: true },
 }, { timestamps: true });
 

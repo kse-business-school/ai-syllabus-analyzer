@@ -66,6 +66,11 @@ class ApiService {
   };
 
   user = {
+    uploadAvatar: (file) => {
+      const data = new FormData(); data.append('photo', file);
+      return this.client.post('/users/avatar', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+    },
+    removeAvatar: () => this.client.delete('/users/avatar'),
     changePassword: (currentPassword, newPassword) =>
       this.client.put('/users/change-password', { currentPassword, newPassword }),
     deleteAccount: (password) =>
@@ -138,12 +143,12 @@ class ApiService {
       }
       return this.client.get('/cabinet/syllabi', { params });
     },
-    getMetrics: () => {
+    getMetrics: (params = {}) => {
       if (process.env.REACT_APP_USE_MOCKS === '1') {
         const { getMockClient } = require('./workspaceClient');
         return getMockClient().cabinet.getMetrics();
       }
-      return this.client.get('/cabinet/metrics');
+      return this.client.get('/cabinet/metrics', { params });
     },
     getUsers: (params = {}) => {
       if (process.env.REACT_APP_USE_MOCKS === '1') {
@@ -202,6 +207,7 @@ class ApiService {
     },
     template: (programCode) => this.client.get(`/references/${programCode}/template`),
     outcomes: (programCode) => this.client.get(`/references/${programCode}/outcomes`),
+    updateOutcomeLabel: (programCode, code, label) => this.client.patch(`/references/${programCode}/outcomes/${encodeURIComponent(code)}`, { label }),
     courses: (programCode) => this.client.get(`/references/${programCode}/courses`),
     capstone: (programCode) => this.client.get(`/references/${programCode}/capstone`),
   };

@@ -11,7 +11,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import Paper from '@mui/material/Paper';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import School from '@mui/icons-material/School';
+import BrandLogo from '../Layout/BrandLogo';
 import LoginIcon from '@mui/icons-material/Login';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -70,26 +70,23 @@ const Login = () => {
         sx={{
           maxWidth: 400,
           width: '100%',
-          borderRadius: 1,
+          borderRadius: 0,
           overflow: 'hidden',
         }}
       >
         {/* Header */}
         <Box
           sx={{
-            bgcolor: 'primary.main',
-            color: 'white',
+            bgcolor: 'background.header',
+            color: 'text.primary',
             py: 4,
             px: 3,
             textAlign: 'center',
           }}
         >
-          <School sx={{ fontSize: 48, mb: 1 }} />
-          <Typography variant="h4" fontWeight="bold" gutterBottom>
-            KSE
-          </Typography>
+          <BrandLogo sx={{ mx: 'auto', mb: 2 }} />
           <Typography variant="subtitle1" opacity={0.9}>
-            AI Syllabus Analyzer
+            Professor’s Tutor
           </Typography>
         </Box>
 

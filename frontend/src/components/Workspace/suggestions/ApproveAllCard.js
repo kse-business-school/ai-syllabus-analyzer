@@ -51,7 +51,7 @@ const ApproveAllCard = ({ sectionKeys = [], sections = [], readiness, documentSe
         direction="row"
         spacing={1}
         alignItems="center"
-        sx={{ mb: 1, py: 0.75, px: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}
+        sx={{ mb: 1, py: 0.75, px: 1.5, borderRadius: 0, bgcolor: 'action.hover' }}
       >
         <CheckCircle fontSize="small" color="primary" />
         <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>

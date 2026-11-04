@@ -49,7 +49,7 @@ async function previousInstructor(userId, excludeSyllabusId) {
 }
 
 async function resolveProfile(userId, { excludeSyllabusId = null } = {}) {
-  const user = await User.findById(userId).select('email firstName lastName lecturerProfile').lean();
+  const user = await User.findById(userId).select('email firstName lastName lecturerProfile avatarUrl').lean();
   if (!user) throw httpError(404, 'User not found', { code: 'NOT_FOUND' });
   const remote = await crm.getProfile({ userId: String(user._id), email: user.email });
   // Збережений профіль новіший за будь-який силабус лише якщо його справді редагували.
@@ -59,6 +59,7 @@ async function resolveProfile(userId, { excludeSyllabusId = null } = {}) {
     || { name: `${user.firstName} ${user.lastName}`.trim(), email: user.email };
   const profile = {
     ...profileValues(remote || local),
+    photo: user.avatarUrl || null,
     updatedAt: (remote || local).updatedAt || null,
     crmId: (remote || local).crmId || null,
   };
@@ -71,7 +72,7 @@ async function saveProfile(userId, values, { crmId = null } = {}) {
   if (!user) throw httpError(404, 'User not found', { code: 'NOT_FOUND' });
   // Збій CRM не скасовує локальний запис: дані не повинні губитися.
   const crmWriteBack = await crm.writeBack(profile).catch(() => ({ ok: false, reason: 'CRM_ERROR' }));
-  return { profile: user.lecturerProfile.toObject(), source: 'instructor_directed', warnings: warningsFor(profile), crmWriteBack };
+  return { profile: { ...user.lecturerProfile.toObject(), photo: user.avatarUrl || null }, source: 'instructor_directed', warnings: warningsFor(profile), crmWriteBack };
 }
 
 async function updateProfile(userId, input) {
@@ -81,7 +82,7 @@ async function updateProfile(userId, input) {
 }
 
 function toInstructor({ profile, source }, id = 'instructor1') {
-  return { id, ...profileValues(profile), crmId: profile.crmId, source, evidenceBlockIds: [] };
+  return { id, ...profileValues(profile), photo: profile.photo || null, crmId: profile.crmId, source, evidenceBlockIds: [] };
 }
 
 const hasInstructor = (instructor) => PROFILE_FIELDS.some((key) => Array.isArray(instructor?.[key])

@@ -23,9 +23,9 @@ const COURSE_LETTER = { core: 'C', elective: 'E' };
 // Суцільна заливка — курс формує результат (1), штрихування — торкається (0,5), порожньо — 0
 const Cell = ({ weight, onClick, label }) => {
   const fill = weight >= 1
-    ? { bgcolor: 'primary.main' }
+    ? { bgcolor: 'brand.plate' }
     : weight > 0
-      ? { backgroundImage: 'repeating-linear-gradient(45deg, currentColor 0 2px, transparent 2px 6px)', color: 'primary.main', border: '1px solid', borderColor: 'primary.main' }
+      ? { backgroundImage: 'repeating-linear-gradient(135deg, currentColor 0 4px, transparent 4px 8px)', color: 'brand.plate', border: '1px solid', borderColor: 'divider' }
       : { border: '1px solid', borderColor: 'divider' };
   return (
     <Box
@@ -105,9 +105,9 @@ const PloCoverageTab = ({ programCode }) => {
                   {data.outcomes.map((o) => (
                     <TableRow key={o.code} hover>
                       <TableCell sx={{ py: 0.75, borderLeft: o.uncovered ? `3px solid ${FLAG}` : '3px solid transparent' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8125rem' }}>{o.code}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8125rem' }}>{o.code.replace('ПРН', 'PLO')} {o.label && `· ${o.label}`}</Typography>
                         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {o.text}
+                          {o.label ? '' : o.text}
                         </Typography>
                       </TableCell>
                       {data.courses.map((c) => {

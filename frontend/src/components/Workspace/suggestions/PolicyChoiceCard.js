@@ -81,7 +81,7 @@ const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readO
       {open && (
         <>
           {parsedText && (
-            <Box sx={{ my: 1, p: 1.25, borderRadius: 1, bgcolor: 'action.hover' }}>
+            <Box sx={{ my: 1, p: 1.25, borderRadius: 0, bgcolor: 'action.hover' }}>
               <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.6 }}>{S.yourCurrentText}</Typography>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{parsedText}</Typography>
             </Box>
@@ -99,7 +99,7 @@ const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readO
                     p: 1.25,
                     border: '1px solid',
                     borderColor: isSelected ? 'primary.main' : 'divider',
-                    borderRadius: 1,
+                    borderRadius: 0,
                     cursor: canAct ? 'pointer' : 'default',
                     bgcolor: isSelected ? 'action.selected' : 'transparent',
                   }}

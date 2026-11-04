@@ -9,13 +9,13 @@ const Bubble = ({ role, children, sx }) => {
       <Paper
         elevation={0}
         sx={{
-          maxWidth: '85%',
+          maxWidth: isUser ? '88%' : '100%',
           p: 1.5,
-          bgcolor: isUser ? 'primary.main' : 'background.paper',
-          color: isUser ? 'primary.contrastText' : 'text.primary',
-          border: isUser ? 'none' : '1px solid',
+          bgcolor: isUser ? 'var(--me)' : 'transparent',
+          color: isUser ? 'var(--me-fg)' : 'text.primary',
+          border: 'none',
           borderColor: 'divider',
-          borderRadius: '16px',
+          borderRadius: 0,
           ...sx,
         }}
       >

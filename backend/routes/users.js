@@ -12,6 +12,25 @@ const { sendAccountDeletionEmail, sendEmailChangeConfirmation } = require('../se
 const router = express.Router();
 const lecturerProfiles = require('../services/lecturers/profile');
 const { sendError } = require('../utils/httpError');
+const multer = require('multer');
+const { normalizeAvatar } = require('../services/avatars');
+const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
+
+router.post('/avatar', auth, photoUpload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Choose a photo to upload.', code: 'PHOTO_REQUIRED' });
+    const avatarUrl = await normalizeAvatar(req.file.buffer);
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: { avatarUrl } }, { new: true });
+    res.json({ user: user.toPublicJSON() });
+  } catch (error) { sendError(res, error); }
+});
+
+router.delete('/avatar', auth, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(req.user.userId, { $unset: { avatarUrl: '' } }, { new: true });
+    res.json({ user: user.toPublicJSON() });
+  } catch (error) { sendError(res, error); }
+});
 
 // Профіль лише поточного користувача; id власника не приймаємо з клієнта.
 router.get('/profile/lecturer', auth, async (req, res) => {

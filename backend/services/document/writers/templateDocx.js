@@ -2,11 +2,14 @@
 // Чиста функція без БД: renderSyllabusDocx(state, refs, { programLabel }) → Buffer.
 const {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, BorderStyle,
-  ShadingType, ExternalHyperlink, LevelFormat, AlignmentType,
+  ShadingType, ExternalHyperlink, LevelFormat, AlignmentType, Header, Footer, ImageRun, PageNumber,
 } = require('docx');
 const S = require('./templateStyles');
 const { FROM_FILE_NOTE } = require('../../syllabusState/render');
 const { policyDecided } = require('../../syllabusState/slots');
+const fs = require('fs');
+const path = require('path');
+const logoImage = require('sharp')(fs.readFileSync(path.join(__dirname, '../../../assets/brand/kse-business-school-green.svg'))).resize({ width: 728 }).png().toBuffer();
 
 const DASH = '—';
 const has = (v) => typeof v === 'string' ? v.trim() !== '' : v != null;
@@ -160,6 +163,13 @@ function instructorSection(state) {
   const list = state.instructors || [];
   if (!list.length) return [para(placeholder('Instructor'))];
   list.forEach((ins) => {
+    // Лише вбудовані JPEG: генератор не виконує мережевих запитів і не читає довільних шляхів.
+    if (typeof ins.photo === 'string' && ins.photo.length < 200000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(ins.photo)) {
+      const data = Buffer.from(ins.photo.split(',')[1], 'base64');
+      if (data[0] === 255 && data[1] === 216 && data[2] === 255) {
+        out.push(para(new ImageRun({ type: 'jpg', data, transformation: { width: 96, height: 96 }, altText: { name: 'Instructor photo', title: ins.name || 'Instructor', description: 'Instructor profile photo' } })));
+      }
+    }
     out.push(table(S.columnWidths('instructor'), null, [
       ['Name', orPlaceholder(ins.name, 'Instructor name')],
       ['Position', orPlaceholder(ins.position, 'Position')],
@@ -287,6 +297,7 @@ function policiesSection(state, refs) {
 
 // ---- Збірка ----
 async function renderSyllabusDocx(state, refs, { programLabel } = {}) {
+  const logo = await logoImage;
   refs = refs || {};
   const title = has(state.header?.courseTitle) ? state.header.courseTitle : null;
   const children = [
@@ -327,6 +338,8 @@ async function renderSyllabusDocx(state, refs, { programLabel } = {}) {
     },
     sections: [{
       properties: { page: { size: { width: S.PAGE.width, height: S.PAGE.height }, margin: { top: S.PAGE.margin, bottom: S.PAGE.margin, left: S.PAGE.margin, right: S.PAGE.margin } } },
+      headers: { default: new Header({ children: [new Paragraph({ spacing: { after: 100 }, border: { bottom: { style: BorderStyle.SINGLE, color: S.COLORS.border, size: 4, space: 8 } }, children: [new ImageRun({ type: 'png', data: logo, transformation: { width: 182, height: 34 }, altText: { name: 'KSE Business School', title: 'KSE Business School', description: 'KSE Business School logo' } })] })] }) },
+      footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('KSE Business School · Professor’s Tutor   |   ', { size: 18, color: S.COLORS.muted }), new TextRun({ children: [PageNumber.CURRENT], font: S.FONT, size: 18, color: S.COLORS.muted })] })] }) },
       children,
     }],
   });

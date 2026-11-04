@@ -21,7 +21,7 @@ const invalidated = new Set();
 const invalidateOutputs = (syllabusId) => invalidated.add(String(syllabusId));
 
 const outputDir = (syllabusId) => path.join(OUTPUTS_DIR, String(syllabusId));
-const cachePath = (syllabusId, revision) => path.join(outputDir(syllabusId), `syllabus.r${revision}.docx`);
+const cachePath = (syllabusId, revision) => path.join(outputDir(syllabusId), `syllabus.kse-brand-1.r${revision}.docx`);
 
 /** `<Course_Title>_syllabus.docx`: літери й цифри будь-якої мови, решта — підкреслення. */
 function downloadName(syllabus, state) {

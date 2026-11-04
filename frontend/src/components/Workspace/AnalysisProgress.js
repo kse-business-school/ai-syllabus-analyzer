@@ -25,7 +25,7 @@ const AnalysisProgress = ({ stage, error, failed, timedOut, busy, onRetry, onSki
   if (failed || timedOut) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2.5, px: 2 }}>
-        <Alert severity="error" sx={{ maxWidth: 560, width: '100%', borderRadius: 1.5 }}>
+        <Alert severity="error" sx={{ maxWidth: 560, width: '100%', borderRadius: 0 }}>
           {failed
             ? `${S.analysisFailed}${error ? ` (${error})` : ''}`
             : S.analysisTimedOut}
@@ -90,7 +90,7 @@ const AnalysisProgress = ({ stage, error, failed, timedOut, busy, onRetry, onSki
         <LinearProgress
           variant={index < 0 ? 'indeterminate' : 'determinate'}
           value={percent}
-          sx={{ height: 6, borderRadius: 999 }}
+          sx={{ height: 6, borderRadius: 0 }}
           aria-label={S.analysisProgress}
         />
       </Box>

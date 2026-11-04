@@ -27,7 +27,11 @@ const source = { type: ['string', 'null'], enum: [...SOURCES, null] };
 const obj = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 // Спільні поля провенансу для кожної сутності
 const prov = { source, evidenceBlockIds: strArr };
-const entity = (properties) => obj({ id: { type: 'string' }, ...properties, ...prov });
+const entity = (properties, optional = []) => {
+  const schema = obj({ id: { type: 'string' }, ...properties, ...prov });
+  schema.required = schema.required.filter(key => !optional.includes(key));
+  return schema;
+};
 const textItem = entity({ text: str });
 // Об'єкт, у якому перелічені ключі необов'язкові (стани, створені до їх появи, лишаються валідними)
 const optionalKeys = (keys, properties) => obj(properties, Object.keys(properties).filter((k) => !keys.includes(k)));
@@ -74,8 +78,8 @@ const stateSchema = obj({
   }) },
   instructors: { type: 'array', items: entity({
     crmId: str, name: str, position: str, email: str, officeHours: str, assistants: str,
-    expertise: strArr, education: strArr, experience: strArr,
-  }) },
+    expertise: strArr, education: strArr, experience: strArr, photo: str,
+  }, ['photo']) },
   sessions: { type: 'array', items: entity({
     n: { type: 'number' }, topic: str,
     type: { type: ['string', 'null'], enum: [...SESSION_TYPES, null] },

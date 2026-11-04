@@ -28,17 +28,8 @@ import api from '../../services/api';
 import { docxFallbackName, filenameFromDisposition, saveBlob } from '../../utils/files';
 import { computeGroupedReadiness } from '../../utils/sectionGroups';
 
-const statusColor = { in_progress: 'warning', analyzing: 'info', error: 'error' };
-const statusLabel = { in_progress: 'In progress', analyzing: 'Analyzing', error: 'Error' };
-
-const StatusChip = ({ status }) => (
-  <Chip
-    label={statusLabel[status] || status || '—'}
-    size="small"
-    color={statusColor[status] || 'default'}
-    sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 600 }}
-  />
-);
+const statusLabel = { in_progress: 'In progress', analyzing: 'Analyzing', error: 'Needs attention' };
+const StatusChip = ({ status }) => <Box component="span" sx={{ display: 'inline-flex', gap: 1, alignItems: 'center', color: status === 'error' ? 'error.main' : 'text.secondary', fontSize: 12.5, whiteSpace: 'nowrap' }}><Box className="status-dot" sx={{ bgcolor: status === 'error' ? 'error.main' : status === 'in_progress' ? 'var(--wip)' : 'var(--mint)' }} />{statusLabel[status] || status || '—'}</Box>;
 
 const GroupedReadinessCell = ({ syllabus }) => {
   const readiness = syllabus.readiness;
@@ -67,7 +58,7 @@ const GroupedReadinessCell = ({ syllabus }) => {
         value={grouped.percent || 0}
         sx={{
           height: 5,
-          borderRadius: 999,
+          borderRadius: 0,
           bgcolor: 'background.default',
           '& .MuiLinearProgress-bar': {
             bgcolor: grouped.approvedCount === grouped.totalCount ? 'success.main' : 'primary.main',
@@ -78,7 +69,7 @@ const GroupedReadinessCell = ({ syllabus }) => {
   );
 };
 
-const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onChanged }) => {
+const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, programCode, onChanged }) => {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [program, setProgram] = useState('');
@@ -92,14 +83,14 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.cabinet.getSyllabi({ program, status, page: 1, limit: 50, scope: filterMineOnly ? 'mine' : 'all' });
+      const { data } = await api.cabinet.getSyllabi({ program, programCode, status, page: 1, limit: 100, scope: filterMineOnly ? 'mine' : 'all' });
       setRows(data.syllabi || []);
     } catch (err) {
       setSnack(err.response?.data?.message || 'Could not load syllabi');
     } finally {
       setLoading(false);
     }
-  }, [program, status, filterMineOnly]);
+  }, [program, programCode, status, filterMineOnly]);
 
   useEffect(() => {
     load();
@@ -168,7 +159,7 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
           >
             <MenuItem value="">All programmes</MenuItem>
             {programs.map((p) => (
-              <MenuItem key={p.id || p.code} value={p.code}>
+              <MenuItem key={p._id || p.id || p.code} value={p._id || p.id}>
                 {p.name || p.code}
               </MenuItem>
             ))}
@@ -199,7 +190,9 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
           <TableHead sx={{ bgcolor: 'background.default' }}>
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Course &amp; Title</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Programme</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Cohort</TableCell>
+              {!filterMineOnly && <TableCell>Instructor</TableCell>}
+              <TableCell>Source</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Status</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1 }}>Readiness</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 1, textAlign: 'right' }}>Actions</TableCell>
@@ -208,19 +201,20 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
           <TableBody>
             {loading && rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={filterMineOnly ? 6 : 7} align="center" sx={{ py: 5 }}>
                   <CircularProgress size={24} />
                 </TableCell>
               </TableRow>
             ) : filteredRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                <TableCell colSpan={filterMineOnly ? 6 : 7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                   No course syllabi found matching current criteria.
                 </TableCell>
               </TableRow>
             ) : (
               filteredRows.map((row) => {
-                const isOwner = row.ownerId === userId || row.userId === userId;
+                const ownerId = row.instructor?._id || row.instructor?.id || row.instructor || row.ownerId || row.userId;
+                const isOwner = String(ownerId || '') === String(userId);
                 return (
                   <TableRow key={row._id || row.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
                     <TableCell sx={{ py: 1.25 }}>
@@ -237,21 +231,24 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
                       >
                         {row.title || row.courseName || 'Untitled Course'}
                       </Typography>
-                      {row.courseCode && (
+                      {(row.course?.code || row.courseCode) && (
                         <Typography variant="caption" sx={{ color: 'text.muted', display: 'block' }}>
-                          Code: {row.courseCode}
+                          {row.course?.code || row.courseCode}
                         </Typography>
                       )}
                     </TableCell>
 
                     <TableCell sx={{ py: 1.25 }}>
                       <Chip
-                        label={row.programCode || 'MBA'}
+                        label={row.programCode || row.programId?.name || '—'}
                         size="small"
                         variant="outlined"
                         sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 500 }}
                       />
                     </TableCell>
+
+                    {!filterMineOnly && <TableCell><Typography variant="body2">{[row.instructor?.firstName, row.instructor?.lastName].filter(Boolean).join(' ') || 'Unassigned'}</Typography></TableCell>}
+                    <TableCell sx={{ whiteSpace: 'nowrap', color: 'text.secondary' }}>{row.track === 'scratch' ? 'Built from scratch' : 'Uploaded file'}</TableCell>
 
                     <TableCell sx={{ py: 1.25 }}>
                       <StatusChip status={row.status} />
@@ -263,7 +260,7 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
 
                     <TableCell align="right" sx={{ py: 1.25 }}>
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Tooltip title={isOwner ? 'Open workspace' : 'View syllabus (Read-only Admin)'}>
+                        <Tooltip title={isOwner ? 'Open workspace' : 'View syllabus (read only)'}>
                           <IconButton
                             size="small"
                             onClick={() => navigate(`/workspace/${row._id || row.id}`)}
@@ -276,6 +273,7 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, onCh
                         <Tooltip title="Export .docx">
                           <IconButton
                             size="small"
+                            disabled={Boolean(row.legacy || row.needsRebuild || row.status === 'analyzing' || row.status === 'error')}
                             onClick={() => handleDownload(row._id || row.id, row.title || row.courseName)}
                           >
                             <FileDownloadOutlined fontSize="small" />

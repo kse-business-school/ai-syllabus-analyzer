@@ -32,11 +32,11 @@ const QuestionCard = ({ suggestion, actions, busy, ...frameProps }) => {
       }}
       {...frameProps}
     >
-      <Box sx={{ p: 1.5, mb: pending ? 1.5 : 0, borderRadius: 1, border: '1px solid', borderColor: 'primary.main', bgcolor: 'action.hover' }}>
+      <Box sx={{ p: 1.5, mb: pending ? 1.5 : 0, borderRadius: 0, border: '1px solid', borderColor: 'primary.main', bgcolor: 'action.hover' }}>
         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{suggestion.question}</Typography>
       </Box>
       {suggestion.why && suggestion.why !== suggestion.rationale && suggestion.why !== suggestion.description && (
-        <Box sx={{ mb: 1.5, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+        <Box sx={{ mb: 1.5, p: 1, borderRadius: 0, bgcolor: 'action.hover' }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.25 }}>
             {S.whyWeAsk}
           </Typography>

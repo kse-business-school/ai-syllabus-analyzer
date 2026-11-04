@@ -10,7 +10,7 @@ export const UI_SECTIONS = [
   },
   {
     id: 'summary_outcomes',
-    title: 'Summary & Outcomes',
+    title: 'Summary',
     docNumber: '1',
     backendKeys: [
       'course_info',
@@ -28,25 +28,25 @@ export const UI_SECTIONS = [
   },
   {
     id: 'schedule',
-    title: 'Course Schedule',
+    title: 'Schedule',
     docNumber: '3',
     backendKeys: ['schedule'],
   },
   {
     id: 'assessment',
-    title: 'Assessment & Grading',
+    title: 'Assessment',
     docNumber: '4',
     backendKeys: ['assessment'],
   },
   {
     id: 'materials',
-    title: 'Materials & Resources',
+    title: 'Materials',
     docNumber: '5',
     backendKeys: ['materials'],
   },
   {
     id: 'policies',
-    title: 'Course Policies',
+    title: 'Policies',
     docNumber: '6',
     backendKeys: ['policies'],
   },

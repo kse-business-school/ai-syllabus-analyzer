@@ -60,12 +60,12 @@ export default function ConfirmEmailChange() {
 
         {loading && <CircularProgress size={32} sx={{ my: 2 }} />}
         {!loading && msg && (
-          <Alert severity="success" sx={{ mb: 3, borderRadius: 1 }}>
+          <Alert severity="success" sx={{ mb: 3, borderRadius: 0 }}>
             {msg}
           </Alert>
         )}
         {!loading && err && (
-          <Alert severity="error" sx={{ mb: 3, borderRadius: 1 }}>
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 0 }}>
             {err}
           </Alert>
         )}

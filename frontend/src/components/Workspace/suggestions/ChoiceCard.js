@@ -48,6 +48,9 @@ const ChoiceCard = ({ suggestion, actions, policyLibrary = {}, ...frameProps }) 
         {visible.map((option) => {
           const isSelected = selected === option.id;
           const body = optionBody(option, library);
+          const photos = suggestion.target?.section === 'instructor'
+            ? (Array.isArray(option.value) ? option.value : []).filter((instructor) => /^data:image\/jpeg;base64,/.test(instructor?.photo || ''))
+            : [];
           return (
             <Box
               key={option.id}
@@ -56,7 +59,7 @@ const ChoiceCard = ({ suggestion, actions, policyLibrary = {}, ...frameProps }) 
                 p: 1.25,
                 border: '1px solid',
                 borderColor: isSelected ? 'primary.main' : 'divider',
-                borderRadius: 1,
+                borderRadius: 0,
                 cursor: pending ? 'pointer' : 'default',
                 bgcolor: isSelected && pending ? 'action.selected' : 'transparent',
               }}
@@ -74,6 +77,11 @@ const ChoiceCard = ({ suggestion, actions, policyLibrary = {}, ...frameProps }) 
                 )}
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Typography variant="subtitle2">{option.label}</Typography>
+                  {photos.map((instructor, index) => (
+                    <Box key={instructor.id || index} component="img" src={instructor.photo}
+                      alt={instructor.name ? `Photo of ${instructor.name}` : 'Instructor photo'}
+                      sx={{ width: 64, height: 64, objectFit: 'cover', display: 'block', my: 1 }} />
+                  ))}
                   {body && (
                     <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       {body}

@@ -29,10 +29,9 @@ const ACCEPTED_FILES = {
 };
 
 const EmptyState = ({ onUploaded }) => {
-  const [mode, setMode] = useState('upload'); // Default to upload flow per spec
+  const [mode, setMode] = useState('entry');
   const [title, setTitle] = useState('');
   const [courseCode, setCourseCode] = useState('');
-  const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [file, setFile] = useState(null);
@@ -54,8 +53,9 @@ const EmptyState = ({ onUploaded }) => {
         const list = Array.isArray(progRes?.data) ? progRes.data : [];
         setPrograms(list);
         if (list.length > 0) {
-          setProgramId(list[0].id);
-          setProgramCode(list[0].editions?.[0]?.code || list[0].code);
+          const initial = list.find(p => p.code === 'MBA') || list[0];
+          setProgramId(initial.id);
+          setProgramCode(initial.editions?.at(-1)?.code || initial.code);
         }
         const sList = Array.isArray(sylRes?.data) ? sylRes.data : (sylRes?.data?.syllabi || []);
         setAllSyllabi(sList);
@@ -106,6 +106,7 @@ const EmptyState = ({ onUploaded }) => {
     disabled: busy,
     onDrop: (files) => {
       if (files[0]) {
+        setMode('upload');
         setFile(files[0]);
         setError('');
         if (!title) setTitle(files[0].name.replace(/\.[^.]+$/, ''));
@@ -140,7 +141,6 @@ const EmptyState = ({ onUploaded }) => {
           programId,
           programCode: codeToSend,
           ...(courseCode.trim() ? { courseCode: courseCode.trim() } : {}),
-          ...(description.trim() ? { description: description.trim() } : {}),
         });
       } else {
         const fd = new FormData();
@@ -164,12 +164,27 @@ const EmptyState = ({ onUploaded }) => {
     }
   };
 
+  if (mode === 'entry') return <Box sx={{ maxWidth: 520, mx: 'auto', px: 3, py: { xs: 4, md: 7 }, textAlign: 'center' }}>
+    <Typography component="h1" sx={{ fontSize: 25, fontWeight: 700, lineHeight: 1.3, mb: 1.5 }}>Let’s build your syllabus</Typography>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>I’ll take you through it section by section. Upload your draft, or start with a new course.</Typography>
+    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    <Box {...getRootProps()} sx={{ border: '1px dashed', borderColor: isDragActive ? 'primary.main' : 'text.muted', p: 4, mb: 2.5, cursor: 'pointer', bgcolor: isDragActive ? 'background.band' : 'background.paper', '&:hover': { bgcolor: 'background.band' } }}>
+      <input {...getInputProps()} aria-label="Upload syllabus draft" />
+      <CloudUploadOutlined sx={{ fontSize: 28, color: 'text.secondary', mb: 1 }} />
+      <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Drop your draft here</Typography>
+      <Typography variant="caption" color="text.secondary">or click to browse · DOCX, DOC, PDF</Typography>
+    </Box>
+    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2.5 }}>or</Typography>
+    <Button variant="outlined" size="large" onClick={() => setMode('scratch')}>Start from scratch</Button>
+    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>Your instructor details are carried over automatically.</Typography>
+  </Box>;
+
   return (
     <Box
       sx={{
-        maxWidth: 720,
+        maxWidth: 680,
         mx: 'auto',
-        py: { xs: 3, md: 5 },
+        py: { xs: 3, md: 4 },
         px: 2,
         height: '100%',
         overflowY: 'auto',
@@ -196,6 +211,7 @@ const EmptyState = ({ onUploaded }) => {
       {/* Перемикач двох карток: Upload existing vs Start from scratch */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
         <Paper
+          component="button" type="button" aria-pressed={mode === 'upload'}
           variant="outlined"
           onClick={() => {
             setMode('upload');
@@ -203,6 +219,7 @@ const EmptyState = ({ onUploaded }) => {
           }}
           sx={{
             p: 2,
+            textAlign: 'left',
             flex: 1,
             cursor: 'pointer',
             borderWidth: 2,
@@ -225,7 +242,7 @@ const EmptyState = ({ onUploaded }) => {
           </Typography>
         </Paper>
 
-        <Paper
+        <Paper component="button" type="button" aria-pressed={mode === 'scratch'}
           variant="outlined"
           onClick={() => {
             setMode('scratch');
@@ -233,6 +250,7 @@ const EmptyState = ({ onUploaded }) => {
           }}
           sx={{
             p: 2,
+            textAlign: 'left',
             flex: 1,
             cursor: 'pointer',
             borderWidth: 2,
@@ -265,7 +283,7 @@ const EmptyState = ({ onUploaded }) => {
             mb: 3,
             borderColor: 'primary.main',
             bgcolor: 'action.hover',
-            borderRadius: 1.5,
+            borderRadius: 0,
           }}
         >
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between">
@@ -296,13 +314,13 @@ const EmptyState = ({ onUploaded }) => {
         component="form"
         onSubmit={submit}
         sx={{
-          p: { xs: 2.5, sm: 3 },
+          p: { xs: 2, sm: 2.5 },
           bgcolor: 'background.paper',
           borderColor: 'divider',
         }}
       >
         {error && (
-          <Alert severity="error" sx={{ mb: 2.5, borderRadius: 1 }} onClose={() => setError('')}>
+          <Alert severity="error" sx={{ mb: 2.5, borderRadius: 0 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
@@ -314,7 +332,7 @@ const EmptyState = ({ onUploaded }) => {
               sx={{
                 border: '2px dashed',
                 borderColor: isDragActive ? 'primary.main' : file ? 'success.main' : 'divider',
-                borderRadius: 1.5,
+                borderRadius: 0,
                 p: 3,
                 textAlign: 'center',
                 cursor: busy ? 'default' : 'pointer',
@@ -430,19 +448,7 @@ const EmptyState = ({ onUploaded }) => {
             </Box>
           )}
 
-          {mode === 'scratch' && (
-            <TextField
-              label="Brief course summary (optional)"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={busy}
-              multiline
-              rows={2}
-              size="small"
-              placeholder="1–2 sentences about core topics, target audience, or learning philosophy…"
-              InputLabelProps={{ shrink: true }}
-            />
-          )}
+
 
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1 }}>
             <Button

@@ -89,7 +89,7 @@ async function getRefs(programCode) {
   return {
     programCode: code,
     template,
-    outcomes: outcomes.map(({ code: c, text, themeDraft }) => ({ code: c, text, themeDraft })),
+    outcomes: outcomes.map(({ code: c, text, themeDraft, label }) => ({ code: c, text, themeDraft, label: label || '' })),
     coreCourses: courses.map(({ code: c, uk, en, ects }) => ({ code: c, uk, en, ects })),
     capstone: { projectTypes, structure, criteria, deliverables, plagiarismThreshold },
     policyLibrary,

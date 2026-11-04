@@ -23,6 +23,12 @@ async function seedReferences() {
   const outcomes = Object.entries(lo.programs).flatMap(([programCode, p]) =>
     p.outcomes.map((o, i) => ({ programCode, code: o.code, text: o.text, themeDraft: o.themeDraft || '', order: i + 1 })));
   await ProgramOutcome.bulkWrite(upsertOps(outcomes, (d) => ({ programCode: d.programCode, code: d.code })));
+  // Мітки з фікстури заповнюють пропуски; редакторські зміни не затираються при рестарті.
+  for (const [programCode, program] of Object.entries(lo.programs)) {
+    for (const outcome of program.outcomes.filter(o => o.label)) {
+      await ProgramOutcome.updateOne({ programCode, code: outcome.code, $or: [{ label: { $exists: false } }, { label: '' }] }, { $set: { label: outcome.label } });
+    }
+  }
 
   if (lo.mapping27to28) {
     await OutcomeMapping.updateOne(

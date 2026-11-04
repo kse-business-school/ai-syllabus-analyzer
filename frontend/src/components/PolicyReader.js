@@ -412,13 +412,13 @@ const PolicyReader = () => {
                     '& code': { 
                       bgcolor: 'grey.100', 
                       p: 0.5, 
-                      borderRadius: 1,
+                      borderRadius: 0,
                       fontFamily: 'monospace'
                     },
                     '& pre': { 
                       bgcolor: 'grey.100', 
                       p: 2, 
-                      borderRadius: 1,
+                      borderRadius: 0,
                       overflow: 'auto'
                     }
                   }}>
@@ -431,7 +431,7 @@ const PolicyReader = () => {
                 )}
 
                 {selectedPolicy.attachedFile && (
-                  <Box sx={{ mt: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+                  <Box sx={{ mt: 3, p: 2, bgcolor: 'background.default', borderRadius: 0 }}>
                     <Typography variant="subtitle2" gutterBottom>
                       Attached file:
                     </Typography>

@@ -155,7 +155,7 @@ const DocumentBlocks = ({
   return (
     <Box sx={{ typography: 'body2', lineHeight: 1.65 }}>
       {isLocked && (
-        <Box sx={{ mb: 1.5, display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: 'action.hover', px: 1, py: 0.25, borderRadius: 1 }}>
+        <Box sx={{ mb: 1.5, display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: 'action.hover', px: 1, py: 0.25, borderRadius: 0 }}>
           <LockOutlined sx={{ fontSize: 13, color: 'text.secondary' }} />
           <Typography variant="caption" color="text.secondary">
             Set by KSE policy

@@ -17,6 +17,7 @@ import DocumentBlocks from './document/DocumentBlocks';
 import { S } from '../../strings';
 
 const LiveDocumentPanel = ({
+  instructors = [],
   document,
   templateSections = [],
   diff = false,
@@ -58,7 +59,7 @@ const LiveDocumentPanel = ({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: 'background.default',
+        bgcolor: 'background.paper',
         minWidth: 0,
         borderLeft: '1px solid',
         borderColor: 'divider',
@@ -109,12 +110,12 @@ const LiveDocumentPanel = ({
         sx={{
           flexGrow: 1,
           overflowY: 'auto',
-          p: { xs: 2, md: 3 },
+          p: { xs: 1, md: 2 },
           position: 'relative',
         }}
       >
         {document?.error && (
-          <Alert severity="error" sx={{ mb: 2, borderRadius: 1 }}>
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 0 }}>
             {document.error}
           </Alert>
         )}
@@ -131,10 +132,10 @@ const LiveDocumentPanel = ({
             sx={{
               maxWidth: 760,
               mx: 'auto',
-              p: { xs: 2.5, md: 4 },
+              p: { xs: 1, md: 1.5 },
               bgcolor: 'background.paper',
               borderColor: 'divider',
-              boxShadow: (t) => t.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
+              boxShadow: 'none',
             }}
           >
             {sections.map((sec) => {
@@ -167,7 +168,7 @@ const LiveDocumentPanel = ({
                     mb: 3.5,
                     p: 1.5,
                     pl: 2,
-                    borderRadius: 1,
+                    borderRadius: 0,
                     borderLeft: '3px solid',
                     borderColor: focused ? 'primary.main' : 'transparent',
                     transition: 'border-color 0.2s ease, background-color 0.2s ease',
@@ -197,6 +198,8 @@ const LiveDocumentPanel = ({
                       {groupHeading}
                     </Typography>
                   )}
+
+                  {sec.key === 'instructor' && instructors.filter(i => i.photo).map(i => <Box component="img" key={i.id} src={i.photo} alt={`${i.name || 'Instructor'} profile`} sx={{ width: 88, height: 88, objectFit: 'cover', mb: 2 }} />)}
 
                   <Box
                     sx={{
@@ -274,7 +277,7 @@ const LiveDocumentPanel = ({
                         my: 1,
                         py: 0.25,
                         px: 1.25,
-                        borderRadius: 1,
+                        borderRadius: 0,
                         '& .MuiAlert-message': { fontSize: '0.75rem', lineHeight: 1.3 },
                       }}
                     >
@@ -302,7 +305,7 @@ const LiveDocumentPanel = ({
                     <Box
                       sx={{
                         p: 1.5,
-                        borderRadius: 1,
+                        borderRadius: 0,
                         bgcolor: 'background.default',
                         border: '1px dashed',
                         borderColor: 'divider',

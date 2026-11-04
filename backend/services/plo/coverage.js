@@ -75,7 +75,7 @@ function buildCoverage({ outcomes = [], offerings = [], syllabi = [] }) {
     courses,
     outcomes: outcomes.map((o) => {
       const sum = courses.reduce((acc, c) => acc + (c.cells[o.code]?.weight || 0), 0);
-      return { code: o.code, text: o.text, sum, uncovered: sum === 0 };
+      return { code: o.code, text: o.text, ...(o.label ? { label: o.label } : {}), sum, uncovered: sum === 0 };
     }),
   };
 }
