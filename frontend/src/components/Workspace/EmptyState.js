@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
@@ -15,13 +16,16 @@ import CloudUploadOutlined from '@mui/icons-material/CloudUploadOutlined';
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
+import LaunchOutlined from '@mui/icons-material/LaunchOutlined';
 import { useDropzone } from 'react-dropzone';
 import client from '../../services/workspaceClient';
 import { describeError } from '../../utils/apiError';
 import { S, ERROR_MESSAGES } from '../../strings';
 
-const ACCEPTED_DOCX = {
+const ACCEPTED_FILES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/msword': ['.doc'],
+  'application/pdf': ['.pdf'],
 };
 
 const EmptyState = ({ onUploaded }) => {
@@ -36,20 +40,25 @@ const EmptyState = ({ onUploaded }) => {
   const [programId, setProgramId] = useState('');
   const [programCode, setProgramCode] = useState('');
   const [loading, setLoading] = useState(true);
+  const [existingSyllabus, setExistingSyllabus] = useState(null);
+  const [allSyllabi, setAllSyllabi] = useState([]);
 
   useEffect(() => {
     let active = true;
-    client.references
-      .programs()
-      .then(({ data }) => {
-        if (active) {
-          const list = Array.isArray(data) ? data : [];
-          setPrograms(list);
-          if (list.length > 0) {
-            setProgramId(list[0].id);
-            setProgramCode(list[0].editions?.[0]?.code || list[0].code);
-          }
+    Promise.all([
+      client.references.programs(),
+      client.cabinet ? client.cabinet.getSyllabi().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+    ])
+      .then(([progRes, sylRes]) => {
+        if (!active) return;
+        const list = Array.isArray(progRes?.data) ? progRes.data : [];
+        setPrograms(list);
+        if (list.length > 0) {
+          setProgramId(list[0].id);
+          setProgramCode(list[0].editions?.[0]?.code || list[0].code);
         }
+        const sList = Array.isArray(sylRes?.data) ? sylRes.data : (sylRes?.data?.syllabi || []);
+        setAllSyllabi(sList);
       })
       .catch(async (err) => {
         const info = await describeError(err, S.errLoadPrograms);
@@ -64,6 +73,8 @@ const EmptyState = ({ onUploaded }) => {
   }, []);
 
   const editions = programs.find((p) => p.id === programId)?.editions || [];
+  const selectedProgram = programs.find((p) => p.id === programId);
+  const selectedCohort = programCode || selectedProgram?.code || '';
 
   const handleProgramChange = (id) => {
     setProgramId(id);
@@ -71,8 +82,25 @@ const EmptyState = ({ onUploaded }) => {
     setProgramCode(p?.editions?.[0]?.code || p?.code || '');
   };
 
+  useEffect(() => {
+    const cleanTitle = title.trim().toLowerCase();
+    const cleanCode = courseCode.trim().toLowerCase();
+    if (!cleanTitle && !cleanCode) {
+      setExistingSyllabus(null);
+      return;
+    }
+    const found = allSyllabi.find((s) => {
+      const sylProg = (s.programCode || s.cohort || '').toLowerCase();
+      const matchCohort = sylProg && selectedCohort && sylProg === selectedCohort.toLowerCase();
+      const matchTitle = cleanTitle && (s.title || s.courseName || '').toLowerCase() === cleanTitle;
+      const matchCode = cleanCode && (s.courseCode || '').toLowerCase() === cleanCode;
+      return matchCohort && (matchTitle || matchCode);
+    });
+    setExistingSyllabus(found || null);
+  }, [title, courseCode, selectedCohort, allSyllabi]);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: ACCEPTED_DOCX,
+    accept: ACCEPTED_FILES,
     maxSize: 10 * 1024 * 1024,
     multiple: false,
     disabled: busy,
@@ -97,15 +125,14 @@ const EmptyState = ({ onUploaded }) => {
     e.preventDefault();
     if (!title.trim()) return setError(S.errCourseTitle);
     if (!programId) return setError(S.errProgram);
-    if (mode === 'upload' && !file) return setError('Please choose a .docx syllabus document.');
+    if (mode === 'upload' && !file) return setError('Please choose a DOCX, DOC or PDF file.');
 
     setBusy(true);
     setError('');
 
     try {
       let response;
-      const activeProg = programs.find((p) => p.id === programId);
-      const codeToSend = programCode || activeProg?.code || 'MBA';
+      const codeToSend = selectedCohort || 'MBA';
 
       if (mode === 'scratch') {
         response = await client.syllabus.create({
@@ -228,6 +255,40 @@ const EmptyState = ({ onUploaded }) => {
           </Typography>
         </Paper>
       </Stack>
+
+      {/* Якщо знайдено існуючий силабус для цієї пари курс × набір */}
+      {existingSyllabus && (
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 2,
+            mb: 3,
+            borderColor: 'primary.main',
+            bgcolor: 'action.hover',
+            borderRadius: 1.5,
+          }}
+        >
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between">
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                A syllabus for this course and cohort already exists:
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {existingSyllabus.title || existingSyllabus.courseName} · {existingSyllabus.programCode || selectedCohort}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              size="small"
+              endIcon={<LaunchOutlined />}
+              onClick={() => onUploaded?.(existingSyllabus.id || existingSyllabus._id)}
+              sx={{ flexShrink: 0 }}
+            >
+              Open existing syllabus
+            </Button>
+          </Stack>
+        </Paper>
+      )}
 
       {/* Основна форма */}
       <Paper
@@ -353,6 +414,21 @@ const EmptyState = ({ onUploaded }) => {
               </FormControl>
             )}
           </Stack>
+
+          {/* Індикатор обраного набору (cohort) */}
+          {selectedCohort && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                Target cohort:
+              </Typography>
+              <Chip
+                label={selectedCohort}
+                size="small"
+                variant="outlined"
+                sx={{ height: 22, fontSize: '0.75rem', fontWeight: 600 }}
+              />
+            </Box>
+          )}
 
           {mode === 'scratch' && (
             <TextField

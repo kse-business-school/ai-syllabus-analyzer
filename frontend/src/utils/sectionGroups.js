@@ -1,8 +1,5 @@
-/**
- * Section groups mapping and readiness calculation.
- * Maps backend 11 template sections into 8 logical UI sections.
- * Used identically in Workspace (Header, Structure Panel) and Cabinet (SyllabiTab).
- */
+// Мапінг 11 розділів шаблону бекенду (TemplateSection) у 8 логічних груп UI
+// та єдиний розрахунок Readiness для Workspace (Header, ліва панель) і Cabinet.
 
 export const UI_SECTIONS = [
   {
@@ -62,63 +59,135 @@ export const UI_SECTIONS = [
   },
 ];
 
-/**
- * Resolves the status for a logical UI section.
- * Status values: 'approved' | 'attention' | 'draft_in_chat' | 'needs_review' | 'empty'
- */
+// Нормалізує запис readiness.sections[key] за контрактом docs/api-v5.md §4:
+// { status: 'empty'|'draft'|'approved', complete, approved, gaps: [String], checks: { critical, high, other } }.
+// Для сумісності з простими фікстурами також приймає рядкове значення статусу.
+export function normalizeSectionReadiness(raw) {
+  if (!raw) {
+    return {
+      status: 'empty',
+      complete: false,
+      approved: false,
+      gaps: [],
+      checks: { critical: 0, high: 0, other: 0 },
+    };
+  }
+  if (typeof raw === 'string') {
+    const isApproved = raw === 'approved';
+    return {
+      status: raw,
+      complete: isApproved,
+      approved: isApproved,
+      gaps: [],
+      checks: { critical: 0, high: 0, other: 0 },
+    };
+  }
+  const approved = Boolean(raw.approved || raw.status === 'approved');
+  const status = approved ? 'approved' : (raw.status || 'empty');
+  return {
+    status,
+    complete: Boolean(raw.complete ?? approved),
+    approved,
+    gaps: Array.isArray(raw.gaps) ? raw.gaps : [],
+    checks: {
+      critical: Number(raw.checks?.critical || 0),
+      high: Number(raw.checks?.high || 0),
+      other: Number(raw.checks?.other || 0),
+    },
+  };
+}
+
+// За контрактом backend/services/syllabusState/schema.js політики лежать у масиві state.policies[]
+// з полем key ('policy.ai_mode', 'policy.ai_place' тощо). Режим вважається обраним, коли задано
+// optionKey з бібліотеки або власний підтверджений текст викладача.
+export function hasAiModeSelected(state) {
+  if (Array.isArray(state?.policies)) {
+    const aiPolicy = state.policies.find((p) => p?.key === 'policy.ai_mode');
+    if (!aiPolicy) return false;
+    return Boolean(
+      aiPolicy.optionKey
+      || (['instructor_directed', 'fixture_edited'].includes(aiPolicy.source) && aiPolicy.text)
+    );
+  }
+  if (state?.slots && 'policy.ai_mode' in state.slots) {
+    return Boolean(state.slots['policy.ai_mode']);
+  }
+  return false;
+}
+
+// Визначає статус логічної групи з 8 розділів UI:
+// 'approved' | 'attention' | 'empty' | 'needs_review'.
+// Статус 'draft_in_chat' тут не повертається, оскільки мутабельні пропозиції чату (suggestions[])
+// не входять у readiness та state; групу з чернеткою в роботі позначаємо як 'needs_review' або 'attention'.
 export function resolveGroupStatus(group, backendSections = {}, state = {}) {
   const { backendKeys, isVirtualAi } = group;
 
   if (isVirtualAi) {
-    const aiMode = state?.slots?.['policy.ai_mode'];
-    if (backendSections?.policies === 'approved' && aiMode) {
-      return 'approved';
-    }
-    if (!aiMode) {
-      return 'empty';
-    }
-    return backendSections?.policies || 'needs_review';
+    const polSec = normalizeSectionReadiness(backendSections?.policies);
+    const aiSelected = hasAiModeSelected(state);
+    if (!aiSelected) return 'empty';
+    if (polSec.approved) return 'approved';
+    if (polSec.checks.critical + polSec.checks.high > 0) return 'attention';
+    return 'needs_review';
   }
 
-  const statuses = backendKeys.map((k) => backendSections?.[k] || 'empty');
+  const entries = backendKeys.map((k) => normalizeSectionReadiness(backendSections?.[k]));
 
-  // If all are approved -> group approved
-  if (statuses.every((s) => s === 'approved')) {
+  if (entries.every((e) => e.approved)) {
     return 'approved';
   }
 
-  // If any has attention / blockers -> attention
-  if (statuses.some((s) => s === 'attention')) {
+  if (entries.some((e) => !e.approved && (e.checks.critical + e.checks.high) > 0)) {
     return 'attention';
   }
 
-  // If any has draft_in_chat -> draft_in_chat
-  if (statuses.some((s) => s === 'draft_in_chat')) {
-    return 'draft_in_chat';
-  }
-
-  // If all are empty -> empty
-  if (statuses.every((s) => s === 'empty')) {
+  if (entries.every((e) => e.status === 'empty')) {
     return 'empty';
   }
 
   return 'needs_review';
 }
 
-/**
- * Unified calculation of readiness across 8 logical groups.
- * Returns { groups, approvedCount, totalCount: 8, percent, isEmpty, label }
- */
+// Єдиний розрахунок Readiness по 8 групах:
+// повертає { groups, approvedCount, totalCount: 8, percent, isEmpty, isAllApproved, label }.
 export function computeGroupedReadiness(readiness, state) {
   const backendSections = readiness?.sections || {};
 
   const groups = UI_SECTIONS.map((sec) => {
     const status = resolveGroupStatus(sec, backendSections, state);
+    const entries = sec.backendKeys.map((k) => ({
+      key: k,
+      ...normalizeSectionReadiness(backendSections?.[k]),
+    }));
+
+    const aiSelected = sec.isVirtualAi ? hasAiModeSelected(state) : true;
+    const gapsByKey = sec.isVirtualAi
+      ? (aiSelected ? [] : [{ key: 'policies', gap: 'Use of AI mode is not selected' }])
+      : entries.flatMap((e) => e.gaps.map((gap) => ({ key: e.key, gap })));
+    const gaps = gapsByKey.map((item) => item.gap);
+
+    const checks = entries.reduce(
+      (acc, e) => ({
+        critical: acc.critical + e.checks.critical,
+        high: acc.high + e.checks.high,
+        other: acc.other + e.checks.other,
+      }),
+      { critical: 0, high: 0, other: 0 }
+    );
+
+    const complete = sec.isVirtualAi
+      ? Boolean(entries[0]?.complete && aiSelected)
+      : entries.every((e) => e.complete && e.status !== 'empty');
+
     return {
       ...sec,
       status,
       isApproved: status === 'approved',
       isEmpty: status === 'empty',
+      complete,
+      gaps,
+      gapsByKey,
+      checks,
     };
   });
 
@@ -133,6 +202,7 @@ export function computeGroupedReadiness(readiness, state) {
     totalCount,
     percent,
     isEmpty: allEmpty,
+    isAllApproved: approvedCount === totalCount,
     label: allEmpty ? '—' : `${percent}% · ${approvedCount} of ${totalCount} approved`,
   };
 }

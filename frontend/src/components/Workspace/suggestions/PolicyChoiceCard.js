@@ -136,7 +136,7 @@ const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readO
                 disabled={busy || !selected}
                 onClick={() => exec(() => actions.choosePolicy(policyKey, selected))}
               >
-                {selected ? `Use “${options.find((o) => o.key === selected)?.label}”` : 'Use this option'}
+                {S.confirmLabel}
               </Button>
               <Button
                 variant="outlined"
@@ -145,7 +145,7 @@ const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readO
                 disabled={busy}
                 onClick={() => exec(() => actions.writeOwnPolicy(policyKey))}
               >
-                {S.writeOwn}
+                {S.writeOwnPolicy || S.writeOwn}
               </Button>
               {parsedText && <Button variant="outlined" size="small" disabled={busy} onClick={() => exec(() => actions.keepPolicyText(policyKey))}>Keep my text</Button>}
               {changing && (

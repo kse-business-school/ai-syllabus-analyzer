@@ -92,6 +92,27 @@ const SuggestionFrame = ({
   const canAct = !readOnly && !resolved;
   const shownError = error || externalError;
 
+  // Вирішена картка згорнута в один рядок історії; клік розгортає повну картку.
+  if (resolved && !expanded) {
+    const accepted = s.status === 'accepted';
+    return (
+      <Box
+        id={`suggestion-${s.id}`}
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(true); } }}
+        sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, mb: 0.5, cursor: 'pointer', color: 'text.secondary', '&:hover': { color: 'text.primary' } }}
+      >
+        {accepted ? <Check fontSize="small" /> : <Close fontSize="small" />}
+        <Typography variant="body2" noWrap sx={{ flexGrow: 1, minWidth: 0 }}>
+          {accepted ? S.confirmed : S.cancelled}: {s.title}
+        </Typography>
+        <ExpandMore fontSize="small" />
+      </Box>
+    );
+  }
+
   return (
     <Paper
       id={`suggestion-${s.id}`}
@@ -133,7 +154,19 @@ const SuggestionFrame = ({
             {s.description}
           </Typography>
         )}
-        {s.stale && !resolved && <Alert severity="warning" sx={{ mb: 1.5 }}>{S.staleDraft}</Alert>}
+        {s.stale && !resolved && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 1.5 }}
+            action={!readOnly && (
+              <Button color="inherit" size="small" disabled={busy} onClick={() => exec(() => actions.refine(s.id, { comment: 'Draft this again for the current text of the section.' }))}>
+                {S.draftAgain}
+              </Button>
+            )}
+          >
+            {S.staleDraft}
+          </Alert>
+        )}
         {children}
       </Collapse>
 

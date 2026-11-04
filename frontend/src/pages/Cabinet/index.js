@@ -16,6 +16,8 @@ import PeopleOutline from '@mui/icons-material/PeopleOutline';
 import SchoolOutlined from '@mui/icons-material/SchoolOutlined';
 
 import api from '../../services/api';
+import { USE_MOCKS } from '../../services/workspaceClient';
+import { MOCK_PROGRAMS } from '../../mocks/chatV5';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCohort } from '../../contexts/CohortContext';
 import MetricsRow from './MetricsRow';
@@ -57,7 +59,11 @@ const Cabinet = () => {
       const { data } = await api.cabinet.listPrograms();
       setPrograms(data || []);
     } catch {
-      setError('Could not load programmes list.');
+      if (USE_MOCKS) {
+        setPrograms(MOCK_PROGRAMS);
+      } else {
+        setError('Could not load programmes list.');
+      }
     }
   }, []);
 

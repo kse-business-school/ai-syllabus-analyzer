@@ -10,6 +10,9 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import ToggleButton from '@mui/material/ToggleButton';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useAuth } from '../contexts/AuthContext';
+import { useWorkspaceChrome } from '../contexts/WorkspaceChromeContext';
+import { computeGroupedReadiness } from '../utils/sectionGroups';
+import { getPendingCardIds, getActiveCardId } from '../utils/activeCard';
 import useWorkspace from '../hooks/useWorkspace';
 import useWorkspaceTabs from '../hooks/useWorkspaceTabs';
 import EmptyState from '../components/Workspace/EmptyState';
@@ -39,9 +42,11 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
   const isTabletOrUp = useMediaQuery('(min-width:1024px)');
 
   const [mobileTab, setMobileTab] = useState('chat'); // 'structure' | 'chat' | 'document'
+  const [docUpdatedBadge, setDocUpdatedBadge] = useState(false);
   const [structureDrawerOpen, setStructureDrawerOpen] = useState(false);
   const [focusedKey, setFocusedKey] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
+  const [lastChangedKey, setLastChangedKey] = useState(null);
 
   const { openTabs, closeTab, ensureTab, dropMissing } = useWorkspaceTabs(user, mockId ? null : syllabusId);
   const ws = useWorkspace(syllabusId, {
@@ -52,15 +57,101 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
     },
   });
 
-  const threadRef = useRef(null);
-  const highlightTimer = useRef(null);
   const { messages, suggestions, syllabus } = ws;
+  const threadRef = useRef(null);
+  const stickToBottomRef = useRef(true);
+  const highlightTimer = useRef(null);
+  const prevRevRef = useRef(ws.state?.revision);
+
+  // Відстеження оновлення документу для бейджа на вкладці Document (< 1024px)
+  useEffect(() => {
+    if (prevRevRef.current !== undefined && ws.state?.revision !== undefined && prevRevRef.current !== ws.state?.revision) {
+      if (!isTabletOrUp && mobileTab !== 'document') {
+        setDocUpdatedBadge(true);
+      }
+    }
+    prevRevRef.current = ws.state?.revision;
+  }, [ws.state?.revision, isTabletOrUp, mobileTab]);
+
+  const handleMobileTabChange = (val) => {
+    if (!val) return;
+    if (val === 'document') setDocUpdatedBadge(false);
+    setMobileTab(val);
+  };
+
+  const scrollToSuggestion = useCallback((id) => {
+    const target = document.getElementById(id.startsWith('policy:') ? `policy-${id.slice(7)}` : `suggestion-${id}`);
+    const el = threadRef.current;
+    if (target && el) {
+      el.scrollTo({
+        top: target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 24,
+        behavior: 'smooth',
+      });
+    }
+    setHighlightedId(id);
+    clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightedId(null), 1600);
+  }, []);
+
+  const selectSection = useCallback((key) => {
+    setFocusedKey(key);
+    setLastChangedKey(key);
+    const sg = ws.suggestions.find((s) => s.section === key && s.status === 'pending');
+    if (sg) scrollToSuggestion(sg.id);
+    if (!isTabletOrUp) setMobileTab('document');
+  }, [ws.suggestions, isTabletOrUp, scrollToSuggestion]);
+
+  // Фокус на першу відкриту перевірку при кліку в шапці на «N checks open»
+  const handleFocusCheck = useCallback(() => {
+    const firstCheck = (ws.checks || []).find((c) => c.passed === false);
+    if (!firstCheck) return;
+    const targetKey = firstCheck.section || firstCheck.target?.section;
+    if (targetKey) {
+      selectSection(targetKey);
+    }
+  }, [ws.checks, selectSection]);
+
+  // Readiness, Download .docx і відкриті перевірки — у верхній панелі
+  const { setChrome } = useWorkspaceChrome();
+  const grouped = useMemo(() => computeGroupedReadiness(ws.readiness, ws.state), [ws.readiness, ws.state]);
+  const openChecks = (ws.checks || []).filter((c) => c.passed === false).length;
+  const hasDocument = Boolean(ws.state);
+  const { downloadDocx, downloading } = ws;
+
+  useEffect(() => {
+    if (!syllabusId || !hasDocument) {
+      setChrome(null);
+      return undefined;
+    }
+    setChrome({
+      readinessValue: grouped.isEmpty ? '—' : `${grouped.percent}%`,
+      readinessLabel: grouped.isEmpty ? 'no document yet' : grouped.label,
+      approvedLabel: grouped.isEmpty ? 'No document yet' : `${grouped.approvedCount} of ${grouped.totalCount} approved`,
+      openChecks,
+      onFocusCheck: handleFocusCheck,
+      canDownload: true,
+      downloading,
+      onDownload: downloadDocx,
+    });
+    return undefined;
+  }, [syllabusId, hasDocument, grouped, openChecks, handleFocusCheck, downloading, downloadDocx, setChrome]);
+  useEffect(() => () => setChrome(null), [setChrome]);
 
   useEffect(() => () => clearTimeout(highlightTimer.current), []);
+
+  const handleThreadScroll = (e) => {
+    const el = e.target;
+    // Користувач вважається внизу, якщо відстань до низу < 120px
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+
   useEffect(() => {
     const el = threadRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    if (el && stickToBottomRef.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }
   }, [messages.length, ws.pendingText]);
+
   useEffect(() => {
     setFocusedKey(null);
   }, [syllabusId]);
@@ -78,34 +169,48 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
     return map;
   }, [messages]);
 
-  const scrollToSuggestion = useCallback((id) => {
-    const target = document.getElementById(id.startsWith('policy:') ? `policy-${id.slice(7)}` : `suggestion-${id}`);
-    const el = threadRef.current;
-    if (target && el) {
-      el.scrollTo({
-        top: target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 24,
-        behavior: 'smooth',
-      });
-    }
-    setHighlightedId(id);
-    clearTimeout(highlightTimer.current);
-    highlightTimer.current = setTimeout(() => setHighlightedId(null), 1600);
-  }, []);
+  // Одна активна картка за чистою функцією getPendingCardIds / getActiveCardId
+  const pendingCardIds = useMemo(
+    () =>
+      getPendingCardIds({
+        messages,
+        suggestions,
+        suggestionById,
+        latest,
+        state: ws.state,
+        readiness: ws.readiness,
+      }),
+    [messages, suggestions, suggestionById, latest, ws.state, ws.readiness]
+  );
+  const activeCardId = useMemo(
+    () =>
+      getActiveCardId({
+        messages,
+        suggestions,
+        suggestionById,
+        latest,
+        state: ws.state,
+        readiness: ws.readiness,
+      }),
+    [messages, suggestions, suggestionById, latest, ws.state, ws.readiness]
+  );
 
-  const selectSection = (key) => {
-    setFocusedKey(key);
-    const sg = suggestions.find((s) => s.section === key && s.status === 'pending');
-    if (sg) scrollToSuggestion(sg.id);
-    if (!isTabletOrUp) setMobileTab('document');
-  };
+  const focusedSection = ws.sections.find((sec) => sec.key === focusedKey);
+  const chatPlaceholder = activeQuestion
+    ? 'Type your answer, or ask for something else…'
+    : focusedSection
+      ? `Ask about ${focusedSection.title}, or tell me what to change…`
+      : undefined;
 
   const handleDiscussInChat = (sectionKey, sectionTitle) => {
     setFocusedKey(sectionKey);
+    setLastChangedKey(sectionKey);
     if (!isTabletOrUp) setMobileTab('chat');
     ws.sendMessage(`Let's discuss and refine section "${sectionTitle}". What improvements do you recommend?`);
   };
 
   const handleApproveFromDoc = async (sectionKey) => {
+    setLastChangedKey(sectionKey);
     await ws.actions.approveSection(sectionKey);
   };
 
@@ -173,10 +278,10 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
       templateSections={ws.sections}
       diff={ws.diff}
       onToggleDiff={ws.setDiff}
-      onDownload={ws.downloadDocx}
-      downloading={ws.downloading}
-      canDownload={Boolean(ws.state)}
       focusedKey={focusedKey}
+      highlightedSectionKey={lastChangedKey}
+      checks={ws.checks}
+      readiness={ws.readiness}
       onApproveSection={handleApproveFromDoc}
       onDiscussSection={handleDiscussInChat}
       readOnly={ws.readOnly || isReadOnlyAdmin || !ready}
@@ -188,7 +293,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
       {tabs}
       {(USE_MOCKS || mockId) && <Alert severity="info" sx={{ borderRadius: 0, py: 0.5 }}>{S.mocksBanner}</Alert>}
       {ws.error && (
-        <Alert severity="error" onClose={ws.clearError} sx={{ borderRadius: 0, py: 0.5 }}>
+        <Alert severity="error" role="alert" aria-live="assertive" onClose={ws.clearError} sx={{ borderRadius: 0, py: 0.5 }}>
           {ws.error}
         </Alert>
       )}
@@ -217,7 +322,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
             value={mobileTab}
             exclusive
             size="small"
-            onChange={(e, val) => val && setMobileTab(val)}
+            onChange={(e, val) => handleMobileTabChange(val)}
             sx={{
               height: 30,
               bgcolor: 'background.default',
@@ -237,7 +342,22 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
           >
             <ToggleButton value="structure">Structure</ToggleButton>
             <ToggleButton value="chat">Chat</ToggleButton>
-            <ToggleButton value="document">Document</ToggleButton>
+            <ToggleButton value="document">
+              Document
+              {docUpdatedBadge && (
+                <Box
+                  component="span"
+                  sx={{
+                    width: 6,
+                    height: 6,
+                    ml: 0.75,
+                    borderRadius: '50%',
+                    bgcolor: 'primary.main',
+                    display: 'inline-block',
+                  }}
+                />
+              )}
+            </ToggleButton>
           </ToggleButtonGroup>
         </Box>
       )}
@@ -287,7 +407,14 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
               bgcolor: 'background.canvas',
             }}
           >
-            <Box ref={threadRef} sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.5, md: 2 } }}>
+            <Box
+              ref={threadRef}
+              onScroll={handleThreadScroll}
+              role="region"
+              aria-label="Consultation messages"
+              aria-live="polite"
+              sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.5, md: 2 } }}
+            >
               {ws.loading && !ws.loaded ? (
                 <Box sx={{ textAlign: 'center', mt: 8 }}>
                   <CircularProgress size={32} />
@@ -318,6 +445,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
                       suggestion={suggestionById.get(m.relatedSuggestionId)}
                       isLatestForSuggestion={latest.get(m.relatedSuggestionId) === m._id}
                       isLast={activeQuestion ? m._id === activeQuestion : i === messages.length - 1}
+                      cardState={pendingCardIds.includes(m._id) && m._id !== activeCardId ? 'queued' : 'active'}
                       ctx={ctx}
                     />
                   ))}
@@ -338,7 +466,10 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
             <ChatInput
               key={syllabusId}
               onSend={ws.sendMessage}
-              disabled={!ready || ws.readOnly || isReadOnlyAdmin || ws.busy}
+              onStop={ws.stopMessage}
+              placeholder={chatPlaceholder}
+              disabled={!ready || ws.busy}
+              readOnly={ws.readOnly || isReadOnlyAdmin}
             />
           </Box>
         )}

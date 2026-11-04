@@ -34,11 +34,19 @@ const SuggestionReference = ({ suggestion, onSelect }) => (
   </Box>
 );
 
+// Картка, що чекає черги: одна активна картка за раз, решта — рядок «Up next».
+const QueuedRow = ({ title }) => (
+  <Typography variant="body2" color="text.secondary" noWrap sx={{ py: 0.75, mb: 0.5 }}>
+    Up next · {title}
+  </Typography>
+);
+
 const MessageItem = ({
   message,
   suggestion,
   isLatestForSuggestion = true,
   isLast = false,
+  cardState = 'active', // 'active' | 'queued'
   ctx,
 }) => {
   const { actions, busy, readOnly, highlightedId, sectionsByKey, policyLibrary, statePolicies, readiness, sections, documentSections, onSelectSuggestion } = ctx;
@@ -47,8 +55,9 @@ const MessageItem = ({
     case 'text':
       return <TextMessage message={message} />;
     case 'question':
-      return <QuestionMessage payload={payload} active={isLast} busy={busy} readOnly={readOnly} onSkip={actions.skip} />;
+      return <QuestionMessage payload={payload} active={isLast} busy={busy} readOnly={readOnly} onSkip={actions.skip} onQuickAnswer={actions.send} />;
     case 'approve-all':
+      if (cardState === 'queued') return <QueuedRow title={S.noChangesTitle((payload.sections || []).length)} />;
       return (
         <ApproveAllCard
           sectionKeys={payload.sections || []}
@@ -62,6 +71,7 @@ const MessageItem = ({
       );
     case 'policy-choice': {
       const key = payload.policyKey;
+      if (cardState === 'queued') return <QueuedRow title={policyLibrary[key]?.title || payload.title || key} />;
       return (
         <PolicyChoiceCard
           policyKey={key}
@@ -81,6 +91,7 @@ const MessageItem = ({
       }
       const Card = SUGGESTION_CARDS[suggestion.kind];
       if (!Card) return null;
+      if (cardState === 'queued') return <QueuedRow title={suggestion.title} />;
       const sec = sectionsByKey.get(suggestion.section || suggestion.target?.section);
       return (
         <Card
