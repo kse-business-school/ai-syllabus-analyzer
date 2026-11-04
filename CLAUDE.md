@@ -194,7 +194,7 @@ frontend/src/
 | Змінна | Значення за замовчуванням / призначення |
 |---|---|
 | `LLM_PROVIDER` | `openai`; без нього `anthropic`, якщо задано лише `ANTHROPIC_API_KEY` |
-| `LLM_MODEL` | `gpt-5.4-mini` (openai), `claude-opus-5-5` (anthropic) |
+| `LLM_MODEL` | `gpt-5.4-mini` (openai), `claude-haiku-5-5` (anthropic) |
 | `ANTHROPIC_REFUSAL_FALLBACK` | `1`; `0` вимикає серверний fallback за відмови класифікаторів безпеки |
 | `LLM_REASONING_EFFORT` | `medium` |
 | `LLM_MAX_OUTPUT_TOKENS` | — |

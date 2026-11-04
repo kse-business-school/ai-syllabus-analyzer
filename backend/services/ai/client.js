@@ -16,7 +16,7 @@ function resolveProvider(env = process.env) {
 }
 
 const provider = resolveProvider();
-const DEFAULT_MODELS = { openai: 'gpt-5.4-mini', anthropic: 'claude-opus-5-5' };
+const DEFAULT_MODELS = { openai: 'gpt-5.4-mini', anthropic: 'claude-haiku-5-5' };
 const envModel = (process.env.LLM_MODEL || '').trim();
 const modelPrefix = provider === 'anthropic' ? 'claude-' : 'gpt-';
 const llmModel = envModel && envModel.startsWith(modelPrefix) ? envModel : DEFAULT_MODELS[provider];

@@ -52,10 +52,10 @@ Important backend env vars:
 ```env
 MONGODB_URI=mongodb://localhost:27017/ai-syllabus-analyzer
 JWT_SECRET=change_me_strong_password
-LLM_PROVIDER=openai          # або anthropic
+LLM_PROVIDER=anthropic       # або openai
 OPENAI_API_KEY=sk-your-key
 ANTHROPIC_API_KEY=sk-ant-your-key
-LLM_MODEL=gpt-5.4-mini       # для anthropic: claude-opus-5-5 або claude-sonnet-5-5
+LLM_MODEL=claude-haiku-5-5   # для openai: gpt-5.4-mini
 LLM_REASONING_EFFORT=medium
 LLM_MAX_OUTPUT_TOKENS=12000
 FRONTEND_URL=http://localhost:3000
@@ -130,7 +130,7 @@ npm run stop-ports
 - `services/analysisRunner.js`: background analysis with `analysisStage`.
 - `services/chat/`: conversation view, card flow, decisions, free chat.
 - `services/outputs.js`, `services/submission.js`: final files cache and submission email.
-- `services/ai/client.js`: the only LLM wrapper (OpenAI or Anthropic via `LLM_PROVIDER`; Anthropic is translated by `anthropicAdapter.js`). Default model `gpt-5.4-mini`, `reasoning.effort=medium` (`LLM_MODEL`, `LLM_REASONING_EFFORT`, `LLM_MAX_OUTPUT_TOKENS`).
+- `services/ai/client.js`: the only LLM wrapper (OpenAI or Anthropic via `LLM_PROVIDER`; Anthropic is translated by `anthropicAdapter.js`). Default model `claude-haiku-5-5` for Anthropic, `gpt-5.4-mini` for OpenAI; `reasoning.effort=medium` (`LLM_MODEL`, `LLM_REASONING_EFFORT`, `LLM_MAX_OUTPUT_TOKENS`).
 
 The full API contract for chat/suggestions is in `docs/api-v3.md`.
 
