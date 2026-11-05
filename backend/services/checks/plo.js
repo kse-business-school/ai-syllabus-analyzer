@@ -4,12 +4,8 @@ const { makeCheck, fmt, plural } = require('./common');
 
 const SECTION = 'learning_outcomes';
 const COVERAGE_WEIGHT = { full: 1, partial: 0.5 };
-// Латинські двійники кириличних літер у кодах ПРН
-const LOOKALIKES = { P: 'Р', H: 'Н' };
-
-/** Нормалізований код ПРН: NFC, верхній регістр, без пробілів і роздільників, латинські P/H → кириличні Р/Н. */
-const normalizePloCode = (code) => String(code || '').normalize('NFC').toUpperCase()
-  .replace(/[\s._\-–]/g, '').replace(/[PH]/g, (c) => LOOKALIKES[c]);
+// Канонічний код ПРН — спільний для всіх модулів (services/references/ploCode.js)
+const { canonicalPloCode: normalizePloCode } = require('../references/ploCode');
 
 function run(state, refs) {
   const known = new Map((refs?.outcomes || []).map((o) => [normalizePloCode(o.code), o.code]));

@@ -12,7 +12,7 @@ const { canManageProgramme } = require('./roles');
 const { httpError } = require('../utils/httpError');
 
 // Той самий ключ, що й у references.getOfferingTypes і computed.courseKindOf
-const normCourseCode = (code) => String(code || '').normalize('NFC').replace(/\s+/g, '').toUpperCase();
+const normCourseCode = CourseOffering.courseKeyOf;
 
 /** Викладач може взяти лише своє призначення (або без викладача); manager/director/admin — будь-яке. */
 function assertCanUse(offering, user) {
@@ -62,11 +62,49 @@ function offeringTakenError() {
   return httpError(409, 'A syllabus for this course and cohort already exists. Open it instead of creating a new one.', { code: 'OFFERING_TAKEN' });
 }
 
+/**
+ * Зміна коду курсу наявного силабуса (PUT /api/syllabus/:id, картка «Is this a core course?»): ті самі правила, що
+ * й при створенні (C01). Прив'язаний силабус код не змінює (400). Якщо новий код — чуже призначення → 403,
+ * зайняте → 409; своє вільне — атомарно займається (умова offeringId: null + унікальний індекс).
+ * @returns {Promise<{ offering: object|null, courseCode: string|null, release: () => Promise<void> }>}
+ *   release — відкат прив'язки, якщо наступний запис стану не вдався
+ */
+async function claimOfferingForCode(syllabus, courseCode, user) {
+  const code = courseCode == null ? null : String(courseCode).trim() || null;
+  const noop = { offering: null, courseCode: code, release: async () => {} };
+  if (syllabus.offeringId) {
+    if (normCourseCode(code) !== normCourseCode(syllabus.course?.code)) {
+      throw httpError(400, 'The course code comes from the course assignment and cannot be changed here.', { code: 'OFFERING_COURSE_LOCKED' });
+    }
+    return noop;
+  }
+  if (!code) return noop;
+  const offering = await resolveOfferingForCreate({ programCode: syllabus.programCode, courseCode: code }, user);
+  if (!offering) return noop;
+  await assertOfferingFree(offering._id);
+  let res;
+  try {
+    res = await Syllabus.updateOne({ _id: syllabus._id, offeringId: null }, { $set: { offeringId: offering._id, 'course.code': offering.courseCode } });
+  } catch (err) {
+    if (err?.code === 11000) throw offeringTakenError();
+    throw err;
+  }
+  if (!res.modifiedCount) throw httpError(409, 'The syllabus has changed. Refresh the page and try again.', { code: 'STATE_CONFLICT' });
+  return {
+    offering,
+    courseCode: offering.courseCode,
+    release: async () => {
+      await Syllabus.updateOne({ _id: syllabus._id, offeringId: offering._id }, { $unset: { offeringId: '' }, $set: { 'course.code': syllabus.course?.code ?? null } });
+    },
+  };
+}
+
 /** Посилання призначення мають існувати: набір — серед Program.editions, викладач — активний користувач. */
 async function assertOfferingRefs({ programCode, lecturerId }) {
   if (programCode !== undefined) {
     const code = String(programCode).trim().toUpperCase();
-    if (!(await Program.exists({ 'editions.code': code }))) {
+    // Набір програми або програма без наборів (її код сам є кодом довідників і призначень)
+    if (!(await Program.exists({ $or: [{ 'editions.code': code }, { code, 'editions.0': { $exists: false } }] }))) {
       throw httpError(400, `Unknown cohort: ${programCode}`, { code: 'UNKNOWN_PROGRAM_CODE' });
     }
   }
@@ -77,8 +115,6 @@ async function assertOfferingRefs({ programCode, lecturerId }) {
 }
 
 const MAX_SYNC_ATTEMPTS = 3;
-// Розділи, які залежать від типу курсу: At a Glance (Course type) і Learning Outcomes (перевірка покриття ПРН)
-const COURSE_KIND_SECTIONS = ['at_a_glance', 'learning_outcomes'];
 
 /**
  * Після зміни призначення: скинути кеш довідників і перерахувати E-поля (courseKind) у силабусах цієї пари.
@@ -98,17 +134,16 @@ async function syncOfferingSyllabi({ programCode, courseCode, offeringId = null 
   if (!affected.length) return 0;
   const refs = await getRefs(code);
   let changed = 0;
+  const failed = [];
   for (const s of affected) {
     if (s.status === 'analyzing') continue; // аналіз сам перерахує стан із свіжими довідниками
     for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt += 1) {
       try {
         const { state: before, revision } = await store.getState(s._id);
-        // E-поля перераховує сам mutate; SlotChange для них не пишеться, тож затвердження знімаємо явно
-        let result = await store.mutate(s._id, revision, (st) => st, { source: 'offering', refs });
+        // E-поля перераховує mutate; при зміні courseKind він же в тому самому записі знімає затвердження
+        // залежних розділів (store.COURSE_KIND_SECTIONS), тож повтор після STATE_CONFLICT нічого не губить
+        const result = await store.mutate(s._id, revision, (st) => st, { source: 'offering', refs });
         if (before.header?.courseKind !== result.state.header?.courseKind) {
-          for (const key of COURSE_KIND_SECTIONS) {
-            result = await store.unapproveSection(s._id, key, { expectedRevision: result.revision });
-          }
           changed += 1;
           invalidateOutputs(s._id);
         }
@@ -116,14 +151,22 @@ async function syncOfferingSyllabi({ programCode, courseCode, offeringId = null 
       } catch (err) {
         if (err?.code !== 'STATE_CONFLICT' || attempt === MAX_SYNC_ATTEMPTS) {
           console.warn(`offering sync failed for syllabus ${String(s._id)}: ${err.message}`);
+          failed.push(String(s._id));
           break;
         }
       }
     }
+  }
+  // Невдалий перерахунок не мовчить (C07): зміну довідника збережено, повтор того самого запиту перерахує решту
+  if (failed.length) {
+    throw httpError(503, `The change was saved, but ${failed.length} syllabi could not be updated yet. Repeat the request to finish.`, {
+      code: 'SYNC_INCOMPLETE', retryable: true, details: { syllabi: failed },
+    });
   }
   return changed;
 }
 
 module.exports = {
   normCourseCode, findOfferingFor, resolveOfferingForCreate, assertOfferingFree, offeringTakenError, assertOfferingRefs, syncOfferingSyllabi,
+  claimOfferingForCode,
 };

@@ -48,7 +48,7 @@ test('migrate-v5-offerings: dry-run нічого не міняє, повтор �
   expect(await migrate()).toMatchObject({ offeringsCreated: 1, syllabiLinked: 1 });
   const o = await CourseOffering.findOne({ courseCode: 'M.1' }).lean();
   expect(o).toMatchObject({ programCode: 'MBA27', type: 'core' });
-  expect(await migrate()).toEqual({ offeringsCreated: 0, syllabiLinked: 0, skippedNoCode: 1, skippedDuplicate: 0 });
+  expect(await migrate()).toEqual({ offeringsCreated: 0, syllabiLinked: 0, skippedNoCode: 1, skippedDuplicate: 0, courseKeysSet: 0, duplicateOfferings: 0 });
 });
 
 test('migrate-v5-offerings: одна пара курс × набір — один силабус (найсвіжіший силабус викладача)', async () => {

@@ -17,7 +17,7 @@ const { generateToken } = require('../utils/tokens');
 const CourseOffering = require('../models/CourseOffering');
 const { ROLES, PROGRAMME_ROLES, canSeeAll } = require('../services/roles');
 const { assertOfferingRefs, syncOfferingSyllabi } = require('../services/offerings');
-const { setEditions, assertCodesFree } = require('../services/programs');
+const { setEditions, createProgram, deleteProgram } = require('../services/programs');
 const { httpError, sendError } = require('../utils/httpError');
 
 const admin = requireRole('admin');
@@ -60,24 +60,12 @@ router.get('/programs', auth, async (req, res) => {
   }
 });
 
-// Програма з наборами: editions [{ code, label, copyFrom? }] — коди наборів (MBA28, EMBA25…), copyFrom копіює довідники
+// Програма з наборами: editions [{ code, label, copyFrom? }] — коди наборів (MBA28, EMBA25…), copyFrom копіює довідники.
+// Логіка й відкат — services/programs (createProgram / setEditions / deleteProgram)
 router.post('/programs', auth, admin, async (req, res) => {
   try {
-    const { name, code, academicDirectorEmail, editions } = req.body;
-    if (!name || !code) return sendError(res, httpError(400, 'name and code are required', { code: 'VALIDATION_ERROR' }));
-    // Код програми без наборів сам є кодом довідників: не має збігатися з набором іншої програми
-    await assertCodesFree(null, [String(code).trim().toUpperCase()]);
-    const program = await Program.create({ name, code, academicDirectorEmail, createdBy: req.user.userId });
-    if (editions !== undefined) {
-      try {
-        const { program: saved, copied } = await setEditions(program._id, editions);
-        return res.status(201).json({ ...saved.toObject(), copied });
-      } catch (err) {
-        await Program.deleteOne({ _id: program._id });
-        throw err;
-      }
-    }
-    res.status(201).json(program);
+    const { program, copied } = await createProgram(req.body || {}, { userId: req.user.userId });
+    res.status(201).json({ ...program.toObject(), copied });
   } catch (err) {
     if (err.code === 11000) return sendError(res, httpError(409, 'A programme with this code already exists', { code: 'PROGRAM_EXISTS' }));
     if (err.name === 'ValidationError') return sendError(res, httpError(400, err.message, { code: 'VALIDATION_ERROR' }));
@@ -104,19 +92,14 @@ router.put('/programs/:id', auth, admin, async (req, res) => {
   }
 });
 
+// Видалення: ні силабусів програми, ні силабусів чи призначень курсів її наборів (C14)
 router.delete('/programs/:id', auth, admin, async (req, res) => {
   try {
-    if (!isValidId(req.params.id)) return res.status(400).json({ message: 'Invalid programme id' });
-    const used = await Syllabus.countDocuments({ programId: req.params.id });
-    if (used > 0) {
-      return res.status(409).json({ message: `This programme cannot be deleted: syllabi refer to it (${used})` });
-    }
-    const program = await Program.findByIdAndDelete(req.params.id);
-    if (!program) return res.status(404).json({ message: 'Programme not found' });
+    if (!isValidId(req.params.id)) return sendError(res, httpError(400, 'Invalid programme id', { code: 'INVALID_ID' }));
+    await deleteProgram(req.params.id);
     res.json({ message: 'Deleted' });
   } catch (err) {
-    console.error('Delete program error:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    sendError(res, err);
   }
 });
 

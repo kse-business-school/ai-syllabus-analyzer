@@ -125,12 +125,8 @@ async function courseKind(programCode, { courseCode, courseTitle } = {}) {
   return { kind: 'elective', matchedBy: null, course: null };
 }
 
-/** «PRN 3», «ПРН 3», «ПPН3» → «ПРН3» (NFC, латинські P/H → кирилічні Р/Н, без пробілів) */
-function normalizePloCode(code) {
-  const s = String(code || '').normalize('NFC').replace(/\s+/g, '').toUpperCase();
-  if (/^PRN/.test(s)) return `ПРН${s.slice(3)}`;
-  return s.replace(/^[^\d]+/, (prefix) => prefix.replace(/P/g, 'Р').replace(/H/g, 'Н'));
-}
+/** «PRN 3», «ПРН 3», «ПPН3» → «ПРН3»: канонічна форма коду ПРН, спільна для всіх модулів */
+const { canonicalPloCode: normalizePloCode } = require('./ploCode');
 
 module.exports = {
   getRefs, getTemplate, getOutcomes, getCourses, getCapstone, listEditions,

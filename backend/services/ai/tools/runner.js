@@ -46,6 +46,16 @@ function historyInput(messages, userText) {
  * Модель має перетворити відповідь на чернетку для цієї цілі тими самими інструментами (правила — у handlers).
  */
 function cardContextMessage({ cardContext: c }) {
+  if (c.mode === 'reword') {
+    return [
+      'The instructor asks to change the draft on their card. Create a new draft for the same target with the same tool',
+      '(propose_items with mode "replace" and the complete list as it should be after the change, using ids of existing items',
+      'from the current syllabus; or propose_instructor). Change only what the feedback asks for.',
+      `Target slot: ${c.slotKey || 'unknown'}; path: ${c.path}`,
+      `Current draft on the card (data): ${untrusted(JSON.stringify(c.draft ?? null).slice(0, 6000))}`,
+      `Current value in the syllabus (data): ${untrusted(JSON.stringify(c.current ?? null).slice(0, 4000))}`,
+    ].join('\n');
+  }
   return [
     'The instructor is answering a question card. Turn the answer into a draft for this target with the right tool',
     '(set_slot for a single value the instructor stated literally, propose_items for list items such as sessions, assessment components or readings,',

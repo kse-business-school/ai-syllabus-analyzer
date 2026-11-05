@@ -133,6 +133,10 @@ async function draftFromNarrative({ state, refs, narrative, slotKeys, transcript
     const d = parsed.drafts.find((x) => x.slotKey === slotKey);
     const target = draftTarget(slotKey, { state, text: d.text });
     const named = d.criteriaKeys.map((k) => criteria.find((c) => c.key === k)?.name).filter(Boolean);
+    // C13: ключі названих критеріїв Capstone ідуть у стан разом із текстом (Confirm пише { text, criteriaKeys }),
+    // тож редактор довідників бачить, на які критерії посилається силабус
+    const keys = d.criteriaKeys.filter((k) => criteria.some((c) => c.key === k));
+    if (slotKey === 'course.capstone' && target) target.value = { text: target.value, criteriaKeys: [...new Set(keys)] };
     return {
       slotKey,
       kind: 'edit',
@@ -159,7 +163,9 @@ async function reword({ suggestion, feedback, state, refs, transcript = [] } = {
   const slot = slotOfPath(path);
   const def = slot && DRAFTABLE[slot.key];
   const isList = Array.isArray(draftValue) && def?.mode === 'list';
-  if (!(typeof draftValue === 'string' || isList)) {
+  // Текст із супутніми полями (Capstone: { text, criteriaKeys }) — переформульовується лише text
+  const isTextObject = draftValue && typeof draftValue === 'object' && !Array.isArray(draftValue) && typeof draftValue.text === 'string';
+  if (!(typeof draftValue === 'string' || isList || isTextObject)) {
     throw httpError(422, 'This draft cannot be reworded; change the value directly', { code: 'NOT_REWORDABLE' });
   }
   const slotKey = slot?.key || 'policy.*';
@@ -192,7 +198,7 @@ async function reword({ suggestion, feedback, state, refs, transcript = [] } = {
   const text = isList ? splitLines(parsed.text).join('\n') : parsed.text.trim();
   return {
     text,
-    value: isList ? listEntities(def, splitLines(text), draftValue) : text,
+    value: isList ? listEntities(def, splitLines(text), draftValue) : isTextObject ? { ...draftValue, text } : text,
     proposedValues: parsed.proposedValues,
     rationale: parsed.rationale,
     title: parsed.title,

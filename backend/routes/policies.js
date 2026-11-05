@@ -53,7 +53,7 @@ function parseBoolean(value, defaultValue = true) {
   return String(value).toLowerCase() === 'true';
 }
 
-// Multer configuration for file uploads
+// Налаштування multer для вкладень
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     const uploadDir = path.join(__dirname, '../uploads/policies');
@@ -80,7 +80,7 @@ const upload = multer({
   }
 });
 
-// Get all policies
+// Усі документи політик
 router.get('/', auth, async (req, res) => {
   try {
     const { type, isActive = true } = req.query;
@@ -94,7 +94,7 @@ router.get('/', auth, async (req, res) => {
       .populate('createdBy', 'firstName lastName')
       .sort(type === SYLLABUS_POLICY ? { order: 1 } : { createdAt: -1 });
 
-    // Add acknowledgment status for current user
+    // Статус ознайомлення поточного користувача
     const policiesWithStatus = policies.map(policy => ({
       ...policy.toObject(),
       isAcknowledged: policy.isAcknowledgedBy(req.user.userId)
@@ -107,7 +107,7 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// Get specific policy
+// Один документ
 router.get('/:id', auth, async (req, res) => {
   try {
     const policy = await Policy.findById(req.params.id)
@@ -129,14 +129,14 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// Create new policy (admin only)
+// Новий документ (лише admin)
 router.post('/', 
   auth, 
   requireRole('admin'), 
   upload.single('file'),
   async (req, res) => {
   try {
-    // Manual validation since we can't use express-validator array with multer
+    // Ручна валідація: express-validator з масивами не працює разом із multer
     if (!req.body.title || !req.body.title.trim()) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ message: 'Title is required' });
@@ -170,7 +170,7 @@ router.post('/',
       createdBy: req.user.userId
     };
 
-    // Add file info if uploaded
+    // Дані вкладення, якщо файл завантажено
     if (req.file) {
       policyData.attachedFile = {
         filename: req.file.filename,
@@ -189,7 +189,7 @@ router.post('/',
       policy
     });
   } catch (error) {
-    // Clean up uploaded file on error
+    // За помилки прибираємо завантажений файл
     if (req.file) {
       await fs.unlink(req.file.path).catch(() => {});
     }
@@ -198,14 +198,14 @@ router.post('/',
   }
 });
 
-// Update policy (admin, manager, director)
+// Оновлення документа (admin, manager, director)
 router.put('/:id',
   auth,
   requireRole('admin', 'manager', 'director'),
   upload.single('file'),
   async (req, res) => {
   try {
-    // Manual validation
+    // Ручна валідація
     if (req.body.title !== undefined && !req.body.title.trim()) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ message: 'Title cannot be empty' });
@@ -270,9 +270,9 @@ router.put('/:id',
     if (isRequired !== undefined) policy.isRequired = isRequired;
     if (isActive !== undefined) policy.isActive = isActive;
 
-    // Handle file upload
+    // Нове вкладення
     if (req.file) {
-      // Delete old file if exists
+      // Старий файл, якщо є, видаляється
       if (policy.attachedFile?.path) {
         await fs.unlink(policy.attachedFile.path).catch(() => {});
       }
@@ -307,7 +307,7 @@ router.put('/:id',
   }
 });
 
-// Delete policy (admin only)
+// Видалення документа (лише admin)
 router.delete('/:id', auth, requireRole('admin'), async (req, res) => {
   try {
     const policy = await Policy.findById(req.params.id);
@@ -320,7 +320,7 @@ router.delete('/:id', auth, requireRole('admin'), async (req, res) => {
       return res.status(409).json({ message: 'Policy library blocks cannot be deleted; deactivate the block with isActive' });
     }
 
-    // Delete associated file if exists
+    // Видаляється й вкладення, якщо є
     if (policy.attachedFile?.path) {
       await fs.unlink(policy.attachedFile.path).catch(() => {});
     }
@@ -334,7 +334,7 @@ router.delete('/:id', auth, requireRole('admin'), async (req, res) => {
   }
 });
 
-// Acknowledge policy
+// Позначка «ознайомлений»
 router.post('/:id/acknowledge', auth, async (req, res) => {
   try {
     const policy = await Policy.findById(req.params.id);
@@ -371,7 +371,7 @@ router.post('/:id/acknowledge', auth, async (req, res) => {
   }
 });
 
-// Get acknowledgment status for user
+// Статус ознайомлення користувача
 router.get('/:id/status', auth, async (req, res) => {
   try {
     const policy = await Policy.findById(req.params.id);
@@ -398,7 +398,7 @@ router.get('/:id/status', auth, async (req, res) => {
   }
 });
 
-// Download attached file
+// Завантаження вкладення
 router.get('/:id/download', auth, async (req, res) => {
   try {
     const policy = await Policy.findById(req.params.id);
@@ -411,7 +411,7 @@ router.get('/:id/download', auth, async (req, res) => {
       return res.status(404).json({ message: 'File not found' });
     }
 
-    // Check if file exists
+    // Чи існує файл
     try {
       await fs.access(policy.attachedFile.path);
     } catch {

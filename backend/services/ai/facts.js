@@ -76,17 +76,43 @@ function quantitiesOf(text) {
 }
 
 const MONTH_INDEX = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-/** Дата як множина чисел (назва місяця → номер, без ведучих нулів): «Dec 1, 2026» ≡ «2026-12-01» ≡ «1 December 2026». */
-function dateParts(text) {
+const MONTH_RE = MONTH_INDEX.join('|');
+const year4 = (y) => (y == null ? null : String(y).length === 2 ? 2000 + Number(y) : Number(y));
+
+/**
+ * Дата як упорядковані { y, m, d } (C03: «2026-12-01» ≠ «2026-01-12»). Числові дати з крапкою чи слешем —
+ * день першим (формат школи); ISO — рік-місяць-день; з назвою місяця — у будь-якому порядку. null — не розпізнано.
+ */
+function dateKey(text) {
   const t = norm(text);
-  const parts = (t.match(/\d+/g) || []).map((n) => String(Number(n)));
-  const month = MONTH_INDEX.findIndex((m) => new RegExp(`\\b${m}`).test(t));
-  if (month >= 0) parts.push(String(month + 1));
-  return new Set(parts);
+  let m = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);
+  if (m) return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+  m = /(\d{1,2})[./](\d{1,2})[./](\d{2,4})/.exec(t);
+  if (m) return { y: year4(m[3]), m: Number(m[2]), d: Number(m[1]) };
+  m = new RegExp(`\\b(${MONTH_RE})\\w*\\.? (\\d{1,2})(?:st|nd|rd|th)?(?:,? (\\d{4}))?`).exec(t);
+  if (m) return { y: year4(m[3]), m: MONTH_INDEX.indexOf(m[1]) + 1, d: Number(m[2]) };
+  m = new RegExp(`(\\d{1,2})(?:st|nd|rd|th)? (?:of )?(${MONTH_RE})\\w*(?:,? (\\d{4}))?`).exec(t);
+  if (m) return { y: year4(m[3]), m: MONTH_INDEX.indexOf(m[2]) + 1, d: Number(m[1]) };
+  return null;
 }
+
+/** Часи фрагмента як «HH:MM» у 24-годинному форматі (C03: «09:10» ≠ «10:09»); am/pm наприкінці — для всіх. */
+function timeKeys(text) {
+  const t = norm(text);
+  const suffix = /\b(am|pm)\b/.exec(t)?.[1] || null;
+  return [...t.matchAll(/(\d{1,2})[:.](\d{2})/g)].map(([, h, mm]) => {
+    let hour = Number(h);
+    if (suffix === 'pm' && hour < 12) hour += 12;
+    if (suffix === 'am' && hour === 12) hour = 0;
+    return `${String(hour).padStart(2, '0')}:${mm}`;
+  });
+}
+
 const DATE_RE = PATTERNS.find((p) => p.label === 'Date').re;
 const TIME_RE = PATTERNS.find((p) => p.label === 'Time').re;
-const subset = (a, b) => [...a].every((x) => b.has(x));
+const escapeRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Точний збіг фрагмента окремими словами (C03: «8 hours» не знаходиться всередині «48 hours»). */
+const containsWhole = (haystack, needle) => new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(needle)}(?![\\p{L}\\p{N}])`, 'u').test(haystack);
 
 /** Корпус відомого: точний текст, усі числа, числа з одиницями, дати й часи. */
 function corpusOf(known) {
@@ -96,29 +122,29 @@ function corpusOf(known) {
     text: corpus,
     numbers: new Set(numbersOf(corpus)),
     quantities: quantitiesOf(text),
-    dates: [...corpus.matchAll(new RegExp(DATE_RE.source, 'gi'))].map((m) => dateParts(m[0])),
-    times: [...corpus.matchAll(new RegExp(TIME_RE.source, 'gi'))].map((m) => dateParts(m[0])),
+    dates: [...corpus.matchAll(new RegExp(DATE_RE.source, 'gi'))].map((m) => dateKey(m[0])).filter(Boolean),
+    times: new Set([...corpus.matchAll(new RegExp(TIME_RE.source, 'gi'))].flatMap((m) => timeKeys(m[0]))),
   };
 }
 
 /**
  * Факт уже названо викладачем або довідником. Число зараховується лише з тією самою одиницею
- * (A09: «We have 48 students» не робить відомим «48 hours»); дата — з тими самими днем/місяцем/роком;
- * назва в лапках — лише точний збіг; голе число без одиниці — якщо воно є в корпусі.
+ * (A09: «We have 48 students» не робить відомим «48 hours»); дата — з тими самими днем і місяцем (і роком, якщо
+ * він є в чернетці); час — ті самі години й хвилини; назва в лапках — лише точний збіг; голе число — будь-де в корпусі.
  */
 function isKnownFact(label, value, corpus) {
   const v = norm(value);
-  if (corpus.text.includes(v)) return true;
+  if (v && containsWhole(corpus.text, v)) return true;
   if (label === 'Title') return false;
   const nums = numbersOf(value);
   if (!nums.length) return false;
   if (label === 'Date') {
-    const parts = dateParts(value);
-    return corpus.dates.some((d) => subset(parts, d));
+    const key = dateKey(value);
+    return Boolean(key) && corpus.dates.some((d) => d.m === key.m && d.d === key.d && (key.y == null || d.y === key.y));
   }
   if (label === 'Time') {
-    const parts = dateParts(value);
-    return corpus.times.some((d) => subset(parts, d));
+    const keys = timeKeys(value);
+    return keys.length > 0 && keys.every((k) => corpus.times.has(k));
   }
   if (label === 'Quantity' || label === 'Percentage') {
     const family = label === 'Percentage' ? 'percent' : tokensOf(value).map(familyOf).filter(Boolean).pop();

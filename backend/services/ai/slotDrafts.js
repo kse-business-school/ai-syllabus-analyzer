@@ -132,9 +132,14 @@ const ITEM_SLOTS = {
   'assessment.components': {
     path: 'assessments[]', idPrefix: 'as', noun: 'Component',
     main: field('label', 'name', 'text'),
-    fields: [field('weight', 'weight', 'number', { unit: 'percent', max: 100 }), field('deadline', 'deadline', 'text'), field('criteria', 'criteria', 'text')],
+    fields: [
+      field('weight', 'weight', 'number', { unit: 'percent', max: 100 }), field('deadline', 'deadline', 'text'), field('criteria', 'criteria', 'text'),
+      // C10: ознаки для детермінованих перевірок (частка активності ≤ 30%, контрольні заходи за Положенням)
+      field('participation', 'isParticipation', 'bool'), field('control', 'isControl', 'bool'),
+    ],
     blank: () => ({ name: null, fixtureRef: null, weight: null, criteria: null, deadline: null, isParticipation: false, isControl: false, outcomeIds: [] }),
-    line: (e, f) => [f('name'), e.weight != null && `${f('weight')}%`, e.deadline && `deadline: ${f('deadline')}`, e.criteria && `criteria: ${f('criteria')}`]
+    line: (e, f) => [f('name'), e.weight != null && `${f('weight')}%`, e.deadline && `deadline: ${f('deadline')}`, e.criteria && `criteria: ${f('criteria')}`,
+      e.isParticipation && 'class participation', e.isControl && 'control assessment']
       .filter(Boolean).join(' · '),
   },
   'assessment.compensation': {
@@ -161,15 +166,17 @@ const ITEM_SLOTS = {
 };
 
 // Профіль викладача (instructor.profile): один запис instructors[0], поля — як у schema.js
+// C15: імена, посади, установи й досвід — факти цілком: нове значення, якого викладач не назвав дослівно,
+// стає proposedValue (як email); у списках — кожен пункт окремо
 const INSTRUCTOR_FIELDS = [
-  field('name', 'name', 'text', { label: 'Name' }), field('position', 'position', 'text', { label: 'Position' }),
+  field('name', 'name', 'title', { label: 'Name' }), field('position', 'position', 'title', { label: 'Position' }),
   field('email', 'email', 'title', { label: 'Email' }), field('office_hours', 'officeHours', 'text', { label: 'Office hours' }),
-  field('assistants', 'assistants', 'text', { label: 'Assistants' }), field('expertise', 'expertise', 'list', { label: 'Expertise' }),
-  field('education', 'education', 'list', { label: 'Education' }), field('experience', 'experience', 'list', { label: 'Experience' }),
+  field('assistants', 'assistants', 'title', { label: 'Assistants' }), field('expertise', 'expertise', 'list', { label: 'Expertise', each: 'title' }),
+  field('education', 'education', 'list', { label: 'Education', each: 'title' }), field('experience', 'experience', 'list', { label: 'Experience', each: 'title' }),
 ];
 const LIST_SEP = '; ';
 
-const fieldString = (value) => (Array.isArray(value) ? value.join(LIST_SEP) : value == null ? '' : String(value));
+const fieldString = (value) => (Array.isArray(value) ? value.join(LIST_SEP) : value == null || typeof value === 'boolean' ? '' : String(value));
 
 function cleanText(v) {
   if (v == null) return null;
@@ -184,6 +191,10 @@ function coerce(f, raw) {
     const n = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
     if (!Number.isFinite(n) || n < 0 || (f.max != null && n > f.max)) return { error: `${f.name} must be a number between 0 and ${f.max ?? 'any'}` };
     return { value: n };
+  }
+  if (f.kind === 'bool') {
+    if (typeof raw !== 'boolean') return { error: `${f.from} must be true, false or null` };
+    return { value: raw };
   }
   if (f.kind === 'enum') {
     const v = String(raw).trim().toLowerCase();
@@ -208,6 +219,7 @@ function fieldFacts(f, value, corpus, known) {
     return isKnownFact(f.unit === 'percent' ? 'Percentage' : 'Quantity', asText, corpus) ? [] : [{ value: str }];
   }
   if (f.kind === 'title') return isKnownFact('Title', str, corpus) ? [] : [{ value: str }];
+  if (f.kind === 'list' && f.each === 'title') return value.filter((item) => !isKnownFact('Title', item, corpus)).map((item) => ({ value: item }));
   if (f.kind === 'text' || f.kind === 'list') return scanFacts(str, { known }).map((x) => ({ value: x.value }));
   return [];
 }
@@ -331,30 +343,59 @@ const FIELD_PATH = /^\[([^\]]+)\]\.(\w+)$/;
 const hasFieldPaths = (pvs) => (pvs || []).some((pv) => FIELD_PATH.test(pv.path || ''));
 
 /**
- * «Change the value» для чернетки списку: кожен proposedValue з path '[id].поле' міняє підрядок у полі сутності.
+ * «Change the value» для чернетки списку: proposedValues з path '[id].поле' змінюють поле сутності.
+ * Усі факти одного поля знаходяться в поточному рядку за тими самими правилами, що й плейсхолдери шаблону
+ * (довші раніше, перше вільне входження), і замінюються одним проходом за позиціями (C12): нове значення
+ * одного факту не може потрапити під заміну іншого, тож записане збігається з показаним на картці.
  * Числові поля лишаються числами (інакше { error }).
  */
 function applyFieldValues(value, before, after) {
   if (!Array.isArray(value)) return { value };
   const out = value.map((e) => ({ ...e }));
-  for (const next of after) {
-    const prev = before.find((pv) => pv.id === next.id);
-    const m = FIELD_PATH.exec(next.path || '');
-    if (!m || !prev || prev.value === next.value) continue;
-    const entity = out.find((e) => e.id === m[1]);
-    if (!entity || !(m[2] in entity)) continue;
-    const current = entity[m[2]];
+  const nextById = new Map(after.map((pv) => [pv.id, pv]));
+  const groups = new Map();
+  for (const prev of before) {
+    const m = FIELD_PATH.exec(prev.path || '');
+    if (!m) continue;
+    const key = `${m[1]}\u0000${m[2]}`;
+    if (!groups.has(key)) groups.set(key, { id: m[1], field: m[2], pvs: [] });
+    groups.get(key).pvs.push(prev);
+  }
+  for (const { id, field: name, pvs } of groups.values()) {
+    if (!pvs.some((pv) => nextById.get(pv.id) && nextById.get(pv.id).value !== pv.value)) continue;
+    const entity = out.find((e) => e.id === id);
+    if (!entity || !(name in entity)) continue;
+    const current = entity[name];
     const str = fieldString(current);
-    const at = str.indexOf(prev.value);
-    const replaced = at >= 0 ? `${str.slice(0, at)}${next.value}${str.slice(at + prev.value.length)}` : next.value;
-    if (typeof current === 'number' || ['hours', 'weight'].includes(m[2])) {
-      const n = Number(String(replaced).replace(',', '.'));
-      if (!Number.isFinite(n) || n < 0) return { error: `${m[2]} must stay a non-negative number` };
-      entity[m[2]] = n;
-    } else if (Array.isArray(current)) {
-      entity[m[2]] = replaced.split(LIST_SEP).map((s) => s.trim()).filter(Boolean);
+    // Позиції фактів у поточному рядку: як у renderEntity (довші раніше, перше незайняте входження)
+    const spans = [];
+    for (const pv of [...pvs].sort((x, y) => y.value.length - x.value.length)) {
+      let from = 0; let at = -1;
+      while ((at = str.indexOf(pv.value, from)) >= 0 && spans.some((sp) => at < sp.end && at + pv.value.length > sp.start)) from = at + 1;
+      if (at >= 0) spans.push({ start: at, end: at + pv.value.length, pv });
+    }
+    let replaced;
+    if (!spans.length) {
+      // Значення факту більше не входить у поле (наприклад, ціле число): поле — нове значення факту
+      replaced = nextById.get(pvs[0].id)?.value ?? str;
     } else {
-      entity[m[2]] = replaced;
+      spans.sort((x, y) => x.start - y.start);
+      let cursor = 0;
+      replaced = '';
+      for (const sp of spans) {
+        replaced += str.slice(cursor, sp.start) + (nextById.get(sp.pv.id)?.value ?? sp.pv.value);
+        cursor = sp.end;
+      }
+      replaced += str.slice(cursor);
+    }
+    if (typeof current === 'number' || ['hours', 'weight'].includes(name)) {
+      const n = Number(String(replaced).replace(',', '.'));
+      if (!Number.isFinite(n) || n < 0) return { error: `${name} must stay a non-negative number` };
+      entity[name] = n;
+    } else if (Array.isArray(current)) {
+      entity[name] = replaced.split(LIST_SEP).map((x) => x.trim()).filter(Boolean);
+    } else {
+      entity[name] = replaced;
     }
   }
   return { value: out };

@@ -23,7 +23,7 @@ const { resolveProfile } = require('../services/lecturers/profile');
 const { prepareInstructor } = require('../services/lecturers/cards');
 const { createDraftSuggestions } = require('../services/chat/draftSuggestions');
 const { canSeeAll } = require('../services/roles');
-const { resolveOfferingForCreate, assertOfferingFree, offeringTakenError, normCourseCode } = require('../services/offerings');
+const { resolveOfferingForCreate, assertOfferingFree, offeringTakenError, normCourseCode, claimOfferingForCode } = require('../services/offerings');
 
 const CLEANUP_GRACE_MS = 10 * 60 * 1000;
 
@@ -165,6 +165,10 @@ async function resolveCreateTarget(req) {
   const { programId, offeringId, courseCode } = req.body;
   let offering = await resolveOfferingForCreate({ offeringId }, req.user);
   const { programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode);
+  // C02: явне призначення має належати обраній програмі (і для програми без наборів теж)
+  if (offering && offering.programCode !== programCode) {
+    throw httpError(400, `This course assignment belongs to ${offering.programCode}, not to the selected programme.`, { code: 'OFFERING_PROGRAM_MISMATCH' });
+  }
   if (!offering) offering = await resolveOfferingForCreate({ programCode, courseCode }, req.user);
   await assertOfferingFree(offering?._id);
   return { offering, programCode };
@@ -216,7 +220,7 @@ router.post('/', auth, [
   }
 });
 
-// Upload and analyze syllabus
+// Трек 2: завантаження файлу й фоновий аналіз
 router.post('/upload', auth, uploadSingle, [
   body('courseName').trim().notEmpty().withMessage('Course name is required'),
   body('courseCode').optional().trim(),
@@ -314,7 +318,7 @@ function publicSyllabus(syllabus) {
   return obj;
 }
 
-// Get specific syllabus details
+// Дані силабуса (без state і шляхів до файлів)
 router.get('/:id', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id)
@@ -330,7 +334,7 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// Get syllabus analysis status
+// Статус аналізу силабуса
 router.get('/:id/status', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id)
@@ -392,26 +396,33 @@ router.put('/:id', auth, [
       return sendError(res, httpError(400, 'The programme and its edition cannot be changed. Create a new syllabus for another programme.', { code: 'PROGRAM_CHANGE_NOT_ALLOWED' }));
     }
 
-    // Код курсу силабуса, прив'язаного до призначення, задає призначення
-    if (syllabus.offeringId && courseCode !== undefined && normCourseCode(courseCode) !== normCourseCode(syllabus.course?.code)) {
-      return sendError(res, httpError(400, 'The course code comes from the course assignment and cannot be changed here.', { code: 'OFFERING_COURSE_LOCKED' }));
+    // Зміна коду курсу — ті самі правила призначення, що й при створенні (C01): прив'язаний код не змінюється,
+    // чужий чи зайнятий курс → 403/409, своє вільне призначення займається до запису стану
+    let claim = { courseCode: courseCode === undefined ? undefined : (courseCode || null), release: async () => {} };
+    if (courseCode !== undefined && normCourseCode(courseCode) !== normCourseCode(syllabus.course?.code)) {
+      claim = await claimOfferingForCode(syllabus, courseCode, req.user);
     }
 
     // Спершу стан (умова на ревізію): якщо запис не вдався, метадані теж не змінюються
     const header = {};
     if (courseName) header.courseTitle = courseName;
     else if (title) header.courseTitle = title;
-    if (courseCode !== undefined) header.courseCode = courseCode || null;
+    if (courseCode !== undefined) header.courseCode = claim.courseCode;
     const v5 = syllabus.state && !syllabus.legacy && !syllabus.needsRebuild;
     if (v5 && Object.keys(header).length) {
-      await store.mutate(syllabus._id, syllabus.stateRevision || 0, (st) => {
-        st.header = { ...st.header, ...header };
-      }, { by: req.user.userId, source: 'instructor_directed', refs: await getRefs(syllabus.programCode) });
+      try {
+        await store.mutate(syllabus._id, syllabus.stateRevision || 0, (st) => {
+          st.header = { ...st.header, ...header };
+        }, { by: req.user.userId, source: 'instructor_directed', refs: await getRefs(syllabus.programCode) });
+      } catch (err) {
+        await claim.release();
+        throw err;
+      }
     }
 
     const updates = {};
     if (title) updates.title = title;
-    if (courseCode !== undefined) updates['course.code'] = courseCode;
+    if (courseCode !== undefined) updates['course.code'] = claim.courseCode;
     if (courseName !== undefined) updates['course.name'] = courseName;
     if (credits !== undefined) updates['course.credits'] = parseInt(credits, 10);
     if (semester !== undefined) updates['course.semester'] = semester;
@@ -421,7 +432,7 @@ router.put('/:id', auth, [
       : await Syllabus.findById(syllabus._id);
     res.json({ message: 'The syllabus was updated', syllabus: publicSyllabus(saved) });
   } catch (error) {
-    console.error('Update syllabus error:', error);
+    if (!error?.statusCode) console.error('Update syllabus error:', error);
     sendError(res, error);
   }
 });
@@ -462,7 +473,7 @@ router.post('/:id/analyze', auth, async (req, res) => {
   }
 });
 
-// Download original syllabus file
+// Завантаження оригінального файлу силабуса
 router.get('/:id/download', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id);

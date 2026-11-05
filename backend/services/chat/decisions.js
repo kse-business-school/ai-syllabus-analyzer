@@ -5,6 +5,9 @@
 
 const Conversation = require('../../models/Conversation');
 const Message = require('../../models/Message');
+const User = require('../../models/User');
+const Syllabus = require('../../models/Syllabus');
+const { claimOfferingForCode } = require('../offerings');
 const Suggestion = require('../../models/Suggestion');
 const SlotChange = require('../../models/SlotChange');
 const store = require('../syllabusState/store');
@@ -13,7 +16,7 @@ const { slotOfPath, getPath } = require('../syllabusState/paths');
 const { httpError } = require('../../utils/httpError');
 const { renderTemplate, toTemplate } = require('../ai/facts');
 const formulator = require('../ai/prompts/formulator');
-const { applyFieldValues, hasFieldPaths, NARRATIVE_SLOTS } = require('../ai/slotDrafts');
+const { applyFieldValues, hasFieldPaths, NARRATIVE_SLOTS, ITEM_SLOTS } = require('../ai/slotDrafts');
 const runner = require('../ai/tools/runner');
 const { buildDraftSuggestion, hashValue, SOURCE_NOT_CONFIRMED } = require('./draftSuggestions');
 const {
@@ -135,15 +138,31 @@ async function acceptSuggestion(syllabusId, suggestionId, { optionId = null, exp
   if (s.status !== 'pending') throw notPending();
   if (s.kind === 'question') throw httpError(409, 'Answer the question first.', { code: 'ANSWER_REQUIRED' });
 
-  const plan = s.applicable === false ? null : buildPlan(s, optionId, ctx);
+  let plan = s.applicable === false ? null : buildPlan(s, optionId, ctx);
   if (plan) plan.fn(structuredClone(ctx.state)); // пробний прогін: некоректні шляхи/значення — до захоплення картки
+  // Код курсу визначає призначення курс × набір: ті самі правила, що й у PUT /api/syllabus/:id (C01, C16)
+  let claim = null;
+  if (plan && s.target.path === 'header.courseCode') {
+    const option = (s.options || []).find((o) => o.id === optionId);
+    const value = option ? option.value : s.draft?.value;
+    if (value != null && String(value).trim() !== String(ctx.state.header?.courseCode ?? '')) {
+      const user = await User.findById(userId).select('role').lean();
+      claim = await claimOfferingForCode(ctx.syllabus, value, { userId: String(userId), role: user?.role });
+      const code = claim.courseCode;
+      const writeCode = plan.fn;
+      plan = { ...plan, fn: (st) => { const next = writeCode(st) || st; return { ...next, header: { ...next.header, courseCode: code } }; } };
+    }
+  }
 
   const claimed = await Suggestion.findOneAndUpdate(
     pendingFilter(s),
     { $set: { status: 'accepted', acceptedAt: new Date(), acceptedRevision: null, selectedOptionId: optionId || null, stale: false }, $inc: { __v: 1 } },
     { new: true },
   );
-  if (!claimed) throw notPending();
+  if (!claimed) {
+    if (claim) await claim.release();
+    throw notPending();
+  }
 
   let acceptedState;
   try {
@@ -161,7 +180,12 @@ async function acceptSuggestion(syllabusId, suggestionId, { optionId = null, exp
     await Suggestion.updateOne({ _id: s._id, status: 'accepted', __v: claimed.__v }, {
       $set: { status: 'pending', selectedOptionId: s.selectedOptionId || null }, $unset: { acceptedAt: '' },
     });
+    if (claim) await claim.release();
     throw err;
+  }
+  if (claim && !claim.offering && s.target.path === 'header.courseCode') {
+    // Без призначення код курсу силабуса оновлюється й у метаданих (як у PUT)
+    await Syllabus.updateOne({ _id: syllabusId, offeringId: null }, { $set: { 'course.code': claim.courseCode } });
   }
   // Стан уже записаний: помилка зовнішньої системи не має повертати картку у pending.
   if (acceptedState && plan.writeBack) {
@@ -299,6 +323,10 @@ async function refineSuggestion(syllabusId, suggestionId, { feedback }, userId, 
   const text = (feedback || '').trim();
   if (!text) throw httpError(400, 'Tell me what to change', { code: 'FEEDBACK_REQUIRED' });
 
+  // C11: списки сутностей і профіль чернеткує не формулювальник, а ті самі інструменти propose_items / propose_instructor
+  const slotKey = slotOfPath(s.target.path)?.key;
+  if (ITEM_SLOTS[slotKey] || slotKey === 'instructor.profile') return refineViaOrchestrator(ctx, text, userId, slotKey, { postFeedback });
+
   const { transcript, instructorLines } = await transcriptOf(conversation);
   const out = await withAiFailureTracking(conversation, async () => {
     const res = await formulator.reword({
@@ -322,6 +350,40 @@ async function refineSuggestion(syllabusId, suggestionId, { feedback }, userId, 
   await postAiMessage(conversation, 'Here is the reworded draft. Check it and confirm when it looks right.', s._id);
   await postSuggestionCard(conversation, updated);
   await Conversation.updateOne({ _id: conversation._id }, { $set: { currentSlotKey: null } });
+  await afterDecision(conversation, { nextStep: false });
+  return updated;
+}
+
+/**
+ * Reword чернетки списку чи профілю: хід оркестратора з поточною чернеткою й відгуком; нова чернетка
+ * (з proposedValues полів, які перевіряє сервер) замінює чернетку цієї картки, окрема картка ходу видаляється.
+ */
+async function refineViaOrchestrator(ctx, text, userId, slotKey, { postFeedback }) {
+  const { suggestion: s, conversation } = ctx;
+  if (postFeedback) await postUserMessage(conversation, text, s._id);
+  const { reply, created, draftCard } = await cardTurn(ctx, text, userId, slotKey, {
+    mode: 'reword', feedback: text, draft: s.draft?.value ?? null,
+  });
+  if (!draftCard) {
+    await postAiMessage(conversation, reply || 'I could not change the draft that way. Could you say what exactly to change?', s._id);
+    for (const card of created) await postSuggestionCard(conversation, card);
+    await afterDecision(conversation, { nextStep: false });
+    return Suggestion.findById(s._id);
+  }
+  const d = draftCard.toObject();
+  const updated = await Suggestion.findOneAndUpdate(
+    pendingFilter(s),
+    {
+      $inc: { __v: 1 },
+      $set: { draft: d.draft, target: d.target, section: d.section, stale: false, ...(d.description ? { description: d.description } : {}) },
+      $push: { versions: snapshot(s, { action: 'refined', feedback: text }), decisionHistory: { action: 'refined', by: userId, feedback: text } },
+    },
+    { new: true },
+  );
+  if (!updated) throw notPending();
+  await Suggestion.deleteOne({ _id: draftCard._id });
+  await postAiMessage(conversation, reply || 'Here is the reworded draft. Check it and confirm when it looks right.', s._id);
+  await postSuggestionCard(conversation, updated);
   await afterDecision(conversation, { nextStep: false });
   return updated;
 }
@@ -411,31 +473,40 @@ async function answerPolicyQuestion(ctx, text, userId) {
  * Чернетка, яку створив хід, переноситься в саму картку-питання (question → edit), окремий дубль видаляється;
  * якщо значення записано напряму (set_slot) — питання закрите як accepted; інакше лишається питанням з відповіддю.
  */
-async function answerViaOrchestrator(ctx, text, userId, slotKey) {
+/**
+ * Хід оркестратора в контексті картки (відповідь на питання або Reword структурованої чернетки).
+ * apply_edit тут не потрібен: deps.acceptSuggestion не передаємо (NOT_CONFIGURED).
+ * @returns {{ reply, created: Suggestion[], draftCard: Suggestion|null, stateChanged: boolean }}
+ */
+async function cardTurn(ctx, text, userId, slotKey, cardContext) {
   const { suggestion: s, conversation } = ctx;
-  await postUserMessage(conversation, text, s._id);
   const messages = await Message.find({ conversationId: conversation._id, origin: { $ne: 'server' } })
     .sort({ createdAt: -1, _id: -1 }).limit(12).lean();
   const result = await withAiFailureTracking(conversation, async () => {
     const res = await runner.runOrchestratorTurn({
       syllabus: ctx.syllabus, state: ctx.state, revision: ctx.revision, refs: ctx.refs,
-      // apply_edit у відповіді на питання не потрібен: deps.acceptSuggestion не передаємо (NOT_CONFIGURED)
       conversation: { ...conversation.toObject(), currentSuggestionId: null, writeOwnPolicyKey: null, currentSlotKey: slotKey },
       messages: messages.reverse(), userText: text, userId, currentSlotKey: slotKey,
-      cardContext: {
-        question: s.question || s.description, slotKey, path: s.target.path, entityId: s.target.entityId || null,
-        current: getPath(ctx.state, s.target.path),
-      },
+      cardContext: { slotKey, path: s.target.path, entityId: s.target.entityId || null, current: getPath(ctx.state, s.target.path), ...cardContext },
       deps: {},
     });
     if (!res || typeof res.reply !== 'string') throw httpError(502, 'The orchestrator returned no reply');
     return res;
   });
-  const reply = result.reply.trim();
   const created = await Suggestion.find({ _id: { $in: (result.createdSuggestionIds || []).map(String) }, syllabusId: s.syllabusId, status: 'pending' })
     .sort({ order: 1, _id: 1 });
   const drafts = created.filter((c) => c.kind === 'edit' && c.draft);
-  const draftCard = drafts.find((c) => c.section === s.section) || drafts[0];
+  return {
+    reply: result.reply.trim(), created, stateChanged: Boolean(result.stateChanged),
+    draftCard: drafts.find((c) => c.section === s.section) || drafts[0] || null,
+  };
+}
+
+async function answerViaOrchestrator(ctx, text, userId, slotKey) {
+  const { suggestion: s, conversation } = ctx;
+  await postUserMessage(conversation, text, s._id);
+  const { reply, created, draftCard, stateChanged } = await cardTurn(ctx, text, userId, slotKey, { question: s.question || s.description });
+  const result = { stateChanged };
   const history = { versions: snapshot(s, { action: 'answered' }), decisionHistory: { action: 'answered', by: userId } };
 
   if (draftCard) {

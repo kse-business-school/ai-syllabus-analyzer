@@ -74,6 +74,8 @@ async function commit(syllabusId, revision, state, changes, { by = null, source 
  * @param {{ by?, source?, suggestionId?, refs? }} ctx
  * @returns {Promise<{ state, revision, changes: { path, section, before, after }[] }>}
  */
+const COURSE_KIND_SECTIONS = ['at_a_glance', 'learning_outcomes'];
+
 async function mutate(syllabusId, expectedRevision, fn, ctx = {}) {
   if (!Number.isInteger(expectedRevision)) throw httpError(400, 'expectedRevision is required', { code: 'REVISION_REQUIRED' });
   const { state: before } = await loadAt(syllabusId, expectedRevision);
@@ -83,6 +85,9 @@ async function mutate(syllabusId, expectedRevision, fn, ctx = {}) {
 
   const changes = changedPaths(before, next);
   const touched = new Set(changes.map((c) => c.section).filter(Boolean));
+  // E-поле courseKind (зміна призначення чи нормативних курсів) у SlotChange не потрапляє, але від нього залежать
+  // At a Glance (Course type) і Learning Outcomes (перевірка покриття ПРН): затвердження знімається в тому ж записі (C07)
+  if ((before.header?.courseKind ?? null) !== (next.header?.courseKind ?? null)) COURSE_KIND_SECTIONS.forEach((k) => touched.add(k));
   const sections = { ...(before.sections || {}) };
   for (const key of touched) delete sections[key];
   next = { ...next, sections };
@@ -211,4 +216,4 @@ async function revertChange(syllabusId, slotChange, ctx = {}) {
   });
 }
 
-module.exports = { getState, mutate, initState, approveSection, unapproveSection, approveAll, revertChange };
+module.exports = { COURSE_KIND_SECTIONS, getState, mutate, initState, approveSection, unapproveSection, approveAll, revertChange };

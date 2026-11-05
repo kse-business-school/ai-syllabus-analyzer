@@ -49,7 +49,7 @@ router.put('/profile/lecturer', auth, async (req, res) => {
   }
 });
 
-// Update user settings
+// Оновлення налаштувань користувача
 router.put('/settings', auth, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -60,7 +60,7 @@ router.put('/settings', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    // Update user settings
+    // Оновлення налаштувань користувача
     if (notifications !== undefined) user.settings.notifications = notifications;
   if (theme !== undefined) user.settings.theme = theme; // now accepts 'system'|'light'|'dark'
     
@@ -79,7 +79,7 @@ router.put('/settings', auth, async (req, res) => {
   }
 });
 
-// Change password
+// Зміна пароля
 router.put('/change-password', auth, [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
   body('newPassword').isLength({ min: 6 }).withMessage('The new password must be at least 6 characters'),
@@ -101,13 +101,13 @@ router.put('/change-password', auth, [
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Verify current password
+    // Перевірка поточного пароля
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'The current password is incorrect' });
     }
     
-  // Assign plain new password; pre-save hook will hash
+  // Новий пароль у відкритому вигляді; хеш робить pre-save хук
   user.password = newPassword;
     
     await user.save();
@@ -124,7 +124,7 @@ router.put('/change-password', auth, [
   }
 });
 
-// Delete user account
+// Видалення акаунта
 router.delete('/account', auth, [
   body('password').notEmpty().withMessage('Enter your password to confirm account deletion')
 ], async (req, res) => {
@@ -140,13 +140,13 @@ router.delete('/account', auth, [
     const userId = req.user.userId;
     const { password } = req.body;
     
-    // Verify user and password
+    // Перевірка користувача й пароля
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Verify password
+    // Перевірка пароля
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Incorrect password' });
@@ -160,10 +160,10 @@ router.delete('/account', auth, [
     // Каскад: файли, розмови й повідомлення, силабуси
     await deleteSyllabiCascade({ instructor: userId });
 
-    // Delete user account
+    // Видалення акаунта
     await User.findByIdAndDelete(userId);
 
-    // Send confirmation email (best-effort)
+    // Лист-підтвердження (без гарантії доставки)
     try {
       await sendAccountDeletionEmail(user.email);
     } catch (e) {
@@ -182,7 +182,7 @@ router.delete('/account', auth, [
   }
 });
 
-// Request email change: store pendingEmail and send confirmation to the new address
+// Запит на зміну email: pendingEmail і лист-підтвердження на нову адресу
 router.post('/email-change/request', auth, [
   body('newEmail').isEmail().withMessage('Enter a valid email').normalizeEmail({ gmail_remove_dots: false })
 ], async (req, res) => {
@@ -200,7 +200,7 @@ router.post('/email-change/request', auth, [
       return res.status(400).json({ message: 'The new email is the same as the current one' });
     }
 
-    // Ensure email is not used by another account
+    // Email не має належати іншому акаунту
     const exists = await User.findOne({ email: newEmail.toLowerCase() });
     if (exists) return res.status(409).json({ message: 'This email is already in use' });
 
@@ -210,7 +210,7 @@ router.post('/email-change/request', auth, [
     user.emailChangeTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24h
     await user.save();
 
-    // Best-effort email to new address
+    // Лист на нову адресу (без гарантії доставки)
     try {
       await sendEmailChangeConfirmation(user.pendingEmail, raw);
     } catch (e) {
@@ -224,7 +224,7 @@ router.post('/email-change/request', auth, [
   }
 });
 
-// Confirm email change via token sent to the new email address
+// Підтвердження зміни email токеном з листа на нову адресу
 router.post('/email-change/confirm', [
   body('token').notEmpty().withMessage('A confirmation token is required')
 ], async (req, res) => {
@@ -244,7 +244,7 @@ router.post('/email-change/confirm', [
       return res.status(400).json({ message: 'There is no pending email change' });
     }
 
-    // Final check that pendingEmail is still free
+    // Остання перевірка, що pendingEmail досі вільний
     const exists = await User.findOne({ email: user.pendingEmail });
     if (exists && exists._id.toString() !== user._id.toString()) {
       return res.status(409).json({ message: 'This email is already in use' });

@@ -39,6 +39,8 @@ programSchema.statics.seedDefaults = async function () {
   for (const { editions = [], ...p } of DEFAULT_PROGRAMS) {
     await this.updateOne({ code: p.code }, { $setOnInsert: { ...p, editions } }, { upsert: true });
   }
+  // Реєстр ефективних кодів (services/programs): старі бази й щойно створені програми
+  await require('../services/programs').syncCodeRegistry();
 };
 
 /** Найновіший набір програми — останній у списку (набори додаються в порядку набору студентів). */

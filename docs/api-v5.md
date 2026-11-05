@@ -4,7 +4,7 @@
 
 - **Мова.** Тексти UI, повідомлення AI в чаті, `message` помилок і зміст силабуса — англійською. Коментарі в коді — українською.
 - **Помилки.** Форма `{ message, code?, retryable?, ...details }`, статус береться з `err.statusCode` (`utils/httpError.js`). Кожна помилка `/api/syllabus` і глобальних обробників `server.js` має англійський `message` і `code`: `INVALID_ID`, `NOT_FOUND`, `FORBIDDEN`, `VALIDATION_ERROR`, `ROUTE_NOT_FOUND`, `INVALID_JSON`, `FILE_TOO_LARGE`, `INVALID_UPLOAD`, `BODY_TOO_LARGE`, `RATE_LIMITED`, `REQUEST_TIMEOUT`, `DB_UNAVAILABLE`, `INTERNAL_ERROR` (5xx без внутрішніх деталей).
-- **Доступ.** Читання — власник або admin. Мутації — тільки власник (`gateMutate`).
+- **Доступ.** Читання — власник або manager / director / admin (`gateRead`). Мутації — тільки власник (`gateMutate`).
 - **Чого більше немає.** Submit, email АД, PDF-виходи, PPTX.
 
 ## 1. Стан силабусу (`Syllabus.state`)
@@ -24,7 +24,7 @@
   - `locked` — текст фікстури.
   - `library` — `optionKey: null`, доки викладач не обрав. **Дефолту немає.**
   - Блок зараховано, якщо `optionKey` заповнений або `source ∈ {instructor_directed, fixture_edited}` (`slots.policyDecided`).
-- **`courseKind`.** `core`, якщо `header.courseCode` або назва курсу є серед `ProgramCourse` свого `programCode`, інакше `elective`. Збіг за назвою допустимий лише як підказка для автоматичної підстановки `courseCode`, і викладач її підтверджує.
+- **`courseKind`.** Лише за кодом курсу: спершу тип призначення `CourseOffering` у наборі (`refs.offeringTypes`), без нього — `core`, якщо `header.courseCode` є серед `ProgramCourse` свого `programCode`, інакше `elective`. Збіг за назвою — лише підказка (картка вибору `course.code_hint`); код записується після Confirm через ту саму перевірку призначення, що й `PUT /api/syllabus/:id`. Зміна `courseKind` знімає затвердження At a Glance і Learning Outcomes у тому самому записі `store.mutate`.
 - **`header.declared`** (необов'язкове). Значення таблиці At a Glance, розпізнані у вхідному файлі: `{ assessmentTotal, contactHours, selfStudyHours, deliveryMode, term, instructor }` (`term` — текст як у файлі або `{ start, end }` ISO). Для треку 1 — `null` або відсутнє. Тіло з ним не синхронізується; перевірки `glance.*` порівнюють `declared` з тілом.
 
 ### Syllabus (нові поля)
@@ -51,15 +51,17 @@
 | `ProgramCourse { programCode, code, uk, en, ects }` | `programme-courses.json` |
 | `CapstoneGuide { programCode, version, projectTypes, structure, criteria, deliverables, plagiarismThreshold }` | `capstone.criteria.json`; набори, для яких він діє, — поле `programCodes` |
 | `Policy` з `type: 'syllabus-policy'`: `key`, `order`, `mode`, `blockRequired`, `rationale`, `titleUk`, `options[{ key, label, text }]`, `text` (locked), `libraryVersion` | `policies.library.json`. `content` — markdown з усіма варіантами для сторінки Documents |
-| Каталоги `assessment-components`, `prerequisites`, `compensation`, `ai-tools` | Поки порожні stub-и. Відповідні B-слоти деградують до C |
+| Каталоги `assessment-components`, `prerequisites`, `compensation` | Поки порожні stub-и. Відповідні B-слоти деградують до C (`propose_items`, текст prerequisites) |
+| Каталог `ai-tools` («AI in Your Course») | 57 прикладів; з нього працює `suggest_ai_tools` |
 
 - `Program { code, name, editions: [{ code, label }] }`. Перший запуск — `programs.json`: сід лише створює відсутні програми з їхніми наборами; наявні не змінює (видалений адміністратором набір не повертається, підписи не затираються). Нові набори фікстури для наявних програм додає `scripts/migrate-v5-references.js`.
 - Набори керує admin: `POST /api/cabinet/programs { name, code, editions? }`, `PUT /api/cabinet/programs/:id { name?, academicDirectorEmail?, editions? }`. `editions` — повний список у порядку від найстаршого до найновішого; новий набір з `copyFrom: '<код набору>'` отримує копію ПРН (з мітками), нормативних курсів і Capstone цього набору (призначення курсів не копіюються). Помилки: 400 `INVALID_EDITION_CODE` (код — `[A-Z0-9][A-Z0-9._-]{0,31}`), `DUPLICATE_EDITION`, `UNKNOWN_PROGRAM_CODE` (невідомий `copyFrom`); 409 `EDITION_CODE_TAKEN` (код набору або програми без наборів уже належить іншій програмі), `EDITION_IN_USE { edition, syllabi, offerings }` (на набір посилаються силабуси чи призначення).
 - **Редактор довідників набору** (Library → Programme outcomes / Core courses / Capstone guide; manager / director / admin). Кожен запит замінює весь перелік і ставить `ReferenceOverride { programCode, kind }`, після чого сід з фікстур цей довідник набору не перезаписує й видалених записів не повертає:
-  - `PUT /api/references/:programCode/outcomes { outcomes: [{ code, text, label }] }` — порядок = порядок масиву; дубль коду (з нормалізацією «PRN1» ≡ «ПРН1») → 400; ПРН, з яким пов'язані CLO силабусів набору, не видаляється — 409 `OUTCOME_IN_USE { codes, syllabi }`.
+  - `PUT /api/references/:programCode/outcomes { outcomes: [{ code, text, label }] }` — порядок = порядок масиву; код зберігається в канонічній формі (`services/references/ploCode.js`: «PRN 1», «ПPН1» → «ПРН1»; ту саму форму використовують перевірки, матриця, парсер і мапінг), дубль → 400; ПРН, з яким пов'язані CLO силабусів набору, не видаляється — 409 `OUTCOME_IN_USE { codes, syllabi }`.
   - `PUT /api/references/:programCode/courses { courses: [{ code, uk, en, ects }] }` → `{ courses, resynced }`; для доданих і прибраних курсів `courseKind` силабусів набору перераховується (як після зміни призначення).
-  - `PUT /api/references/:programCode/capstone { criteria: [{ key?, name, weight (0–1), description }], projectTypes: [{ key?, label }], structure: [String] }` — ваги в сумі 100%; ключ критерію без `key` — з назви; критерій, який силабуси набору вже називають у `summary.capstone.criteriaKeys`, не видаляється — 409 `CRITERION_IN_USE`.
-- Програма без наборів використовує свій `code` як `programCode`. Найновіший набір (останній у списку) — значення за замовчуванням у формі створення, перемикачі набору й міграціях (`--default-edition` перекриває його лише для програми, якій належить).
+  - `PUT /api/references/:programCode/capstone { criteria: [{ key?, name, weight (0–1), description }], projectTypes: [{ key?, label }], structure: [String], deliverables?: { [key]: String }, plagiarismThreshold?: { similarityPercent (0–100), consequence } | null }` — ваги в сумі 100%; ключ критерію без `key` — з назви; критерій, на який посилаються силабуси набору (ключ у `summary.capstone.criteriaKeys` або назва в тексті Connection to Capstone), не видаляється — 409 `CRITERION_IN_USE`. Формулювальник зберігає `criteriaKeys` разом з текстом (`draft.value = { text, criteriaKeys }`).
+  - Заміна переліку йде під коротким lease (`ReferenceOverride.lockedUntil`): одночасне збереження того самого довідника → 409 `REFERENCE_CONFLICT`; збій посередині повертає попередній перелік.
+- Програма без наборів використовує свій `code` як `programCode`. Ефективні коди програми (набори або, без них, код програми) зареєстровані в `ProgramCode` з унікальним індексом: код належить одній програмі навіть за одночасних запитів (409 `EDITION_CODE_TAKEN`); перехід «без наборів ↔ з наборами» перевіряє використання коду програми так само, як прибирання набору. Прибраний невикористаний код втрачає свої довідники. Збій під час `copyFrom` відкочує зайняті коди, скопійовані довідники і (для POST) саму програму. `DELETE /api/cabinet/programs/:id` → 409, якщо на програму чи її коди посилаються силабуси або призначення. Найновіший набір (останній у списку) — значення за замовчуванням у формі створення, перемикачі набору й міграціях (`--default-edition` перекриває його лише для програми, якій належить).
 - Читання довідників — лише через `services/references`, а політик — через `services/references/policies.js`. Сід ідемпотентний, на старті (`services/references/seed.js`).
 
 ## 3. Перевірки (`services/checks`)
@@ -238,7 +240,7 @@ readiness = {
 - **`target.path` — конкретний шлях стану.** Приклади: `summary.shortDescription`, `outcomes[]` (увесь масив), `assessments[as1].criteria`, `policies{policy.late}`.
   - Для політик `draft.value` — текст. Accept записує в блок `text`, `source` (`fixture_edited`, якщо був обраний варіант, інакше `instructor_directed`) і `modified: true` (якщо змінено текст довідника).
   - Вибір варіанта — картка `choice` з `options[{ id, label, optionKey }]`.
-- **Спільні інтерфейси.** Formulator, runner і interviewer реалізовані. Інші заготовки кидають 501, доки їх не реалізовано:
+- **Спільні інтерфейси.** Усі модулі нижче реалізовані (заготовок із 501 більше немає):
 
 | Модуль | Функції | Хто реалізує |
 |---|---|---|
@@ -259,7 +261,7 @@ readiness = {
 | Маршрут | Призначення |
 |---|---|
 | `GET /cabinet/offerings?programCode=` | призначення курс × набір; викладач бачить лише свої |
-| `POST /cabinet/offerings`, `PUT /:id`, `DELETE /:id` | CRUD призначень (`courseCode`, `type`, `lecturerId`, `deadline`); `programCode` — лише редакція з `Program.editions` (400 `UNKNOWN_PROGRAM_CODE`), `lecturerId` — наявний активний користувач (400 `UNKNOWN_LECTURER`), `courseCode` довільний; дубль → 409 `OFFERING_EXISTS`, видалення з силабусами → 409 `OFFERING_IN_USE`. Після запису кеш довідників скидається, E-поля силабусів пари перераховуються (`store.mutate`), затвердження At a Glance і Learning Outcomes знімається, якщо змінився `courseKind` |
+| `POST /cabinet/offerings`, `PUT /:id`, `DELETE /:id` | CRUD призначень (`courseCode`, `type`, `lecturerId`, `deadline`); `programCode` — набір з `Program.editions` або код програми без наборів (інакше 400 `UNKNOWN_PROGRAM_CODE`); `courseCode` унікальний у наборі без урахування регістру й пробілів (`courseKey`), `lecturerId` — наявний активний користувач (400 `UNKNOWN_LECTURER`), `courseCode` довільний; дубль → 409 `OFFERING_EXISTS`, видалення з силабусами → 409 `OFFERING_IN_USE`. Після запису кеш довідників скидається, E-поля силабусів пари перераховуються (`store.mutate`), затвердження At a Glance і Learning Outcomes знімається, якщо змінився `courseKind` |
 | `GET /cabinet/lecturers` | `{ lecturers[{ _id, firstName, lastName, email, role }] }` для вибору в призначенні |
 | `GET /cabinet/plo-coverage?programCode=` | матриця покриття ПРН; невідомий код → 404 `UNKNOWN_PROGRAM_CODE` |
 

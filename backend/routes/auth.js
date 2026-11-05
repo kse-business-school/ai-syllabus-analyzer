@@ -15,7 +15,7 @@ function validationFailed(req, res) {
   return true;
 }
 
-// Login user
+// Вхід користувача
 router.post('/login', [
   body('email')
     .isEmail()
@@ -61,7 +61,7 @@ router.post('/login', [
   }
 });
 
-// Get current user profile
+// Профіль поточного користувача
 router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
@@ -119,7 +119,7 @@ router.put('/profile', auth, [
 
 const RESET_GENERIC_MESSAGE = 'If this address exists, you will receive password reset instructions';
 
-// Request password reset
+// Запит на скидання пароля
 router.post('/forgot-password', [
   body('email')
     .isEmail()
@@ -190,7 +190,7 @@ router.post('/reset-password', [
   }
 });
 
-// Logout (client-side token invalidation)
+// Вихід (токен інвалідує клієнт)
 router.post('/logout', auth, (req, res) => {
   res.json({ message: 'Signed out' });
 });

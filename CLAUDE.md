@@ -133,7 +133,7 @@ frontend/src/
 
 **Доступ**
 - **Чат.**
-  - Читання — власник або admin.
+  - Читання — власник або manager / director / admin (`gateRead`).
   - **Мутації — тільки власник** (`gateMutate`); admin лише читає.
   - v4-силабуси без `state` (`needsRebuild`) лише читаються. Мутації → 409 `NEEDS_REBUILD`, перебудова — через `POST /api/syllabus/:id/analyze`.
 - **Силабус.**

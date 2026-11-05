@@ -6,12 +6,10 @@ const ProgramCourse = require('../../models/ProgramCourse');
 const CapstoneGuide = require('../../models/CapstoneGuide');
 const ReferenceOverride = require('../../models/ReferenceOverride');
 const Syllabus = require('../../models/Syllabus');
-const { normalizePloCode: checksPloCode } = require('../checks/plo');
+const { canonicalPloCode: normalizePloCode } = require('./ploCode');
 const { httpError } = require('../../utils/httpError');
 const references = require('./index');
 
-// «PRN 3», «ПPН3», «ПРН3» — один код (обидві нормалізації: references і перевірки plo)
-const normalizePloCode = (code) => checksPloCode(references.normalizePloCode(code));
 
 const MAX_ROWS = 200;
 const MAX_TEXT = 2000;
@@ -36,8 +34,51 @@ function text(value, field, { required = false, max = MAX_TEXT } = {}) {
 /** Ключ критерію з назви: «Problem Definition & Relevance» → problem_definition_relevance. */
 const slug = (s) => str(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'criterion';
 
-async function markManaged(programCode, kind, userId) {
-  await ReferenceOverride.updateOne({ programCode, kind }, { $set: { updatedBy: userId || null } }, { upsert: true });
+const LOCK_MS = 30 * 1000;
+const busy = () => httpError(409, 'Someone else is saving this reference right now. Refresh and try again.', { code: 'REFERENCE_CONFLICT' });
+
+/**
+ * Заміна довідника набору під lease (C04). Позначка ReferenceOverride ставиться разом із lease, тож сід не втрутиться
+ * посередині; одночасне збереження того самого довідника → 409. Якщо fn впала, позначка, створена цим викликом,
+ * прибирається; відновлення самих рядків робить fn (restoreRows). Кеш довідників скидається завжди.
+ */
+async function withReferenceLock(programCode, kind, userId, fn) {
+  const now = new Date();
+  let created = false;
+  try {
+    const res = await ReferenceOverride.findOneAndUpdate(
+      { programCode, kind, $or: [{ lockedUntil: null }, { lockedUntil: { $lt: now } }] },
+      { $set: { lockedUntil: new Date(now.getTime() + LOCK_MS), updatedBy: userId || null } },
+      { upsert: true, new: true, includeResultMetadata: true },
+    );
+    created = !res.lastErrorObject?.updatedExisting;
+  } catch (err) {
+    if (err?.code === 11000) throw busy();
+    throw err;
+  }
+  try {
+    return await fn();
+  } catch (err) {
+    if (created) await ReferenceOverride.deleteOne({ programCode, kind });
+    throw err;
+  } finally {
+    await ReferenceOverride.updateOne({ programCode, kind }, { $set: { lockedUntil: null } });
+    references.invalidateCache();
+  }
+}
+
+/**
+ * Замінює рядки набору одним упорядкованим bulkWrite; за помилки повертає попередній перелік (знімок з тими самими _id),
+ * тож частковий запис не лишається (C04).
+ */
+async function replaceRows(Model, programCode, snapshot, ops) {
+  try {
+    if (ops.length) await Model.bulkWrite(ops, { ordered: true });
+  } catch (err) {
+    await Model.deleteMany({ programCode });
+    if (snapshot.length) await Model.insertMany(snapshot);
+    throw err;
+  }
 }
 
 /** Силабуси набору зі станом (лише потрібні поля). */
@@ -50,10 +91,12 @@ const cohortSyllabi = (programCode, select) => Syllabus.find({ programCode, stat
 async function saveOutcomes(programCode, rawOutcomes, { userId } = {}) {
   const seen = new Set();
   const rows = list(rawOutcomes, 'outcomes').map((o, i) => {
-    const code = text(o?.code, `Outcome ${i + 1}: code`, { required: true, max: 40 });
-    const key = normalizePloCode(code);
-    if (seen.has(key)) throw invalid(`Outcome code ${code} is listed twice`);
-    seen.add(key);
+    const raw = text(o?.code, `Outcome ${i + 1}: code`, { required: true, max: 40 });
+    // Код зберігається в канонічній формі (C08): «PRN1» і «ПРН1» — той самий ПРН, зв'язки CLO не рвуться
+    const code = normalizePloCode(raw);
+    if (!code) throw invalid(`Outcome ${i + 1}: code is required`);
+    if (seen.has(code)) throw invalid(`Outcome code ${raw} is listed twice`);
+    seen.add(code);
     return {
       programCode, code, order: i + 1,
       text: text(o?.text, `${code}: official wording`, { required: true }),
@@ -62,6 +105,7 @@ async function saveOutcomes(programCode, rawOutcomes, { userId } = {}) {
     };
   });
 
+  return withReferenceLock(programCode, 'outcomes', userId, async () => {
   const existing = await ProgramOutcome.find({ programCode }).lean();
   const removed = existing.filter((o) => !seen.has(normalizePloCode(o.code)));
   if (removed.length) {
@@ -74,14 +118,19 @@ async function saveOutcomes(programCode, rawOutcomes, { userId } = {}) {
         code: 'OUTCOME_IN_USE', details: { codes, syllabi: using.map((s) => ({ id: String(s._id), title: s.title })) },
       });
     }
-    await ProgramOutcome.deleteMany({ _id: { $in: removed.map((o) => o._id) } });
   }
-  for (const row of rows) {
-    await ProgramOutcome.updateOne({ programCode, code: existing.find((o) => normalizePloCode(o.code) === normalizePloCode(row.code))?.code ?? row.code }, { $set: row }, { upsert: true });
-  }
-  await markManaged(programCode, 'outcomes', userId);
+  // Видалення і перейменування коду (наприклад, «PRN1» → «ПРН1») — тим самим упорядкованим записом
+  const ops = [
+    ...(removed.length ? [{ deleteMany: { filter: { _id: { $in: removed.map((o) => o._id) } } } }] : []),
+    ...rows.map((row) => ({ updateOne: {
+      filter: { programCode, code: existing.find((o) => normalizePloCode(o.code) === row.code)?.code ?? row.code },
+      update: { $set: row }, upsert: true,
+    } })),
+  ];
+  await replaceRows(ProgramOutcome, programCode, existing, ops);
   references.invalidateCache();
   return references.getOutcomes(programCode);
+  });
 }
 
 /**
@@ -107,23 +156,52 @@ async function saveCourses(programCode, rawCourses, { userId } = {}) {
       ects,
     };
   });
-  const existing = await ProgramCourse.find({ programCode }).lean();
-  const removed = existing.filter((c) => !seen.has(norm(c.code)));
-  const added = rows.filter((r) => !existing.some((c) => norm(c.code) === norm(r.code)));
-  if (removed.length) await ProgramCourse.deleteMany({ _id: { $in: removed.map((c) => c._id) } });
-  for (const row of rows) {
-    await ProgramCourse.updateOne({ programCode, code: existing.find((c) => norm(c.code) === norm(row.code))?.code ?? row.code }, { $set: row }, { upsert: true });
-  }
-  await markManaged(programCode, 'courses', userId);
-  references.invalidateCache();
-  return { courses: await references.getCourses(programCode), changedCodes: [...removed.map((c) => c.code), ...added.map((c) => c.code)] };
+  return withReferenceLock(programCode, 'courses', userId, async () => {
+    const existing = await ProgramCourse.find({ programCode }).lean();
+    const removed = existing.filter((c) => !seen.has(norm(c.code)));
+    const added = rows.filter((r) => !existing.some((c) => norm(c.code) === norm(r.code)));
+    const ops = [
+      ...(removed.length ? [{ deleteMany: { filter: { _id: { $in: removed.map((c) => c._id) } } } }] : []),
+      ...rows.map((row) => ({ updateOne: {
+        filter: { programCode, code: existing.find((c) => norm(c.code) === norm(row.code))?.code ?? row.code },
+        update: { $set: row }, upsert: true,
+      } })),
+    ];
+    await replaceRows(ProgramCourse, programCode, existing, ops);
+    references.invalidateCache();
+    return { courses: await references.getCourses(programCode), changedCodes: [...removed.map((c) => c.code), ...added.map((c) => c.code)] };
+  });
 }
 
 /**
  * Capstone набору: типи проєктів, структура, критерії з вагами (у сумі 100%). Видалити критерій, який силабуси
  * набору вже називають у розділі Connection to Capstone, не можна (409 CRITERION_IN_USE).
  */
+/** Здавальні матеріали: { presentation: '25-35 slides', report: … } — лише рядкові значення. */
+function parseDeliverables(raw) {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw invalid('deliverables must be an object of texts');
+  const entries = Object.entries(raw);
+  if (entries.length > 20) throw invalid('At most 20 deliverables are allowed');
+  return Object.fromEntries(entries.map(([k, v]) => {
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(k)) throw invalid(`Invalid deliverable key: ${k}`);
+    return [k, text(v, `Deliverable ${k}`, { required: true, max: 500 })];
+  }));
+}
+
+/** Поріг плагіату: null або { similarityPercent: 0–100, consequence }. */
+function parseThreshold(raw) {
+  if (raw === null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw invalid('plagiarismThreshold must be an object or null');
+  const percent = Number(raw.similarityPercent);
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) throw invalid('plagiarismThreshold.similarityPercent must be between 0 and 100');
+  return { similarityPercent: percent, consequence: text(raw.consequence, 'plagiarismThreshold.consequence', { max: MAX_TEXT }) };
+}
+
 async function saveCapstone(programCode, raw = {}, { userId } = {}) {
+  return withReferenceLock(programCode, 'capstone', userId, () => writeCapstone(programCode, raw));
+}
+
+async function writeCapstone(programCode, raw) {
   const current = await CapstoneGuide.findOne({ programCode }).lean();
   const taken = new Set();
   const uniqueKey = (base) => {
@@ -147,10 +225,14 @@ async function saveCapstone(programCode, raw = {}, { userId } = {}) {
   const structure = list(raw.structure ?? current?.structure ?? [], 'structure').map((s, i) => text(s, `Structure part ${i + 1}`, { required: true, max: MAX_SHORT }));
 
   const keys = new Set(criteria.map((c) => c.key));
-  const removed = (current?.criteria || []).map((c) => c.key).filter((k) => k && !keys.has(k));
+  const removedCriteria = (current?.criteria || []).filter((c) => c.key && !keys.has(c.key));
+  const removed = removedCriteria.map((c) => c.key);
   if (removed.length) {
-    const using = (await cohortSyllabi(programCode, 'state.summary.capstone.criteriaKeys'))
-      .filter((s) => (s.state?.summary?.capstone?.criteriaKeys || []).some((k) => removed.includes(k)));
+    // C13: посилання — ключ у criteriaKeys або назва критерію в тексті розділу (стани з файлу ключів не мають)
+    const named = (text, c) => c.name && String(text || '').toLowerCase().includes(String(c.name).toLowerCase());
+    const using = (await cohortSyllabi(programCode, 'state.summary.capstone'))
+      .filter((s) => (s.state?.summary?.capstone?.criteriaKeys || []).some((k) => removed.includes(k))
+        || removedCriteria.some((c) => named(s.state?.summary?.capstone?.text, c)));
     if (using.length) {
       throw httpError(409, `These Capstone criteria cannot be removed: ${using.length} syllabi of ${programCode} refer to them in Connection to Capstone.`, {
         code: 'CRITERION_IN_USE', details: { keys: removed, syllabi: using.map((s) => ({ id: String(s._id), title: s.title })) },
@@ -161,11 +243,10 @@ async function saveCapstone(programCode, raw = {}, { userId } = {}) {
     $set: {
       projectTypes, structure, criteria,
       version: current?.version || '',
-      deliverables: raw.deliverables ?? current?.deliverables ?? {},
-      plagiarismThreshold: raw.plagiarismThreshold ?? current?.plagiarismThreshold ?? null,
+      deliverables: raw.deliverables === undefined ? (current?.deliverables ?? {}) : parseDeliverables(raw.deliverables),
+      plagiarismThreshold: raw.plagiarismThreshold === undefined ? (current?.plagiarismThreshold ?? null) : parseThreshold(raw.plagiarismThreshold),
     },
   }, { upsert: true });
-  await markManaged(programCode, 'capstone', userId);
   references.invalidateCache();
   return references.getCapstone(programCode);
 }
