@@ -27,13 +27,14 @@ const norm = (code) => String(code || '').trim().toUpperCase();
 const lean = (doc) => { const { _id, __v, createdAt, updatedAt, ...rest } = doc; return rest; };
 
 
-/** Редакція існує, якщо для неї є довідники ПРН/курсів або вона вказана в Program.editions */
+/** Набір існує, якщо для нього є довідники ПРН/курсів, він є в Program.editions або це код програми без наборів */
 async function assertKnownProgramCode(programCode) {
   const code = norm(programCode);
   const known = await cached(`known:${code}`, async () => {
     if (await ProgramOutcome.exists({ programCode: code })) return true;
     if (await ProgramCourse.exists({ programCode: code })) return true;
-    return !!(await Program.exists({ 'editions.code': code }));
+    // Набір програми або програма без наборів (її код сам є кодом довідників)
+    return !!(await Program.exists({ $or: [{ 'editions.code': code }, { code, 'editions.0': { $exists: false } }] }));
   });
   if (!known) throw httpError(404, `Unknown programCode: ${programCode}`, { code: 'UNKNOWN_PROGRAM_CODE' });
   return code;

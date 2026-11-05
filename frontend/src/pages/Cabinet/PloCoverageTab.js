@@ -20,9 +20,12 @@ import api from '../../services/api';
 const FLAG = 'var(--flag, #62005F)';
 const COURSE_LETTER = { core: 'C', elective: 'E' };
 
-// Суцільна заливка — курс формує результат (1), штрихування — торкається (0,5), порожньо — 0
-const Cell = ({ weight, onClick, label }) => {
-  const fill = weight >= 1
+// Суцільна заливка — курс формує результат (1), штрихування — торкається (0,5), порожньо — 0.
+// Пунктирна рамка з «?» — є зв'язки, яких викладач ще не підтвердив: у Σ вони не входять (аудит A07)
+const Cell = ({ weight, pending = false, onClick, label }) => {
+  const fill = pending && !(weight > 0)
+    ? { border: '1px dashed', borderColor: 'text.secondary', color: 'text.secondary', fontSize: 11, fontWeight: 700, lineHeight: '22px' }
+    : weight >= 1
     ? { bgcolor: 'brand.plate' }
     : weight > 0
       ? { backgroundImage: 'repeating-linear-gradient(135deg, currentColor 0 4px, transparent 4px 8px)', color: 'brand.plate', border: '1px solid', borderColor: 'divider' }
@@ -32,9 +35,11 @@ const Cell = ({ weight, onClick, label }) => {
       component="button"
       type="button"
       onClick={onClick}
-      aria-label={label}
+      aria-label={pending ? `${label} (links waiting for confirmation)` : label}
       sx={{ width: 24, height: 24, p: 0, display: 'block', mx: 'auto', cursor: 'pointer', borderRadius: 0, background: 'none', ...fill }}
-    />
+    >
+      {pending && !(weight > 0) ? '?' : null}
+    </Box>
   );
 };
 
@@ -116,6 +121,7 @@ const PloCoverageTab = ({ programCode }) => {
                           <TableCell key={c.offeringId} align="center" sx={{ py: 0.5, px: 0.5 }}>
                             <Cell
                               weight={cell?.weight || 0}
+                              pending={Boolean(cell?.unconfirmed?.length)}
                               label={`${o.code} in ${c.courseCode}`}
                               onClick={() => setSelected({ course: c, outcome: o })}
                             />
@@ -158,9 +164,11 @@ const PloCoverageTab = ({ programCode }) => {
 
               {cell ? (
                 <>
+                  {cell.clos.length > 0 && (
                   <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.04em' }}>
                     COURSE OUTCOMES · {cell.weight >= 1 ? 'FORMS THE OUTCOME' : 'TOUCHES THE OUTCOME'}
                   </Typography>
+                  )}
                   {cell.clos.map((clo) => (
                     <Box key={clo.id} sx={{ py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{clo.text}</Typography>
@@ -171,6 +179,19 @@ const PloCoverageTab = ({ programCode }) => {
                       </Typography>
                     </Box>
                   ))}
+                  {cell.unconfirmed?.length > 0 && (
+                    <>
+                      <Typography variant="caption" sx={{ display: 'block', mt: 2, color: 'text.secondary', fontWeight: 700, letterSpacing: '0.04em' }}>
+                        WAITING FOR THE INSTRUCTOR'S CONFIRMATION · NOT COUNTED
+                      </Typography>
+                      {cell.unconfirmed.map((clo) => (
+                        <Box key={clo.id} sx={{ py: 1.25, borderBottom: '1px dashed', borderColor: 'divider' }}>
+                          <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: 'text.secondary' }}>{clo.text}</Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{clo.coverage === 'partial' ? 'Partial link' : 'Full link'}</Typography>
+                        </Box>
+                      ))}
+                    </>
+                  )}
                 </>
               ) : (
                 <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8125rem' }}>

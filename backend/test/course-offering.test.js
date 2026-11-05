@@ -48,5 +48,22 @@ test('migrate-v5-offerings: dry-run нічого не міняє, повтор �
   expect(await migrate()).toMatchObject({ offeringsCreated: 1, syllabiLinked: 1 });
   const o = await CourseOffering.findOne({ courseCode: 'M.1' }).lean();
   expect(o).toMatchObject({ programCode: 'MBA27', type: 'core' });
-  expect(await migrate()).toEqual({ offeringsCreated: 0, syllabiLinked: 0, skippedNoCode: 1 });
+  expect(await migrate()).toEqual({ offeringsCreated: 0, syllabiLinked: 0, skippedNoCode: 1, skippedDuplicate: 0 });
+});
+
+test('migrate-v5-offerings: одна пара курс × набір — один силабус (найсвіжіший силабус викладача)', async () => {
+  const author = new mongoose.Types.ObjectId();
+  const other = new mongoose.Types.ObjectId();
+  await Syllabus.collection.insertMany([
+    { title: 'Old', programCode: 'MBA28', course: { code: 'DUP.1' }, instructor: author, updatedAt: new Date('2026-09-01') },
+    { title: 'New', programCode: 'MBA28', course: { code: 'DUP.1' }, instructor: author, updatedAt: new Date('2026-10-01') },
+    { title: 'Foreign', programCode: 'MBA28', course: { code: 'DUP.1' }, instructor: other, updatedAt: new Date('2026-08-01') },
+  ]);
+  const dry = await migrate({ dryRun: true });
+  const real = await migrate();
+  expect(real).toMatchObject({ syllabiLinked: 1, skippedDuplicate: 2 });
+  expect(dry).toMatchObject({ syllabiLinked: real.syllabiLinked, skippedDuplicate: real.skippedDuplicate });
+  const linked = await Syllabus.find({ 'course.code': 'DUP.1', offeringId: { $ne: null } }).lean();
+  expect(linked.map((s) => s.title)).toEqual(['New']);
+  expect(await migrate()).toMatchObject({ syllabiLinked: 0, offeringsCreated: 0 });
 });

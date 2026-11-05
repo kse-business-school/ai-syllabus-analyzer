@@ -4,7 +4,9 @@
  *
  *   - З кожного силабуса з programCode і кодом курсу створює CourseOffering
  *     (type = state.header.courseKind, lecturerId = автор силабуса), якщо такого ще немає.
- *   - Проставляє Syllabus.offeringId там, де його немає.
+ *   - Проставляє Syllabus.offeringId там, де його немає. Пара курс × набір має один силабус (унікальний
+ *     індекс Syllabus.offeringId): прив'язується найсвіжіший силабус автора-викладача призначення; решта
+ *     (дублікати й чужі силабуси) лишаються без offeringId і рахуються в skippedDuplicate.
  *
  * Idempotent. `--dry-run` лише показує кількість змін.
  *
@@ -21,17 +23,27 @@ const fromBackend = (name) => require(require.resolve(name, { paths: [BACKEND] }
 async function migrate({ dryRun = false } = {}) {
   const Syllabus = require(path.join(BACKEND, 'models/Syllabus'));
   const CourseOffering = require(path.join(BACKEND, 'models/CourseOffering'));
-  const stats = { offeringsCreated: 0, syllabiLinked: 0, skippedNoCode: 0 };
+  const stats = { offeringsCreated: 0, syllabiLinked: 0, skippedNoCode: 0, skippedDuplicate: 0 };
+  // Призначення, вже зайняті в цьому прогоні (dry-run не пише в БД, тож рахуємо тут)
+  const linked = new Set((await Syllabus.distinct('offeringId', { offeringId: { $ne: null } })).map(String));
+  const created = new Map(); // dry-run: programCode|courseCode → lecturerId створеного призначення
 
   const cursor = Syllabus.find({ programCode: { $exists: true, $ne: null } })
+    .sort({ updatedAt: -1, _id: -1 })
     .select('programCode course instructor offeringId state.header.courseKind').lean().cursor();
   for await (const s of cursor) {
     const courseCode = String(s.course?.code || '').trim();
     if (!courseCode) { stats.skippedNoCode += 1; continue; }
-    let offering = await CourseOffering.findOne({ programCode: s.programCode, courseCode }).select('_id').lean();
+    const key = `${s.programCode}|${courseCode}`;
+    if (s.offeringId) continue;
+    let offering = await CourseOffering.findOne({ programCode: s.programCode, courseCode }).select('_id lecturerId').lean();
+    if (!offering && dryRun && created.has(key)) offering = { _id: key, lecturerId: created.get(key) };
     if (!offering) {
       stats.offeringsCreated += 1;
-      if (!dryRun) {
+      if (dryRun) {
+        created.set(key, s.instructor || null);
+        offering = { _id: key, lecturerId: s.instructor || null };
+      } else {
         offering = await CourseOffering.create({
           programCode: s.programCode,
           courseCode,
@@ -41,12 +53,13 @@ async function migrate({ dryRun = false } = {}) {
         });
       }
     }
-    if (!s.offeringId && offering) {
-      stats.syllabiLinked += 1;
-      if (!dryRun) await Syllabus.updateOne({ _id: s._id }, { $set: { offeringId: offering._id } });
-    } else if (!s.offeringId && dryRun) {
-      stats.syllabiLinked += 1;
-    }
+    const id = String(offering._id);
+    const ownAuthor = !offering.lecturerId || String(offering.lecturerId) === String(s.instructor);
+    const taken = linked.has(id) || (!dryRun && await Syllabus.exists({ offeringId: offering._id }));
+    if (taken || !ownAuthor) { stats.skippedDuplicate += 1; continue; }
+    linked.add(id);
+    stats.syllabiLinked += 1;
+    if (!dryRun) await Syllabus.updateOne({ _id: s._id, offeringId: null }, { $set: { offeringId: offering._id } });
   }
   return stats;
 }

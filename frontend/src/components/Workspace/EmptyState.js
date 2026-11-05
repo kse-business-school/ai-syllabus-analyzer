@@ -41,24 +41,30 @@ const EmptyState = ({ onUploaded }) => {
   const [loading, setLoading] = useState(true);
   const [existingSyllabus, setExistingSyllabus] = useState(null);
   const [allSyllabi, setAllSyllabi] = useState([]);
+  // Призначення курс × набір (CourseOffering): викладач бачить лише свої; силабус прив'язується через offeringId
+  const [offerings, setOfferings] = useState([]);
+  const [offeringId, setOfferingId] = useState('');
 
   useEffect(() => {
     let active = true;
     Promise.all([
       client.references.programs(),
       client.cabinet ? client.cabinet.getSyllabi().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      client.cabinet?.listOfferings ? client.cabinet.listOfferings().catch(() => ({ data: { offerings: [] } })) : Promise.resolve({ data: { offerings: [] } }),
     ])
-      .then(([progRes, sylRes]) => {
+      .then(([progRes, sylRes, offRes]) => {
         if (!active) return;
         const list = Array.isArray(progRes?.data) ? progRes.data : [];
         setPrograms(list);
         if (list.length > 0) {
-          const initial = list.find(p => p.code === 'MBA') || list[0];
+          // Без прив'язки до конкретної програми: перша зі списку, найновіший набір
+          const initial = list[0];
           setProgramId(initial.id);
-          setProgramCode(initial.editions?.at(-1)?.code || initial.code);
+          setProgramCode(initial.editions?.at(-1)?.code || (initial.editions?.length ? '' : initial.code));
         }
         const sList = Array.isArray(sylRes?.data) ? sylRes.data : (sylRes?.data?.syllabi || []);
         setAllSyllabi(sList);
+        setOfferings(Array.isArray(offRes?.data?.offerings) ? offRes.data.offerings : []);
       })
       .catch(async (err) => {
         const info = await describeError(err, S.errLoadPrograms);
@@ -78,8 +84,26 @@ const EmptyState = ({ onUploaded }) => {
 
   const handleProgramChange = (id) => {
     setProgramId(id);
+    setOfferingId('');
     const p = programs.find((item) => item.id === id);
-    setProgramCode(p?.editions?.[0]?.code || p?.code || '');
+    // Найновіший набір програми; програма без наборів сама є кодом довідників
+    setProgramCode(p?.editions?.at(-1)?.code || (p?.editions?.length ? '' : p?.code) || '');
+  };
+
+  // Призначення для обраного набору; вибір заповнює назву, код і набір з призначення
+  const cohortOfferings = offerings.filter((o) => String(o.programCode || '').toUpperCase() === String(selectedCohort).toUpperCase());
+  const selectedOffering = offerings.find((o) => String(o._id) === String(offeringId)) || null;
+  const handleOfferingChange = (id) => {
+    setOfferingId(id);
+    const o = offerings.find((item) => String(item._id) === String(id));
+    if (!o) return;
+    setCourseCode(o.courseCode || '');
+    if (o.courseName) setTitle(o.courseName);
+    const owner = programs.find((p) => (p.editions || []).some((e) => e.code === o.programCode));
+    if (owner) {
+      setProgramId(owner.id);
+      setProgramCode(o.programCode);
+    }
   };
 
   useEffect(() => {
@@ -126,6 +150,7 @@ const EmptyState = ({ onUploaded }) => {
     e.preventDefault();
     if (!title.trim()) return setError(S.errCourseTitle);
     if (!programId) return setError(S.errProgram);
+    if (!selectedCohort) return setError(S.errCohort);
     if (mode === 'upload' && !file) return setError('Please choose a DOCX, DOC or PDF file.');
 
     setBusy(true);
@@ -133,7 +158,7 @@ const EmptyState = ({ onUploaded }) => {
 
     try {
       let response;
-      const codeToSend = selectedCohort || 'MBA';
+      const codeToSend = selectedCohort;
 
       if (mode === 'scratch') {
         response = await client.syllabus.create({
@@ -141,6 +166,7 @@ const EmptyState = ({ onUploaded }) => {
           programId,
           programCode: codeToSend,
           ...(courseCode.trim() ? { courseCode: courseCode.trim() } : {}),
+          ...(selectedOffering ? { offeringId: selectedOffering._id } : {}),
         });
       } else {
         const fd = new FormData();
@@ -149,6 +175,7 @@ const EmptyState = ({ onUploaded }) => {
         fd.append('programId', programId);
         fd.append('programCode', codeToSend);
         if (courseCode.trim()) fd.append('courseCode', courseCode.trim());
+        if (selectedOffering) fd.append('offeringId', selectedOffering._id);
         response = await client.syllabus.upload(fd);
       }
 
@@ -159,6 +186,10 @@ const EmptyState = ({ onUploaded }) => {
     } catch (err) {
       const info = await describeError(err, mode === 'scratch' ? S.errCreate : S.errUpload);
       setError(info.message);
+      // Пара курс × набір уже має силабус: пропонуємо відкрити його
+      if (info.code === 'OFFERING_TAKEN' && info.data?.syllabusId) {
+        setExistingSyllabus({ id: info.data.syllabusId, title: title.trim(), programCode: selectedCohort });
+      }
     } finally {
       setBusy(false);
     }
@@ -370,6 +401,28 @@ const EmptyState = ({ onUploaded }) => {
         )}
 
         <Stack spacing={2.5}>
+          {cohortOfferings.length > 0 && (
+            <FormControl fullWidth size="small" disabled={busy}>
+              <InputLabel id="offering-select-label" shrink>
+                {S.assignedCourse}
+              </InputLabel>
+              <Select
+                labelId="offering-select-label"
+                value={offeringId}
+                label={S.assignedCourse}
+                displayEmpty
+                onChange={(e) => handleOfferingChange(e.target.value)}
+              >
+                <MenuItem value="">{S.assignedCourseNone}</MenuItem>
+                {cohortOfferings.map((o) => (
+                  <MenuItem key={o._id} value={o._id}>
+                    {o.courseCode}{o.courseName ? ` · ${o.courseName}` : ''} · {o.type}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           <TextField
             label={S.courseTitle}
             value={title}
@@ -387,7 +440,7 @@ const EmptyState = ({ onUploaded }) => {
               label={S.courseCode}
               value={courseCode}
               onChange={(e) => setCourseCode(e.target.value)}
-              disabled={busy}
+              disabled={busy || Boolean(selectedOffering)}
               size="small"
               sx={{ flex: 1 }}
               placeholder="FIN502"
@@ -421,7 +474,7 @@ const EmptyState = ({ onUploaded }) => {
                   labelId="edition-select-label"
                   value={programCode}
                   label={S.edition}
-                  onChange={(e) => setProgramCode(e.target.value)}
+                  onChange={(e) => { setProgramCode(e.target.value); setOfferingId(''); }}
                 >
                   {editions.map((ed) => (
                     <MenuItem key={ed.code} value={ed.code}>
@@ -454,7 +507,7 @@ const EmptyState = ({ onUploaded }) => {
             <Button
               type="submit"
               variant="contained"
-              disabled={busy || loading || (mode === 'upload' && !file)}
+              disabled={busy || loading || !selectedCohort || (mode === 'upload' && !file)}
               startIcon={busy ? <CircularProgress size={16} color="inherit" /> : null}
               sx={{ minWidth: 160, py: 1 }}
             >

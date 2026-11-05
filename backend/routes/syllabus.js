@@ -9,7 +9,6 @@ const mongoose = require('mongoose');
 const Syllabus = require('../models/Syllabus');
 const Suggestion = require('../models/Suggestion');
 const Program = require('../models/Program');
-const CourseOffering = require('../models/CourseOffering');
 const { auth, requireRole } = require('../middleware/auth');
 const analysisRunner = require('../services/analysisRunner');
 const { deleteSyllabiCascade, deleteConversationsFor } = require('../services/syllabusCleanup');
@@ -23,7 +22,8 @@ const { initState } = store;
 const { resolveProfile } = require('../services/lecturers/profile');
 const { prepareInstructor } = require('../services/lecturers/cards');
 const { createDraftSuggestions } = require('../services/chat/draftSuggestions');
-const { canSeeAll, canManageProgramme } = require('../services/roles');
+const { canSeeAll } = require('../services/roles');
+const { resolveOfferingForCreate, assertOfferingFree, offeringTakenError, normCourseCode } = require('../services/offerings');
 
 const CLEANUP_GRACE_MS = 10 * 60 * 1000;
 
@@ -55,8 +55,14 @@ function isOwner(user, syllabus) {
   return !!ownerId && ownerId === user.userId;
 }
 
-function isOwnerOrAdmin(user, syllabus) {
+// Читання: власник або ролі, що бачать усі силабуси (manager/director/admin — лише читання)
+function canRead(user, syllabus) {
   return isOwner(user, syllabus) || canSeeAll(user.role);
+}
+
+// Видалення (destructive): лише власник або admin; manager/director чужі силабуси не видаляють
+function canDelete(user, syllabus) {
+  return isOwner(user, syllabus) || user.role === 'admin';
 }
 
 const notFound = () => httpError(404, 'Syllabus not found', { code: 'NOT_FOUND' });
@@ -153,15 +159,15 @@ async function resolveProgram(programId, rawProgramCode) {
 }
 
 // Призначення курсу до набору: programCode і код курсу беруться з нього, а не з тіла запиту.
-// Викладач може взяти лише своє призначення (або без викладача); admin — будь-яке.
-async function resolveOffering(offeringId, user) {
-  if (!offeringId) return null;
-  if (!mongoose.isValidObjectId(offeringId)) throw httpError(400, 'Invalid offering id', { code: 'INVALID_OFFERING' });
-  const offering = await CourseOffering.findById(offeringId).lean();
-  if (!offering) throw httpError(404, 'Course offering not found', { code: 'OFFERING_NOT_FOUND' });
-  const own = !offering.lecturerId || String(offering.lecturerId) === String(user.userId);
-  if (!own && !canManageProgramme(user.role)) throw httpError(403, 'This course is assigned to another lecturer', { code: 'OFFERING_FORBIDDEN' });
-  return offering;
+// Без offeringId призначення шукається за programCode + courseCode (services/offerings), тож обійти
+// «курс призначено іншому викладачу» не можна; одна пара курс × набір — один силабус (409 OFFERING_TAKEN).
+async function resolveCreateTarget(req) {
+  const { programId, offeringId, courseCode } = req.body;
+  let offering = await resolveOfferingForCreate({ offeringId }, req.user);
+  const { programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode);
+  if (!offering) offering = await resolveOfferingForCreate({ programCode, courseCode }, req.user);
+  await assertOfferingFree(offering?._id);
+  return { offering, programCode };
 }
 
 // Трек 1: силабус з нуля, без файлу. Порожній стан створює createEmptyState, пише його store.initState
@@ -178,8 +184,7 @@ router.post('/', auth, [
       return res.status(400).json({ message: 'Validation failed', code: 'VALIDATION_ERROR', errors: errors.array() });
     }
     const { title, programId, courseCode } = req.body;
-    const offering = await resolveOffering(req.body.offeringId, req.user);
-    const { programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode);
+    const { offering, programCode } = await resolveCreateTarget(req);
     const code = (offering ? offering.courseCode : courseCode) || undefined;
 
     const syllabus = await Syllabus.create({
@@ -207,7 +212,7 @@ router.post('/', auth, [
     const created = await Syllabus.findById(syllabus._id);
     res.status(201).json({ syllabus: publicSyllabus(created) });
   } catch (error) {
-    sendError(res, error);
+    sendError(res, error?.code === 11000 ? offeringTakenError() : error);
   }
 });
 
@@ -245,8 +250,7 @@ router.post('/upload', auth, uploadSingle, [
     let programCode;
     let offering;
     try {
-      offering = await resolveOffering(req.body.offeringId, req.user);
-      ({ programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode));
+      ({ offering, programCode } = await resolveCreateTarget(req));
     } catch (err) {
       await unlinkQuiet(req.file.path);
       throw err;
@@ -291,7 +295,8 @@ router.post('/upload', auth, uploadSingle, [
     });
   } catch (error) {
     if (req.file) await unlinkQuiet(req.file.path);
-    console.error('Syllabus upload error:', error);
+    if (error?.code === 11000) return sendError(res, offeringTakenError());
+    if (!error?.statusCode) console.error('Syllabus upload error:', error);
     sendError(res, error, 'Internal server error while uploading the file');
   }
 });
@@ -317,7 +322,7 @@ router.get('/:id', auth, async (req, res) => {
       .populate('programId', 'name code academicDirectorEmail');
 
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden('You can only view your own syllabi.'));
+    if (!canRead(req.user, syllabus)) return sendError(res, forbidden('You can only view your own syllabi.'));
     res.json(publicSyllabus(syllabus));
   } catch (error) {
     console.error('Get syllabus error:', error);
@@ -333,7 +338,7 @@ router.get('/:id/status', auth, async (req, res) => {
       .populate('instructor', '_id');
 
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden());
+    if (!canRead(req.user, syllabus)) return sendError(res, forbidden());
     res.json({ status: syllabus.status, stage: syllabus.analysisStage || null, error: syllabus.analysisError || null });
   } catch (error) {
     console.error('Get status error:', error);
@@ -346,7 +351,7 @@ router.delete('/:id', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id).select('instructor');
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden('You can only delete your own syllabi.'));
+    if (!canDelete(req.user, syllabus)) return sendError(res, forbidden('You can only delete your own syllabi.'));
 
     await deleteSyllabiCascade({ _id: syllabus._id });
     res.json({ message: 'The syllabus was deleted' });
@@ -385,6 +390,11 @@ router.put('/:id', auth, [
     const sameEdition = programCode === undefined || String(programCode).trim().toUpperCase() === String(syllabus.programCode || '');
     if (!sameProgram || !sameEdition) {
       return sendError(res, httpError(400, 'The programme and its edition cannot be changed. Create a new syllabus for another programme.', { code: 'PROGRAM_CHANGE_NOT_ALLOWED' }));
+    }
+
+    // Код курсу силабуса, прив'язаного до призначення, задає призначення
+    if (syllabus.offeringId && courseCode !== undefined && normCourseCode(courseCode) !== normCourseCode(syllabus.course?.code)) {
+      return sendError(res, httpError(400, 'The course code comes from the course assignment and cannot be changed here.', { code: 'OFFERING_COURSE_LOCKED' }));
     }
 
     // Спершу стан (умова на ревізію): якщо запис не вдався, метадані теж не змінюються
@@ -457,7 +467,7 @@ router.get('/:id/download', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id);
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden());
+    if (!canRead(req.user, syllabus)) return sendError(res, forbidden());
 
     const filePath = syllabus.originalFile?.path;
     if (!filePath) {

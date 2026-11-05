@@ -4,7 +4,7 @@ test('instructor navigation contains My work and Library, with settings in the s
   const groups = cabinetGroupsFor('instructor');
   expect(groups.map(group => group.label)).toEqual(['My work', 'Library']);
   expect(groups[0].items.map(item => item.id)).toEqual(['my_syllabi', 'account']);
-  expect(groups[1].items.map(item => item.id)).toEqual(['policies', 'outcomes', 'assessment']);
+  expect(groups[1].items.map(item => item.id)).toEqual(['policies', 'outcomes', 'core_courses', 'capstone', 'assessment']);
 });
 
 test.each(['manager', 'director'])('%s gets programme screens without administration', role => {

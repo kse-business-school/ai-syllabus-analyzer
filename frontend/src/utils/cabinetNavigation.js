@@ -13,6 +13,8 @@ export const CABINET_GROUPS = [
   { label: 'Library', items: [
     { id: 'policies', label: 'Course policies', path: '/cabinet?view=policies', roles: ALL_ROLES },
     { id: 'outcomes', label: 'Programme outcomes', path: '/cabinet?view=outcomes', roles: ALL_ROLES },
+    { id: 'core_courses', label: 'Core courses', path: '/cabinet?view=core_courses', roles: ALL_ROLES },
+    { id: 'capstone', label: 'Capstone guide', path: '/cabinet?view=capstone', roles: ALL_ROLES },
     { id: 'assessment', label: 'Assessment components', path: '/cabinet?view=assessment', roles: ALL_ROLES },
   ] },
   { label: 'Administration', items: [

@@ -2,7 +2,8 @@
 /**
  * Міграція v4 → v5 (Syllabus.state як джерело правди; submit і формати виходу прибрано).
  *
- *   - Syllabus програми з `editions` (MBA) без `programCode` → `--default-edition` (за замовчуванням MBA28).
+ *   - Syllabus програми з `editions` без `programCode` → `--default-edition`, якщо цей набір належить програмі
+ *     (інша програма такий силабус не отримує); без параметра — найновіший набір своєї програми.
  *   - `status: 'submitted'` → `in_progress`; `submittedAt` переноситься в `legacySubmittedAt`.
  *   - $unset полів submit (`submitting`, `submissionEmailStatus`, `submittedPdfPath`, `submittedAt`)
  *     і кешу outputs старих форматів (clean, tracked, trackedPdf, annotated, edited, previewPdf);
@@ -20,7 +21,7 @@
  * Idempotent: повторний запуск дає 0 змін. `--dry-run` лише рахує.
  *
  * Usage (з кореня репозиторію):
- *   node scripts/migrate-v5-state.js [--dry-run] [--default-edition=MBA28]
+ *   node scripts/migrate-v5-state.js [--dry-run] [--default-edition=<код набору>]
  */
 
 const fs = require('fs');
@@ -45,19 +46,21 @@ const oldFilePaths = (doc) => [
  * @param {import('mongodb').Db} db
  * @param {{dryRun?: boolean, defaultEdition?: string}} opts
  */
-async function migrate(db, { dryRun = false, defaultEdition = 'MBA28' } = {}) {
+async function migrate(db, { dryRun = false, defaultEdition = null } = {}) {
   const syllabi = db.collection(Syllabus.collection.name);
   const programs = db.collection('programs');
   const suggestions = db.collection('suggestions');
   const messages = db.collection('messages');
   const stats = {};
-  const edition = String(defaultEdition).toUpperCase();
+  const wanted = defaultEdition ? String(defaultEdition).toUpperCase() : null;
 
   // 1. programCode для програм із редакціями
   const editionPrograms = await programs.find({ 'editions.0': { $exists: true } }).project({ _id: 1, editions: 1 }).toArray();
   stats.programCodeSet = 0;
   for (const program of editionPrograms) {
-    if (!program.editions.some((e) => e.code === edition)) continue;
+    // Заданий набір — лише для своєї програми; без параметра — найновіший набір програми (останній у списку)
+    if (wanted && !program.editions.some((e) => e.code === wanted)) continue;
+    const edition = wanted || program.editions[program.editions.length - 1].code;
     const filter = { programId: program._id, $or: [{ programCode: { $exists: false } }, { programCode: null }, { programCode: '' }] };
     stats.programCodeSet += await syllabi.countDocuments(filter);
     if (!dryRun) await syllabi.updateMany(filter, { $set: { programCode: edition } });
@@ -153,7 +156,7 @@ async function run() {
   fromBackend('dotenv').config({ path: path.join(BACKEND, '.env') });
   const mongoose = fromBackend('mongoose');
   const dryRun = process.argv.includes('--dry-run');
-  const defaultEdition = parseEdition(process.argv) || 'MBA28';
+  const defaultEdition = parseEdition(process.argv) || null;
   const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/ai-syllabus-analyzer';
   console.log(`[migrate-v5-state] connecting to ${uri}${dryRun ? ' (DRY RUN)' : ''}`);
   await mongoose.connect(uri);

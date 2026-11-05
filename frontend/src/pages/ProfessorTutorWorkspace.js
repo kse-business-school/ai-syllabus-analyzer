@@ -214,6 +214,12 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
     await ws.actions.approveSection(sectionKey);
   };
 
+  // Reopen: зняти затвердження розділу (DELETE /sections/:key/approve), Readiness зменшується
+  const handleUnapproveFromDoc = async (sectionKey) => {
+    setLastChangedKey(sectionKey);
+    await ws.actions.unapproveSection(sectionKey);
+  };
+
   const tabs = !mockId && (
     <WorkspaceTabs
       tabs={openTabs}
@@ -288,6 +294,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
       checks={ws.checks}
       readiness={ws.readiness}
       onApproveSection={handleApproveFromDoc}
+      onUnapproveSection={handleUnapproveFromDoc}
       onDiscussSection={handleDiscussInChat}
       readOnly={ws.readOnly || isReadOnlyAdmin || !ready}
     />

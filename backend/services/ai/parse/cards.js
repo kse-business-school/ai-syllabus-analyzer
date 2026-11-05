@@ -3,6 +3,7 @@
 const { concretePath, sectionOfPath } = require('../../syllabusState/paths');
 const { SECTION_KEYS } = require('../../syllabusState/schema');
 const { policyDecided } = require('../../syllabusState/slots');
+const { normalizePloCode } = require('../../checks/plo');
 
 const PROMPT_VERSION = 'parse-cards-v1';
 
@@ -148,4 +149,30 @@ function courseHintCards(courseHint) {
   }];
 }
 
-module.exports = { checksToCards, policyCards, courseHintCards, titleOf, TITLES };
+/**
+ * Зв'язки CLO → ПРН, названі у файлі, мають confirmed: false і не зараховуються (checks/plo, plo/coverage),
+ * доки викладач їх не підтвердить. Картка на кожен такий CLO: Confirm записує ті самі зв'язки з confirmed: true.
+ */
+function ploConfirmCards(state, refs) {
+  const known = new Set((refs?.outcomes || []).map((o) => normalizePloCode(o.code)));
+  const outcomes = state.outcomes || [];
+  return outcomes
+    .map((clo, i) => ({ clo, n: i + 1, links: (clo.plo || []).filter((p) => known.has(normalizePloCode(p.code))) }))
+    .filter(({ links }) => links.length && links.some((p) => p.confirmed !== true))
+    .map(({ clo, n, links }) => ({
+      origin: 'check',
+      checkId: `plo.confirm:${clo.id}`,
+      severity: 'medium',
+      kind: 'edit',
+      title: `Confirm the programme outcome links of LO${n}`,
+      description: `Your file links LO${n} to ${links.map((p) => `${p.code}${p.coverage === 'partial' ? ' (partial)' : ''}`).join(', ')}. `
+        + 'Confirm these links so they count towards programme outcome coverage, or cancel and map the outcome again.',
+      rationale: 'Links taken from the file count only after you confirm them.',
+      target: { path: `outcomes[${clo.id}].plo`, entityId: clo.id, section: 'learning_outcomes' },
+      value: links.map((p) => ({ code: p.code, coverage: p.coverage, confirmed: false })),
+      source: 'instructor_directed',
+      promptVersion: PROMPT_VERSION,
+    }));
+}
+
+module.exports = { checksToCards, policyCards, courseHintCards, ploConfirmCards, titleOf, TITLES };

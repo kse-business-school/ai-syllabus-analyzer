@@ -2,15 +2,15 @@
 /**
  * Міграція довідників v5 (етап 1 ТЗ).
  *
- *   - Program MBA: проставляє `editions` (MBA27, MBA28), не затираючи наявні редакції.
+ *   - Програми з fixtures/reference/programs.json: додає набори (editions), яких ще немає, не затираючи наявні.
  *   - Сідить довідники (шаблон, ПРН, курси, Capstone) з backend/fixtures/reference.
- *   - Syllabus програми з `editions` без `programCode` → `--default-edition` (за замовчуванням MBA28);
- *     `track` = upload для тих, де його немає.
+ *   - Syllabus програми з `editions` без `programCode` → `--default-edition`, якщо цей набір належить програмі,
+ *     інакше найновіший набір цієї програми (останній у списку); `track` = upload для тих, де його немає.
  *
  * Idempotent. `--dry-run` лише показує кількість змін.
  *
  * Usage (з кореня репозиторію):
- *   node scripts/migrate-v5-references.js [--dry-run] [--default-edition=MBA28]
+ *   node scripts/migrate-v5-references.js [--dry-run] [--default-edition=<код набору>]
  */
 
 const path = require('path');
@@ -22,13 +22,13 @@ const fromBackend = (name) => require(require.resolve(name, { paths: [BACKEND] }
  * @param {{dryRun?: boolean, defaultEdition?: string}} opts
  * Працює через mongoose-моделі backend (підключення має бути встановлене).
  */
-async function migrate({ dryRun = false, defaultEdition = 'MBA28' } = {}) {
+async function migrate({ dryRun = false, defaultEdition = null } = {}) {
   const Program = require(path.join(BACKEND, 'models/Program'));
   const Syllabus = require(path.join(BACKEND, 'models/Syllabus'));
   const { seedReferences } = require(path.join(BACKEND, 'services/references/seed'));
-  const { DEFAULT_PROGRAMS } = Program;
+  const { DEFAULT_PROGRAMS, latestEdition } = Program;
   const stats = {};
-  const edition = String(defaultEdition).toUpperCase();
+  const wanted = defaultEdition ? String(defaultEdition).toUpperCase() : null;
 
   stats.editionsAdded = 0;
   for (const def of DEFAULT_PROGRAMS.filter((p) => p.editions)) {
@@ -45,14 +45,24 @@ async function migrate({ dryRun = false, defaultEdition = 'MBA28' } = {}) {
   if (!dryRun) await seedReferences();
   stats.referencesSeeded = !dryRun;
 
-  const withEditions = await Program.find({ code: { $in: DEFAULT_PROGRAMS.filter((p) => p.editions).map((p) => p.code) } }).lean();
-  const filter = {
-    programId: { $in: withEditions.map((p) => p._id) },
-    $or: [{ programCode: { $exists: false } }, { programCode: null }, { programCode: '' }],
-  };
-  stats.syllabiProgramCodeSet = await Syllabus.countDocuments(filter);
-  if (!dryRun && stats.syllabiProgramCodeSet) {
-    await Syllabus.collection.updateMany(filter, { $set: { programCode: edition } });
+  // Кожна програма з наборами отримує свій набір: заданий (якщо належить їй) або найновіший
+  // dry-run набори не додає, тож рахуємо за тим, якими набори стануть після кроку вище
+  const fixtureEditions = new Map(DEFAULT_PROGRAMS.filter((p) => p.editions?.length).map((p) => [p.code, p.editions]));
+  const withEditions = (await Program.find({}).lean()).map((p) => {
+    const have = p.editions || [];
+    const extra = (fixtureEditions.get(p.code) || []).filter((e) => !have.some((h) => h.code === e.code));
+    return { ...p, editions: [...have, ...extra] };
+  }).filter((p) => p.editions.length);
+  stats.syllabiProgramCodeSet = 0;
+  for (const program of withEditions) {
+    const edition = wanted && program.editions.some((e) => e.code === wanted) ? wanted : latestEdition(program);
+    const filter = {
+      programId: program._id,
+      $or: [{ programCode: { $exists: false } }, { programCode: null }, { programCode: '' }],
+    };
+    const n = await Syllabus.countDocuments(filter);
+    stats.syllabiProgramCodeSet += n;
+    if (!dryRun && n) await Syllabus.collection.updateMany(filter, { $set: { programCode: edition } });
   }
   const trackFilter = { track: { $exists: false } };
   stats.syllabiTrackSet = await Syllabus.countDocuments(trackFilter);
@@ -67,7 +77,7 @@ async function run() {
   const mongoose = fromBackend('mongoose');
   const dryRun = process.argv.includes('--dry-run');
   const arg = process.argv.find((a) => a.startsWith('--default-edition='));
-  const defaultEdition = arg ? arg.split('=')[1] : 'MBA28';
+  const defaultEdition = arg ? arg.split('=')[1] : null;
   const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/ai-syllabus-analyzer';
   console.log(`[migrate-v5-references] connecting to ${uri}${dryRun ? ' (DRY RUN)' : ''}`);
   await mongoose.connect(uri);

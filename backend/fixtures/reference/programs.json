@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "note": "Програми й набори (редакції) для першого запуску. Сід лише створює відсутні програми з цими наборами; далі набори керуються в кабінеті (Programmes → Cohorts) або через PUT /api/cabinet/programs/:id. Новий набір наявної програми в цьому файлі сам не з'являється — його додає адміністратор або scripts/migrate-v5-references.js.",
+  "programs": [
+    {
+      "code": "MBA",
+      "name": "MBA",
+      "editions": [
+        { "code": "MBA27", "label": "MBA27 (2025-26 intake)" },
+        { "code": "MBA28", "label": "MBA28 (2026-27 intake)" }
+      ]
+    },
+    { "code": "EMBA", "name": "Executive MBA" },
+    { "code": "CORPORATE", "name": "Corporate Programs" },
+    { "code": "INTENSIVE", "name": "Intensive Programs" }
+  ]
+}

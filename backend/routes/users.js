@@ -57,7 +57,7 @@ router.put('/settings', auth, async (req, res) => {
     
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Користувача не знайдено' });
+      return res.status(404).json({ message: 'User not found' });
     }
     
     // Update user settings
@@ -67,28 +67,28 @@ router.put('/settings', auth, async (req, res) => {
     await user.save();
     
     res.json({
-      message: 'Налаштування оновлено успішно',
+      message: 'Settings updated',
       settings: user.settings
     });
     
   } catch (error) {
     console.error('Settings update error:', error);
     res.status(500).json({
-      message: 'Помилка оновлення налаштувань'
+      message: 'Could not update settings'
     });
   }
 });
 
 // Change password
 router.put('/change-password', auth, [
-  body('currentPassword').notEmpty().withMessage('Поточний пароль обов\'язковий'),
-  body('newPassword').isLength({ min: 6 }).withMessage('Новий пароль має містити мінімум 6 символів'),
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('The new password must be at least 6 characters'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        message: 'Помилки валідації',
+        message: 'Validation failed',
         errors: errors.array()
       });
     }
@@ -98,13 +98,13 @@ router.put('/change-password', auth, [
     
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Користувача не знайдено' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     // Verify current password
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Неправильний поточний пароль' });
+      return res.status(400).json({ message: 'The current password is incorrect' });
     }
     
   // Assign plain new password; pre-save hook will hash
@@ -113,26 +113,26 @@ router.put('/change-password', auth, [
     await user.save();
     
     res.json({
-      message: 'Пароль змінено успішно'
+      message: 'Password changed'
     });
     
   } catch (error) {
     console.error('Password change error:', error);
     res.status(500).json({
-      message: 'Помилка зміни пароля'
+      message: 'Could not change the password'
     });
   }
 });
 
 // Delete user account
 router.delete('/account', auth, [
-  body('password').notEmpty().withMessage('Пароль необхідний для підтвердження видалення акаунта')
+  body('password').notEmpty().withMessage('Enter your password to confirm account deletion')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        message: 'Помилки валідації',
+        message: 'Validation failed',
         errors: errors.array()
       });
     }
@@ -143,18 +143,18 @@ router.delete('/account', auth, [
     // Verify user and password
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Користувача не знайдено' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Неправильний пароль' });
+      return res.status(400).json({ message: 'Incorrect password' });
     }
 
     // Не можна залишити систему без активного адміна
     if (await isLastActiveAdmin(user)) {
-      return res.status(409).json({ message: 'Неможливо видалити останнього активного адміністратора' });
+      return res.status(409).json({ message: 'The last active administrator cannot be deleted' });
     }
 
     // Каскад: файли, розмови й повідомлення, силабуси
@@ -171,38 +171,38 @@ router.delete('/account', auth, [
     }
     
     res.json({
-      message: 'Акаунт видалено успішно'
+      message: 'Account deleted'
     });
     
   } catch (error) {
     console.error('Account deletion error:', error);
     res.status(500).json({
-      message: 'Помилка видалення акаунта'
+      message: 'Could not delete the account'
     });
   }
 });
 
 // Request email change: store pendingEmail and send confirmation to the new address
 router.post('/email-change/request', auth, [
-  body('newEmail').isEmail().withMessage('Вкажіть коректний email').normalizeEmail({ gmail_remove_dots: false })
+  body('newEmail').isEmail().withMessage('Enter a valid email').normalizeEmail({ gmail_remove_dots: false })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ message: 'Помилки валідації', errors: errors.array() });
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
     const user = await User.findById(req.user.userId);
-    if (!user) return res.status(404).json({ message: 'Користувача не знайдено' });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const { newEmail } = req.body;
     if (newEmail.toLowerCase() === user.email.toLowerCase()) {
-      return res.status(400).json({ message: 'Новий email співпадає з поточним' });
+      return res.status(400).json({ message: 'The new email is the same as the current one' });
     }
 
     // Ensure email is not used by another account
     const exists = await User.findOne({ email: newEmail.toLowerCase() });
-    if (exists) return res.status(409).json({ message: 'Цей email вже використовується' });
+    if (exists) return res.status(409).json({ message: 'This email is already in use' });
 
     const { raw, hash } = generateToken();
     user.pendingEmail = newEmail.toLowerCase();
@@ -217,37 +217,37 @@ router.post('/email-change/request', auth, [
       console.warn('Failed to send email change confirmation:', e.message);
     }
 
-    return res.json({ message: 'Майже готово! Перевірте нову пошту для підтвердження зміни.' });
+    return res.json({ message: 'Almost done! Check your new inbox to confirm the change.' });
   } catch (error) {
     console.error('Email change request error:', error);
-    return res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 
 // Confirm email change via token sent to the new email address
 router.post('/email-change/confirm', [
-  body('token').notEmpty().withMessage('Потрібен токен підтвердження')
+  body('token').notEmpty().withMessage('A confirmation token is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ message: 'Помилки валідації', errors: errors.array() });
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
     const { token } = req.body;
     const user = await User.findOne({ emailChangeToken: hashToken(token), emailChangeTokenExpires: { $gt: Date.now() } });
     if (!user) {
-      return res.status(400).json({ message: 'Недійсний або прострочений токен' });
+      return res.status(400).json({ message: 'Invalid or expired token' });
     }
 
     if (!user.pendingEmail) {
-      return res.status(400).json({ message: 'Немає запиту на зміну email' });
+      return res.status(400).json({ message: 'There is no pending email change' });
     }
 
     // Final check that pendingEmail is still free
     const exists = await User.findOne({ email: user.pendingEmail });
     if (exists && exists._id.toString() !== user._id.toString()) {
-      return res.status(409).json({ message: 'Цей email вже використовується' });
+      return res.status(409).json({ message: 'This email is already in use' });
     }
 
     user.email = user.pendingEmail;
@@ -257,10 +257,10 @@ router.post('/email-change/confirm', [
 
     await user.save();
 
-    return res.json({ message: 'Email успішно змінено' });
+    return res.json({ message: 'Email changed' });
   } catch (error) {
     console.error('Email change confirm error:', error);
-    return res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 

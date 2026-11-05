@@ -13,6 +13,7 @@ import SyllabiTab from './SyllabiTab';
 import PloCoverageTab from './PloCoverageTab';
 import CoursesCohortsTab from './CoursesCohortsTab';
 import ReferenceLibraryTab from './ReferenceLibraryTab';
+import CohortReferencesTab from './CohortReferencesTab';
 import UsersTab from './UsersTab';
 import ProgramsTab from './ProgramsTab';
 import { cabinetViewFor } from '../../utils/cabinetNavigation';
@@ -39,11 +40,14 @@ const Cabinet = () => {
   return <CabinetShell active={view} actions={view === 'my_syllabi' ? <Button component={Link} to="/workspace" variant="contained">+ New syllabus</Button> : null}>
     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
     {listView && <MetricsRow metrics={metrics} />}
-    {['all_syllabi', 'plo_coverage', 'courses_cohorts', 'outcomes'].includes(view) && <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}><Typography variant="body2" color="text.secondary">{view === 'all_syllabi' ? 'Course syllabi for the selected cohort.' : view === 'outcomes' ? 'Official programme outcomes and their English matrix labels.' : 'Select a cohort to explore its curriculum.'}</Typography><CohortSelect /></Box>}
+    {['all_syllabi', 'plo_coverage', 'courses_cohorts', 'outcomes', 'core_courses', 'capstone'].includes(view) && <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}><Typography variant="body2" color="text.secondary">{view === 'all_syllabi' ? 'Course syllabi for the selected cohort.' : ['outcomes', 'core_courses', 'capstone'].includes(view) ? 'References of the selected cohort.' : 'Select a cohort to explore its curriculum.'}</Typography><CohortSelect /></Box>}
     {listView && <SyllabiTab key={view} programs={programs} isAdmin={user?.role === 'admin'} user={user} filterMineOnly={view === 'my_syllabi'} programCode={view === 'all_syllabi' ? currentCohort : undefined} onChanged={loadMetrics} />}
     {view === 'plo_coverage' && <PloCoverageTab programCode={currentCohort} />}
     {view === 'courses_cohorts' && <CoursesCohortsTab programCode={currentCohort} />}
-    {['policies', 'outcomes', 'assessment'].includes(view) && <ReferenceLibraryTab key={view} section={view} programCode={currentCohort} />}
+    {['policies', 'assessment'].includes(view) && <ReferenceLibraryTab key={view} section={view} programCode={currentCohort} />}
+    {view === 'outcomes' && <CohortReferencesTab key={view} kind="outcomes" programCode={currentCohort} />}
+    {view === 'core_courses' && <CohortReferencesTab key={view} kind="courses" programCode={currentCohort} />}
+    {view === 'capstone' && <CohortReferencesTab key={view} kind="capstone" programCode={currentCohort} />}
     {view === 'users' && <UsersTab />}
     {view === 'programs' && <ProgramsTab programs={programs} reload={loadPrograms} />}
   </CabinetShell>;

@@ -34,10 +34,12 @@ function sessionDate(text) {
  *   slots — результат extractSlots; policies — state.policies від policyMatch (за замовчуванням порожні блоки довідника)
  * @returns {object} state, валідний за syllabusState/schema.validateState (інакше кидає помилку)
  */
-function toState({ slots, policies, programCode, refs, courseMatch }) {
+function toState({ slots, policies, programCode, refs, courseMatch, courseCode }) {
   const h = slots.header;
-  // courseKind і ECTS нормативного курсу — лише за кодом із файлу (createEmptyState + recompute); назва — тільки підказка
-  const state = createEmptyState({ programCode, track: 'upload', refs, course: { code: clean(h.code) } });
+  // courseKind і ECTS нормативного курсу — лише за кодом (createEmptyState + recompute); назва — тільки підказка.
+  // courseCode (parse/index.courseCodeOf) — код із призначення або форми, якщо у файлі його немає
+  const code = courseCode !== undefined ? clean(courseCode) : clean(h.code);
+  const state = createEmptyState({ programCode, track: 'upload', refs, course: { code } });
 
   const headerHas = [h.title, h.code, h.department, h.ects, h.totalHours, h.language, h.studyMode, h.deliveryFormat, h.termText, h.termStart, h.termEnd].some(filled);
   const d = slots.declared;
@@ -50,7 +52,7 @@ function toState({ slots, policies, programCode, refs, courseMatch }) {
   state.header = {
     ...state.header,
     courseTitle: clean(h.title),
-    courseCode: clean(h.code),
+    courseCode: code,
     department: clean(h.department),
     ects: h.ects ?? state.header.ects, // файл має пріоритет; інакше ECTS нормативного курсу
     totalHours: h.totalHours ?? null,
@@ -109,7 +111,9 @@ function toState({ slots, policies, programCode, refs, courseMatch }) {
   if (policies) state.policies = policies;
 
   const result = recompute(state, refs);
-  if (courseMatch) result.header.courseKind = courseMatch.matchedBy === 'code' ? courseMatch.kind : 'elective';
+  // Призначення курс × набір (refs.offeringTypes) уже враховане в recompute і має пріоритет над переліком курсів
+  const assigned = refs?.offeringTypes?.[String(code || '').normalize('NFC').replace(/\s+/g, '').toUpperCase()];
+  if (courseMatch && !assigned) result.header.courseKind = courseMatch.matchedBy === 'code' ? courseMatch.kind : 'elective';
   const errors = validateState(result);
   if (errors.length) throw Object.assign(new Error(`Parsed state is invalid: ${errors.slice(0, 5).join('; ')}`), { code: 'PARSE_INVALID_STATE', errors });
   return result;

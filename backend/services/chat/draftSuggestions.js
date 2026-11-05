@@ -91,9 +91,11 @@ function buildDraftSuggestion(rawInput, { syllabusId, state, refs, known = [] })
   const input = { ...rawInput, text: clean.text, value: clean.value, proposedValues: clean.proposedValues };
   if (clean.removed.length) input.description = [rawInput.description, SOURCE_NOT_CONFIRMED].filter(Boolean).join('\n\n');
   const text = typeof input.text === 'string' ? input.text : (input.value == null ? null : currentText(input.value));
-  const proposedValues = text != null
-    ? mergeProposedValues(input.proposedValues || [], scanFacts(text, { known }))
-    : mergeProposedValues(input.proposedValues || []);
+  // factsScanned: чернетку списку сутностей зібрав сервер (slotDrafts.itemsDraft) — факти й шаблон уже пораховані
+  // по полях, повторне сканування відображуваного тексту дало б дублікати без прив'язки до поля
+  const proposedValues = input.factsScanned || text == null
+    ? mergeProposedValues(input.proposedValues || [])
+    : mergeProposedValues(input.proposedValues || [], scanFacts(text, { known }));
   return {
     syllabusId,
     origin: input.origin,
@@ -113,7 +115,7 @@ function buildDraftSuggestion(rawInput, { syllabusId, state, refs, known = [] })
     } : input.kind === 'question' || (input.kind === 'choice' && input.value === undefined) ? undefined : {
       value: input.value !== undefined ? input.value : text,
       source: input.source === 'instructor_directed' ? 'instructor_directed' : 'ai_draft',
-      template: text != null && proposedValues.length ? toTemplate(text, proposedValues) : null,
+      template: input.factsScanned ? (input.template ?? null) : text != null && proposedValues.length ? toTemplate(text, proposedValues) : null,
       proposedValues,
       basisHash: hashValue(current),
     },

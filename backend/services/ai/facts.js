@@ -36,6 +36,98 @@ function numbersOf(text) {
   return [...digits.map((d) => d.replace(',', '.')), ...words.map(String)];
 }
 
+// Сімейства одиниць: «48 hours», «48-hour», «48h», «48 hrs» — одна одиниця; «48 students» — інша
+const UNIT_FAMILIES = [
+  ['hour', /^(?:hours?|hrs?|h|годин\p{L}*)$/u],
+  ['minute', /^(?:minutes?|mins?|хвилин\p{L}*)$/u],
+  ['day', /^(?:days?|дн\p{L}*|день|доби|діб)$/u],
+  ['week', /^(?:weeks?|тижд\p{L}*|тижн\p{L}*)$/u],
+  ['month', /^(?:months?|місяц\p{L}*)$/u],
+  ['point', /^(?:points?|pts?|бал\p{L}*)$/u],
+  ['credit', /^(?:ects|credits?|кредит\p{L}*)$/u],
+  ['percent', /^(?:%|percent|відсот\p{L}*)$/u],
+  ['times', /^(?:times|рази?|разів)$/u],
+  ['slide', /^slides?$/u],
+  ['page', /^(?:pages?|сторін\p{L}*)$/u],
+  ['word', /^(?:words?|слів)$/u],
+];
+const familyOf = (token) => (UNIT_FAMILIES.find(([, re]) => re.test(token)) || [null])[0];
+// Скільки слів між числом і одиницею в репліці викладача («48 hours», «hours: 48», «a 48 hour grace», «48 academic hours»)
+const UNIT_WINDOW = 3;
+
+/** Токени: числа (у т. ч. слова-числа → цифри), «%», слова. */
+function tokensOf(text) {
+  return (norm(text).match(/\d+(?:[.,]\d+)?|%|\p{L}+/gu) || []).map((t) => (NUMBER_WORDS[t] !== undefined ? String(NUMBER_WORDS[t]) : t.replace(',', '.')));
+}
+const isNumberToken = (t) => /^\d/.test(t);
+
+/** Пари «число|сімейство одиниці», які викладач назвав поруч (у вікні UNIT_WINDOW слів). */
+function quantitiesOf(text) {
+  const tokens = tokensOf(text);
+  const out = new Set();
+  tokens.forEach((t, i) => {
+    if (!isNumberToken(t)) return;
+    for (let j = Math.max(0, i - UNIT_WINDOW); j <= Math.min(tokens.length - 1, i + UNIT_WINDOW); j += 1) {
+      const family = j !== i && familyOf(tokens[j]);
+      if (family) out.add(`${t}|${family}`);
+    }
+  });
+  return out;
+}
+
+const MONTH_INDEX = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+/** Дата як множина чисел (назва місяця → номер, без ведучих нулів): «Dec 1, 2026» ≡ «2026-12-01» ≡ «1 December 2026». */
+function dateParts(text) {
+  const t = norm(text);
+  const parts = (t.match(/\d+/g) || []).map((n) => String(Number(n)));
+  const month = MONTH_INDEX.findIndex((m) => new RegExp(`\\b${m}`).test(t));
+  if (month >= 0) parts.push(String(month + 1));
+  return new Set(parts);
+}
+const DATE_RE = PATTERNS.find((p) => p.label === 'Date').re;
+const TIME_RE = PATTERNS.find((p) => p.label === 'Time').re;
+const subset = (a, b) => [...a].every((x) => b.has(x));
+
+/** Корпус відомого: точний текст, усі числа, числа з одиницями, дати й часи. */
+function corpusOf(known) {
+  const text = known.join('\n');
+  const corpus = norm(text);
+  return {
+    text: corpus,
+    numbers: new Set(numbersOf(corpus)),
+    quantities: quantitiesOf(text),
+    dates: [...corpus.matchAll(new RegExp(DATE_RE.source, 'gi'))].map((m) => dateParts(m[0])),
+    times: [...corpus.matchAll(new RegExp(TIME_RE.source, 'gi'))].map((m) => dateParts(m[0])),
+  };
+}
+
+/**
+ * Факт уже названо викладачем або довідником. Число зараховується лише з тією самою одиницею
+ * (A09: «We have 48 students» не робить відомим «48 hours»); дата — з тими самими днем/місяцем/роком;
+ * назва в лапках — лише точний збіг; голе число без одиниці — якщо воно є в корпусі.
+ */
+function isKnownFact(label, value, corpus) {
+  const v = norm(value);
+  if (corpus.text.includes(v)) return true;
+  if (label === 'Title') return false;
+  const nums = numbersOf(value);
+  if (!nums.length) return false;
+  if (label === 'Date') {
+    const parts = dateParts(value);
+    return corpus.dates.some((d) => subset(parts, d));
+  }
+  if (label === 'Time') {
+    const parts = dateParts(value);
+    return corpus.times.some((d) => subset(parts, d));
+  }
+  if (label === 'Quantity' || label === 'Percentage') {
+    const family = label === 'Percentage' ? 'percent' : tokensOf(value).map(familyOf).filter(Boolean).pop();
+    if (!family) return nums.every((n) => corpus.numbers.has(n));
+    return nums.every((n) => corpus.quantities.has(`${n}|${family}`));
+  }
+  return nums.every((n) => corpus.numbers.has(n));
+}
+
 /**
  * Знаходить факти в тексті чернетки, яких немає в корпусі відомого (репліки викладача, довідники, поточний стан).
  * @param {string} text чернетка моделі
@@ -44,8 +136,7 @@ function numbersOf(text) {
  */
 function scanFacts(text, { known = [] } = {}) {
   const src = String(text || '');
-  const corpus = norm(known.join('\n'));
-  const corpusNumbers = new Set(numbersOf(corpus));
+  const corpus = corpusOf(known);
   const taken = [];
   const found = [];
   for (const { label, re } of PATTERNS) {
@@ -55,10 +146,7 @@ function scanFacts(text, { known = [] } = {}) {
       taken.push([start, end]);
       const value = m[0].trim();
       const v = norm(value);
-      if (corpus.includes(v)) continue;
-      // Факт уже названо, якщо всі його числа є в корпусі (для назв — лише точний збіг)
-      const nums = numbersOf(value);
-      if (label !== 'Title' && nums.length && nums.every((n) => corpusNumbers.has(n))) continue;
+      if (isKnownFact(label, value, corpus)) continue;
       if (found.some((f) => norm(f.value) === v)) continue;
       found.push({ start, label, value });
     }
@@ -74,7 +162,8 @@ function mergeProposedValues(modelValues = [], scanned = []) {
   const out = [];
   const seen = new Set();
   for (const v of [...modelValues, ...scanned]) {
-    const key = norm(v.value);
+    // Факти полів сутностей (path '[id].поле') різні навіть з однаковим значенням: «2 h» у двох заняттях
+    const key = norm(v.value) && `${v.path || ''}\u0000${norm(v.value)}`;
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push({ id: `v${out.length + 1}`, label: v.label || 'Value', value: String(v.value), path: v.path || null, confirmed: false });
@@ -101,4 +190,4 @@ function renderTemplate(template, proposedValues) {
   return String(template || '').replace(/\{\{(\w+)\}\}/g, (all, id) => (byId.has(id) ? byId.get(id) : all));
 }
 
-module.exports = { scanFacts, mergeProposedValues, toTemplate, renderTemplate, numbersOf };
+module.exports = { scanFacts, mergeProposedValues, toTemplate, renderTemplate, numbersOf, isKnownFact, corpusOf };

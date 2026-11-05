@@ -26,6 +26,7 @@
   - `courseKind` (core/elective) визначається за `programCode` + `courseCode`, ніколи за назвою: спершу призначення `CourseOffering` (`refs.offeringTypes`), без нього — перелік нормативних курсів програми.
 - **Перевірки ТЗ §2 — код, не промпт** (`services/checks`, чисті функції).
   - LLM використовується лише в `checks/llm.js` і лише для суджень. Результат іде в чат, а не в Readiness.
+  - Покриття ПРН (перевірка `plo.coverage`, матриця кабінету) рахує лише підтверджені зв'язки CLO → PLO (`confirmed: true`).
 - **Політики.**
   - Текст береться лише з довідника (`Policy` `type: 'syllabus-policy'`) або за прямою вказівкою викладача.
   - AI ніколи не заповнює політику з власної ініціативи.
@@ -73,17 +74,19 @@
 ```
 backend/
   server.js                 Express: fail-fast env, CORS, rate limits, таймаути (LONG_RUNNING_PATHS), DB-guard, сід (admin, програми, політики, довідники), sweepers
-  fixtures/reference/       довідники: policies.library (13 блоків), learning-outcomes (ПРН MBA27/MBA28), programme-courses, capstone.criteria,
+  fixtures/reference/       довідники: programs (програми й набори першого запуску), policies.library (13 блоків), learning-outcomes (ПРН за наборами + mappings), programme-courses, capstone.criteria (programCodes),
                             template.sections, ai-tools (57 прикладів); stub-каталоги assessment-components, prerequisites, compensation
   models/                   User (+lecturerProfile), Program (+editions), Syllabus (state, stateRevision, baselineState, programCode, track),
                             Suggestion (v5: target, draft, proposedValues), Conversation, Message, SlotChange, Policy (+syllabus-policy),
-                            TemplateSection, ProgramOutcome, OutcomeMapping, ProgramCourse, CapstoneGuide, CourseOffering (курс × набір: type, lecturerId, deadline)
+                            TemplateSection, ProgramOutcome, OutcomeMapping, ProgramCourse, CapstoneGuide, ReferenceOverride (довідник набору змінено в кабінеті — сід не чіпає),
+                            CourseOffering (курс × набір: type, lecturerId, deadline)
   routes/                   auth, syllabus (create/upload/status/analyze), chat (View, рішення, розділи, політики, документ, outputs), cabinet,
                             users (+profile/lecturer), policies, references
   services/
     syllabusState/          schema, slots (реєстр), empty, computed (E-поля), paths, store (єдиний запис), readiness, render, diff
     checks/                 детерміновані перевірки ТЗ §2 (glance, assessment, workload, regulations, outcomes, plo) + llm.js (судження)
-    references/             getRefs(programCode), courseKind, normalizePloCode, seed, policies (довідник політик), fixtureRefs (тести)
+    references/             getRefs(programCode), courseKind, normalizePloCode, seed, editor (ПРН, нормативні курси, Capstone набору з кабінету), policies, fixtureRefs
+    programs.js, offerings.js   набори програм (editions, copyFrom) і призначення курс × набір
     ai/
       client.js             єдина обгортка OpenAI (createResponse)
       facts.js              сканер фактів → proposedValues; toTemplate/renderTemplate («Change the value»)
@@ -120,7 +123,8 @@ frontend/src/
 3. **Чат.** View: `state`, `revision`, `sections`, `readiness`, `checks`, `suggestions`, `messages`.
    - Картки йдуть по одній за `order`: severity × 100 + `TemplateSection.order`.
    - Рішення: Confirm (`accept`), Change the value (`values`), Cancel (`reject`), Reword (`refine`), `answer`, `reopen` (через `SlotChange`).
-   - Вільне повідомлення → `runOrchestratorTurn`: інструменти `get_slot`, `set_slot`, `propose_draft`, `apply_edit`, `run_checks`, `suggest_plo`, `suggest_readings`, `suggest_ai_tools`.
+   - Вільне повідомлення → `runOrchestratorTurn`: інструменти `get_slot`, `set_slot`, `propose_draft`, `propose_items` (списки: заняття, самостійна робота, оцінювання, компенсація, матеріали), `propose_instructor`, `apply_edit`, `run_checks`, `suggest_plo`, `suggest_readings`, `suggest_ai_tools`.
+   - `answer` на картку-питання: політика → `choice`; наратив → формулювальник; решта → хід оркестратора з контекстом картки, чернетка переноситься в саму картку.
    - Трек 1: після кожного кроку — наступне питання інтерв'юера, лише коли немає непоказаних карток з попередньої відповіді.
 4. **Розділи.** Approve / unapprove, Approve all (лише розділи без відкритих карток і непройдених перевірок ≥ warning, з пройденими порогами).
 5. **Вихід.** `GET /api/chat/:id/outputs/syllabus.docx` будь-коли: `renderSyllabusDocx(state, refs)`, нумерація 1–6 від генератора, `downloads += 1`.
@@ -133,7 +137,8 @@ frontend/src/
   - **Мутації — тільки власник** (`gateMutate`); admin лише читає.
   - v4-силабуси без `state` (`needsRebuild`) лише читаються. Мутації → 409 `NEEDS_REBUILD`, перебудова — через `POST /api/syllabus/:id/analyze`.
 - **Силабус.**
-  - `delete`, `GET /:id` і `/status` — власник або admin; `analyze` і `PUT /:id` — лише власник.
+  - `GET /:id` і `/status` — власник або manager / director / admin; `delete` — лише власник або admin; `analyze` і `PUT /:id` — лише власник.
+  - Пара курс × набір (`CourseOffering`) має один силабус: create/upload знаходять призначення за `offeringId` або `programCode` + `courseCode`; чуже → 403, зайняте → 409 `OFFERING_TAKEN`.
   - `GET /:id` не віддає `state` і шляхи.
 - **Cabinet.**
   - Програми, користувачі й cleanup uploads доступні лише admin.
@@ -179,7 +184,10 @@ frontend/src/
   - Текст документа в промптах обгортати `untrusted()` (`prompts/preamble.js`).
 - **Кожна чернетка моделі** проходить через `services/chat/draftSuggestions.js` (сканер фактів, вирізання неперевірених URL, `basisHash`). У стан чернетки потрапляють лише через accept.
 - **Нові слоти чи розділи** спершу йдуть у `schema.js`, `slots.js` і `template.sections.json`, а вже потім у промпти, перевірки, рендер і `templateDocx`.
-- **Нова програма** — лише дані: фікстури, сід, `Program.editions`. Правки логіки не потрібні.
+- **Нова програма чи новий набір** — лише дані. Правки логіки не потрібні.
+  - Набір (MBA29, EMBA25…) додає admin у кабінеті (Programmes → Cohorts) або `PUT /api/cabinet/programs/:id { editions }`; `copyFrom` копіює ПРН, нормативні курси й Capstone з наявного набору.
+  - Перший запуск — `fixtures/reference/programs.json`; коди наборів у коді (сід, міграції, фронт) не зашивати, за замовчуванням — найновіший набір програми.
+  - ПРН, нормативні курси й Capstone набору правлять manager / director / admin у Library (`PUT /api/references/:programCode/{outcomes|courses|capstone}`); після правки сід цей довідник набору не перезаписує (`ReferenceOverride`).
 - **Аналіз:** записи лише з фільтром `ownedAnalysis(id, leaseToken)`; запуск лише через `runAnalysis` / `runAnalysisInBackground`.
 - **Помилки:** сервіси кидають `httpError(statusCode, message, { code, retryable, details })`, маршрути віддають через `sendError`. `message` — англійською.
 - **Перелік вихідних файлів** — лише `services/outputFormats.js`.

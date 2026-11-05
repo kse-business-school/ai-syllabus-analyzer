@@ -21,28 +21,28 @@ function parseOptions(raw) {
 
 // Валідація правки довідника: ключі варіантів незмінні, змінюються лише label/text
 function validateLibraryEdit(policy, body) {
-  if (body.key !== undefined && body.key !== policy.key) return 'Ключ блока змінювати не можна';
-  if (body.mode !== undefined && body.mode !== policy.mode) return 'Режим блока змінювати не можна';
-  if (body.type !== undefined && body.type !== SYLLABUS_POLICY) return 'Тип блока довідника змінювати не можна';
+  if (body.key !== undefined && body.key !== policy.key) return 'The block key cannot be changed';
+  if (body.mode !== undefined && body.mode !== policy.mode) return 'The block mode cannot be changed';
+  if (body.type !== undefined && body.type !== SYLLABUS_POLICY) return 'The library block type cannot be changed';
   if (body.text !== undefined) {
-    if (policy.mode !== 'locked') return 'Поле text доступне лише для locked-блоків';
-    if (typeof body.text !== 'string' || !body.text.trim()) return 'Текст не може бути порожнім';
+    if (policy.mode !== 'locked') return 'The text field is only available for locked blocks';
+    if (typeof body.text !== 'string' || !body.text.trim()) return 'Text cannot be empty';
   }
   const options = parseOptions(body.options);
   if (options !== undefined) {
-    if (policy.mode !== 'library') return 'Поле options доступне лише для library-блоків';
+    if (policy.mode !== 'library') return 'The options field is only available for library blocks';
     const keys = (policy.options || []).map((o) => o.key).sort().join('|');
     const ok = Array.isArray(options)
       && options.every((o) => o && typeof o.key === 'string' && typeof o.label === 'string' && o.label.trim() && typeof o.text === 'string' && o.text.trim())
       && options.map((o) => o.key).sort().join('|') === keys;
-    if (!ok) return 'Варіанти мають зберігати ті самі ключі, з непорожніми label і text';
+    if (!ok) return 'Options must keep the same keys, with non-empty label and text';
   }
   return null;
 }
 
 router.param('id', (req, res, next, id) => {
   if (!mongoose.isValidObjectId(id)) {
-    return res.status(400).json({ message: 'Некоректний id документа' });
+    return res.status(400).json({ message: 'Invalid document id' });
   }
   next();
 });
@@ -75,7 +75,7 @@ const upload = multer({
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(Object.assign(new Error('Непідтримуваний тип файлу. Дозволено: PDF, DOC, DOCX, TXT, MD'), { statusCode: 400 }));
+      cb(Object.assign(new Error('Unsupported file type. Allowed: PDF, DOC, DOCX, TXT, MD'), { statusCode: 400 }));
     }
   }
 });
@@ -103,7 +103,7 @@ router.get('/', auth, async (req, res) => {
     res.json({ policies: policiesWithStatus });
   } catch (error) {
     console.error('Get policies error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -114,7 +114,7 @@ router.get('/:id', auth, async (req, res) => {
       .populate('createdBy', 'firstName lastName');
 
     if (!policy) {
-      return res.status(404).json({ message: 'Документ не знайдено' });
+      return res.status(404).json({ message: 'Document not found' });
     }
 
     res.json({
@@ -125,7 +125,7 @@ router.get('/:id', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Get policy error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -139,27 +139,27 @@ router.post('/',
     // Manual validation since we can't use express-validator array with multer
     if (!req.body.title || !req.body.title.trim()) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Назва обов\'язкова' });
+      return res.status(400).json({ message: 'Title is required' });
     }
     if ((!req.body.content || !req.body.content.trim()) && !req.file) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Зміст обов\'язковий' });
+      return res.status(400).json({ message: 'Content is required' });
     }
     if (req.body.contentType && !['markdown', 'plain'].includes(req.body.contentType)) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Невірний тип контенту' });
+      return res.status(400).json({ message: 'Invalid content type' });
     }
     if (req.body.type === SYLLABUS_POLICY) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Блоки довідника політик створюються сідом, а не через API' });
+      return res.status(400).json({ message: 'Policy library blocks are created by the seed, not through the API' });
     }
     if (!req.body.type || !POLICY_TYPES.includes(req.body.type)) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Невірний тип документа' });
+      return res.status(400).json({ message: 'Invalid document type' });
     }
 
     const { title, type, contentType = 'markdown' } = req.body;
-    const content = req.body.content?.trim() || (req.file ? 'Див. прикріплений файл.' : '');
+    const content = req.body.content?.trim() || (req.file ? 'See the attached file.' : '');
 
     const policyData = {
       title: title.trim(),
@@ -185,7 +185,7 @@ router.post('/',
     await policy.save();
 
     res.status(201).json({
-      message: 'Документ створено успішно',
+      message: 'Document created',
       policy
     });
   } catch (error) {
@@ -194,7 +194,7 @@ router.post('/',
       await fs.unlink(req.file.path).catch(() => {});
     }
     console.error('Create policy error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -208,19 +208,19 @@ router.put('/:id',
     // Manual validation
     if (req.body.title !== undefined && !req.body.title.trim()) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Назва не може бути порожньою' });
+      return res.status(400).json({ message: 'Title cannot be empty' });
     }
     if (req.body.content !== undefined && !req.body.content.trim()) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Зміст не може бути порожнім' });
+      return res.status(400).json({ message: 'Content cannot be empty' });
     }
     if (req.body.contentType && !['markdown', 'plain'].includes(req.body.contentType)) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Невірний тип контенту' });
+      return res.status(400).json({ message: 'Invalid content type' });
     }
     if (req.body.type && !POLICY_TYPES.includes(req.body.type)) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Невірний тип документа' });
+      return res.status(400).json({ message: 'Invalid document type' });
     }
 
     const policy = await Policy.findById(req.params.id);
@@ -229,7 +229,7 @@ router.put('/:id',
       if (req.file) {
         await fs.unlink(req.file.path).catch(() => {});
       }
-      return res.status(404).json({ message: 'Документ не знайдено' });
+      return res.status(404).json({ message: 'Document not found' });
     }
 
     const { title, content, contentType, type, isRequired, isActive } = req.body;
@@ -238,7 +238,7 @@ router.put('/:id',
       const problem = validateLibraryEdit(policy, req.body);
       if (problem || req.file) {
         if (req.file) await fs.unlink(req.file.path).catch(() => {});
-        return res.status(400).json({ message: problem || 'До блоків довідника файли не прикріплюються' });
+        return res.status(400).json({ message: problem || 'Files cannot be attached to library blocks' });
       }
       const options = parseOptions(req.body.options);
       const before = policyMarkdown(policy);
@@ -253,11 +253,11 @@ router.put('/:id',
       if (policy.content !== before) policy.version += 1;
       policy.adminModified = true;
       await policy.save();
-      return res.json({ message: 'Документ оновлено успішно', policy });
+      return res.json({ message: 'Document updated', policy });
     }
     if (type === SYLLABUS_POLICY) {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      return res.status(400).json({ message: 'Невірний тип документа' });
+      return res.status(400).json({ message: 'Invalid document type' });
     }
 
     // Версію піднімаємо, порівнюючи з поточним значенням ДО присвоєння
@@ -295,7 +295,7 @@ router.put('/:id',
     await policy.save();
 
     res.json({
-      message: 'Документ оновлено успішно',
+      message: 'Document updated',
       policy
     });
   } catch (error) {
@@ -303,7 +303,7 @@ router.put('/:id',
       await fs.unlink(req.file.path).catch(() => {});
     }
     console.error('Update policy error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -313,11 +313,11 @@ router.delete('/:id', auth, requireRole('admin'), async (req, res) => {
     const policy = await Policy.findById(req.params.id);
 
     if (!policy) {
-      return res.status(404).json({ message: 'Документ не знайдено' });
+      return res.status(404).json({ message: 'Document not found' });
     }
 
     if (policy.type === SYLLABUS_POLICY) {
-      return res.status(409).json({ message: 'Блоки довідника політик не видаляються; вимкніть блок через isActive' });
+      return res.status(409).json({ message: 'Policy library blocks cannot be deleted; deactivate the block with isActive' });
     }
 
     // Delete associated file if exists
@@ -327,10 +327,10 @@ router.delete('/:id', auth, requireRole('admin'), async (req, res) => {
 
     await Policy.findByIdAndDelete(req.params.id);
 
-    res.json({ message: 'Документ видалено успішно' });
+    res.json({ message: 'Document deleted' });
   } catch (error) {
     console.error('Delete policy error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -340,12 +340,12 @@ router.post('/:id/acknowledge', auth, async (req, res) => {
     const policy = await Policy.findById(req.params.id);
 
     if (!policy) {
-      return res.status(404).json({ message: 'Документ не знайдено' });
+      return res.status(404).json({ message: 'Document not found' });
     }
 
     // Підтвердження чинне лише для поточної версії документа
     if (policy.isAcknowledgedBy(req.user.userId)) {
-      return res.status(400).json({ message: 'Документ вже підтверджено' });
+      return res.status(400).json({ message: 'The document is already approved' });
     }
 
     const existing = policy.acknowledgments.find((ack) => ack.user.toString() === req.user.userId);
@@ -362,12 +362,12 @@ router.post('/:id/acknowledge', auth, async (req, res) => {
     await policy.save();
 
     res.json({
-      message: 'Документ підтверджено успішно',
+      message: 'Document approved',
       acknowledgedAt: new Date()
     });
   } catch (error) {
     console.error('Acknowledge policy error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -377,7 +377,7 @@ router.get('/:id/status', auth, async (req, res) => {
     const policy = await Policy.findById(req.params.id);
 
     if (!policy) {
-      return res.status(404).json({ message: 'Документ не знайдено' });
+      return res.status(404).json({ message: 'Document not found' });
     }
 
     const isAcknowledged = policy.isAcknowledgedBy(req.user.userId);
@@ -394,7 +394,7 @@ router.get('/:id/status', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Get acknowledgment status error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -404,24 +404,24 @@ router.get('/:id/download', auth, async (req, res) => {
     const policy = await Policy.findById(req.params.id);
 
     if (!policy) {
-      return res.status(404).json({ message: 'Документ не знайдено' });
+      return res.status(404).json({ message: 'Document not found' });
     }
 
     if (!policy.attachedFile || !policy.attachedFile.path) {
-      return res.status(404).json({ message: 'Файл не знайдено' });
+      return res.status(404).json({ message: 'File not found' });
     }
 
     // Check if file exists
     try {
       await fs.access(policy.attachedFile.path);
     } catch {
-      return res.status(404).json({ message: 'Файл не знайдено на сервері' });
+      return res.status(404).json({ message: 'The file was not found on the server' });
     }
 
     res.download(policy.attachedFile.path, policy.attachedFile.originalName);
   } catch (error) {
     console.error('Download file error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 

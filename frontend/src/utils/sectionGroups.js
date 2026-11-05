@@ -1,5 +1,6 @@
-// Мапінг 11 розділів шаблону бекенду (TemplateSection) у 8 логічних груп UI
-// та єдиний розрахунок Readiness для Workspace (Header, ліва панель) і Cabinet.
+// Мапінг 11 розділів шаблону бекенду (TemplateSection) у 8 логічних груп UI — лише для відображення.
+// Відсоток Readiness і лічильник затверджених беруться з бекенду (readiness.score, readiness.counts):
+// одна формула для Workspace, лівої панелі, Cabinet і метрики ready100 (аудит A08).
 
 export const UI_SECTIONS = [
   {
@@ -148,8 +149,9 @@ export function resolveGroupStatus(group, backendSections = {}, state = {}) {
   return 'needs_review';
 }
 
-// Єдиний розрахунок Readiness по 8 групах:
-// повертає { groups, approvedCount, totalCount: 8, percent, isEmpty, isAllApproved, label }.
+// Групи для відображення + Readiness з бекенду:
+// повертає { groups, approvedCount, totalCount, percent, isEmpty, isAllApproved, label },
+// де approvedCount / totalCount — затверджені / обов'язкові розділи шаблону (readiness.counts), percent — readiness.score.
 export function computeGroupedReadiness(readiness, state) {
   const backendSections = readiness?.sections || {};
 
@@ -192,17 +194,21 @@ export function computeGroupedReadiness(readiness, state) {
   });
 
   const allEmpty = groups.every((g) => g.isEmpty);
-  const approvedCount = groups.filter((g) => g.isApproved).length;
-  const totalCount = groups.length; // 8
-  const percent = allEmpty ? null : Math.round((approvedCount / totalCount) * 100);
+  const counts = readiness?.counts || {};
+  const approvedCount = Number(counts.approved || 0);
+  const totalCount = Number(counts.required || 0);
+  const score = Number.isFinite(readiness?.score) ? readiness.score : null;
+  // Порожній силабус без затверджених розділів — «—», а не 0% і тим паче не 100%
+  const isEmpty = (allEmpty && !approvedCount) || score === null;
+  const percent = isEmpty ? null : score;
 
   return {
     groups,
     approvedCount,
     totalCount,
     percent,
-    isEmpty: allEmpty,
-    isAllApproved: approvedCount === totalCount,
-    label: allEmpty ? '—' : `${percent}% · ${approvedCount} of ${totalCount} approved`,
+    isEmpty,
+    isAllApproved: totalCount > 0 && approvedCount === totalCount,
+    label: isEmpty ? '—' : `${percent}% · ${approvedCount} of ${totalCount} sections approved`,
   };
 }

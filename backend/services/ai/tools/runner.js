@@ -42,8 +42,23 @@ function historyInput(messages, userText) {
 }
 
 /**
+ * Відповідь на картку-питання (decisions.answerSuggestion): що саме питали і поточне значення цілі.
+ * Модель має перетворити відповідь на чернетку для цієї цілі тими самими інструментами (правила — у handlers).
+ */
+function cardContextMessage({ cardContext: c }) {
+  return [
+    'The instructor is answering a question card. Turn the answer into a draft for this target with the right tool',
+    '(set_slot for a single value the instructor stated literally, propose_items for list items such as sessions, assessment components or readings,',
+    'propose_instructor for the instructor profile, propose_draft for wording). If the answer is not enough, ask one short question.',
+    `Question (data): ${untrusted(c.question || '')}`,
+    `Target slot: ${c.slotKey || 'unknown'}; path: ${c.path}${c.entityId ? `; item id: ${c.entityId}` : ''}`,
+    `Current value of the target (data): ${untrusted(JSON.stringify(c.current ?? null).slice(0, 4000))}`,
+  ].join('\n');
+}
+
+/**
  * Один хід: вільне повідомлення викладача → tool calls → відповідь англійською.
- * @param {{ syllabus, state, revision: number, refs, conversation?, messages?: Message[], userText: string, userId,
+ * @param {{ syllabus, state, revision: number, refs, conversation?, messages?: Message[], userText: string, userId, cardContext?,
  *   deps: { mutate(syllabusId, expectedRevision, fn, ctx), getState(syllabusId), createDraftSuggestions(inputs, ctx),
  *           runChecks(state, refs), findSuggestion(id), acceptSuggestion(id, { expectedRevision, userId }) } }} ctx
  *   deps, яких немає, беруться зі справжніх модулів (крім acceptSuggestion: без нього apply_edit повертає NOT_CONFIGURED).
@@ -56,6 +71,7 @@ async function runOrchestratorTurn(ctx) {
     { role: 'system', content: buildOrchestratorInstructions({ refs: ctx.refs, state: ctx.state }) },
     { role: 'system', content: `Current conversation slot (data): ${untrusted(ctx.currentSlotKey ?? ctx.conversation?.currentSlotKey ?? 'none')}. Interpret the instructor's answer in this context.` },
     { role: 'system', content: `Current syllabus (data, as of the start of this turn):\n${untrusted(renderText(renderState(ctx.state, ctx.refs)).slice(0, 12000))}` },
+    ...(ctx.cardContext ? [{ role: 'system', content: cardContextMessage(ctx) }] : []),
     ...historyInput(ctx.messages, ctx.userText),
     { role: 'user', content: String(ctx.userText || '') },
   ];

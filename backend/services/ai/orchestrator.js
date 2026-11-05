@@ -9,7 +9,7 @@ const store = require('../syllabusState/store');
 const { renderState, renderText } = require('../syllabusState/render');
 const references = require('../references');
 const { parseToState } = require('./parse');
-const { checksToCards, policyCards, courseHintCards } = require('./parse/cards');
+const { checksToCards, policyCards, courseHintCards, ploConfirmCards } = require('./parse/cards');
 const { reviewState } = require('./prompts/reviewer');
 const { runChecks, runLlmChecks } = require('../checks');
 const { createDraftSuggestions } = require('../chat/draftSuggestions');
@@ -60,7 +60,8 @@ async function analyzeSyllabus(syllabusId, { leaseToken } = {}) {
   await setStage(syllabusId, 'parse', leaseToken);
   const parsed = await parseToState({
     blocks, meta: { title: syllabus.title, courseName: syllabus.course?.name }, programCode: syllabus.programCode, refs,
-    course: { title: syllabus.course?.name || syllabus.title },
+    // Код курсу з призначення (курс × набір) або з форми upload: файл його може не містити
+    course: { title: syllabus.course?.name || syllabus.title, code: syllabus.course?.code || null, fromOffering: Boolean(syllabus.offeringId) },
   });
   for (const warning of parsed.warnings) console.warn(`parse ${String(syllabusId)}: ${warning}`);
   const instructorCard = prepareInstructor(parsed.state, await resolveProfile(syllabus.instructor, { excludeSyllabusId: syllabusId }));
@@ -89,6 +90,7 @@ async function analyzeSyllabus(syllabusId, { leaseToken } = {}) {
     ...checksToCards([...checks, ...softChecks], state),
     ...policyCards(state, refs, { lockedNotes: parsed.lockedNotes }),
     ...courseHintCards(parsed.courseHint),
+    ...ploConfirmCards(state, refs),
   ];
 
   // 3. review: Ревізор оцінює якість формулювань вільних розділів

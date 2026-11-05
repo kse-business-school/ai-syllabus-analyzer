@@ -4,6 +4,9 @@ const ProgramOutcome = require('../models/ProgramOutcome');
 const Program = require('../models/Program');
 const references = require('../services/references');
 const { sendError } = require('../utils/httpError');
+const editor = require('../services/references/editor');
+const { syncOfferingSyllabi } = require('../services/offerings');
+const { PROGRAMME_ROLES } = require('../services/roles');
 
 // Довідники v5 за programCode (docs/api-v5.md §6 «Довідники»)
 const router = express.Router();
@@ -36,6 +39,34 @@ router.patch('/:programCode/outcomes/:outcomeCode', requireRole('admin', 'manage
     references.invalidateCache();
     res.json({ code: outcome.code, label: outcome.label, text: outcome.text });
   } catch (error) { sendError(res, error); }
+});
+
+// Редактор довідників набору (Library у кабінеті): увесь перелік замінюється одним запитом
+const programmeStaff = requireRole(...PROGRAMME_ROLES);
+
+router.put('/:programCode/outcomes', programmeStaff, async (req, res) => {
+  try {
+    const programCode = await references.assertKnownProgramCode(req.params.programCode);
+    res.json(await editor.saveOutcomes(programCode, req.body.outcomes, { userId: req.user.userId }));
+  } catch (err) { sendError(res, err); }
+});
+
+router.put('/:programCode/courses', programmeStaff, async (req, res) => {
+  try {
+    const programCode = await references.assertKnownProgramCode(req.params.programCode);
+    const { courses, changedCodes } = await editor.saveCourses(programCode, req.body.courses, { userId: req.user.userId });
+    // Курс став (або перестав бути) нормативним: courseKind силабусів набору перераховується одразу
+    let resynced = 0;
+    for (const courseCode of changedCodes) resynced += await syncOfferingSyllabi({ programCode, courseCode });
+    res.json({ courses, resynced });
+  } catch (err) { sendError(res, err); }
+});
+
+router.put('/:programCode/capstone', programmeStaff, async (req, res) => {
+  try {
+    const programCode = await references.assertKnownProgramCode(req.params.programCode);
+    res.json(await editor.saveCapstone(programCode, req.body || {}, { userId: req.user.userId }));
+  } catch (err) { sendError(res, err); }
 });
 
 router.get('/:programCode/:kind(template|outcomes|courses|capstone)', async (req, res) => {

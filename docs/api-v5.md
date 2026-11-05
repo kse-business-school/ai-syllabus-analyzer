@@ -47,13 +47,19 @@
 |---|---|
 | `TemplateSection { programCode, key, order, docNumber, docTitle, title, required, nature, slotTypes, question, fixtureRef, computeFrom }` | `template.sections.json` |
 | `ProgramOutcome { programCode, code, text, themeDraft, order }` | `learning-outcomes.json` |
-| `OutcomeMapping { from, to, pairs[{ from, to, change }] }` | `learning-outcomes.json.mapping27to28` |
+| `OutcomeMapping { from, to, pairs[{ from, to, change }] }` | `learning-outcomes.json.mappings[{ from, to, pairs }]` (будь-які пари наборів) |
 | `ProgramCourse { programCode, code, uk, en, ects }` | `programme-courses.json` |
-| `CapstoneGuide { programCode, version, projectTypes, structure, criteria, deliverables, plagiarismThreshold }` | `capstone.criteria.json` (поки однаковий для MBA27/MBA28) |
+| `CapstoneGuide { programCode, version, projectTypes, structure, criteria, deliverables, plagiarismThreshold }` | `capstone.criteria.json`; набори, для яких він діє, — поле `programCodes` |
 | `Policy` з `type: 'syllabus-policy'`: `key`, `order`, `mode`, `blockRequired`, `rationale`, `titleUk`, `options[{ key, label, text }]`, `text` (locked), `libraryVersion` | `policies.library.json`. `content` — markdown з усіма варіантами для сторінки Documents |
 | Каталоги `assessment-components`, `prerequisites`, `compensation`, `ai-tools` | Поки порожні stub-и. Відповідні B-слоти деградують до C |
 
-- `Program.editions: [{ code, label }]`. Сід: MBA → MBA27, MBA28.
+- `Program { code, name, editions: [{ code, label }] }`. Перший запуск — `programs.json`: сід лише створює відсутні програми з їхніми наборами; наявні не змінює (видалений адміністратором набір не повертається, підписи не затираються). Нові набори фікстури для наявних програм додає `scripts/migrate-v5-references.js`.
+- Набори керує admin: `POST /api/cabinet/programs { name, code, editions? }`, `PUT /api/cabinet/programs/:id { name?, academicDirectorEmail?, editions? }`. `editions` — повний список у порядку від найстаршого до найновішого; новий набір з `copyFrom: '<код набору>'` отримує копію ПРН (з мітками), нормативних курсів і Capstone цього набору (призначення курсів не копіюються). Помилки: 400 `INVALID_EDITION_CODE` (код — `[A-Z0-9][A-Z0-9._-]{0,31}`), `DUPLICATE_EDITION`, `UNKNOWN_PROGRAM_CODE` (невідомий `copyFrom`); 409 `EDITION_CODE_TAKEN` (код набору або програми без наборів уже належить іншій програмі), `EDITION_IN_USE { edition, syllabi, offerings }` (на набір посилаються силабуси чи призначення).
+- **Редактор довідників набору** (Library → Programme outcomes / Core courses / Capstone guide; manager / director / admin). Кожен запит замінює весь перелік і ставить `ReferenceOverride { programCode, kind }`, після чого сід з фікстур цей довідник набору не перезаписує й видалених записів не повертає:
+  - `PUT /api/references/:programCode/outcomes { outcomes: [{ code, text, label }] }` — порядок = порядок масиву; дубль коду (з нормалізацією «PRN1» ≡ «ПРН1») → 400; ПРН, з яким пов'язані CLO силабусів набору, не видаляється — 409 `OUTCOME_IN_USE { codes, syllabi }`.
+  - `PUT /api/references/:programCode/courses { courses: [{ code, uk, en, ects }] }` → `{ courses, resynced }`; для доданих і прибраних курсів `courseKind` силабусів набору перераховується (як після зміни призначення).
+  - `PUT /api/references/:programCode/capstone { criteria: [{ key?, name, weight (0–1), description }], projectTypes: [{ key?, label }], structure: [String] }` — ваги в сумі 100%; ключ критерію без `key` — з назви; критерій, який силабуси набору вже називають у `summary.capstone.criteriaKeys`, не видаляється — 409 `CRITERION_IN_USE`.
+- Програма без наборів використовує свій `code` як `programCode`. Найновіший набір (останній у списку) — значення за замовчуванням у формі створення, перемикачі набору й міграціях (`--default-edition` перекриває його лише для програми, якій належить).
 - Читання довідників — лише через `services/references`, а політик — через `services/references/policies.js`. Сід ідемпотентний, на старті (`services/references/seed.js`).
 
 ## 3. Перевірки (`services/checks`)
@@ -201,6 +207,8 @@ readiness = {
 | `get_slot(key)` | Читає поточне значення | Текст документа повертається як недовірені дані |
 | `set_slot(key, value)` | Записує відповідь | Лише `free`-слоти типу A/C, скаляр, значення має бути в останній репліці викладача. Число для `header.ects`/`header.totalHours` має стояти поруч (≤ 3 слова) з назвою поля («6 ECTS», «120 hours») або бути короткою відповіддю на питання саме про це поле, інакше `AMBIGUOUS_VALUE` (модель уточнює) |
 | `propose_draft(key, text, instruction?)` | Створює pending Suggestion | Для політик `instruction` — дослівна цитата з **останньої** репліки викладача; без цитати — лише якщо розмову переведено на цю політику кнопкою «Write my own» (`currentSlotKey === writeOwnPolicyKey === key`), інакше `POLICY_NEEDS_INSTRUCTION` |
+| `propose_items(key, mode, items[])` | Створює pending Suggestion для списку сутностей | `key` ∈ `schedule.sessions`, `schedule.individual_work`, `assessment.components`, `assessment.compensation`, `materials.required`, `materials.recommended`. `mode: append` — додає нові (`id: null`) і править наявні за `id` (null-поля не змінюються); `replace` — список стає рівно таким. Сутності за `schema.js` будує сервер (`slotDrafts.itemsDraft`); числа, дати й назви, яких не казав викладач, — `proposedValues` з `path: '[<id>].<поле>'` (число — лише з тією самою одиницею). URL — лише названі викладачем (`UNVERIFIED_URL`) |
+| `propose_instructor(name, position, email, office_hours, assistants, expertise, education, experience)` | Pending Suggestion для `instructors[]` | null — без змін; факти (email, години) — `proposedValues` полів; accept оновлює й профіль лектора |
 | `apply_edit(draftId)` | Застосовує чернетку | Лише підтверджена чернетка без непідтверджених `proposedValues`, і лише картка, яку зараз показано: `draftId === Conversation.currentSuggestionId` і саме вона — останнє повідомлення AI перед реплікою-підтвердженням. Інакше `NEEDS_CONFIRM` (`reason: not_current_card`): «yes» на «Shall I look for readings?» не застосовує іншу pending-картку |
 | `run_checks()` | Повертає Check[] і Readiness | — |
 
@@ -210,17 +218,21 @@ readiness = {
 
 | Додатково | Дія |
 |---|---|
-| `propose_draft(key, text, instruction?, entity_id?, proposed_values[])` | `entity_id` — для `assessment.criteria` і `schedule.additional` |
+| `propose_draft(key, text, instruction?, entity_id?, proposed_values[])` | `entity_id` — для `assessment.criteria` і `schedule.additional`; `course.prerequisites` без каталогу — текст (деградація B → C) |
 | `suggest_plo(outcome_ids)` | Картки `outcomes[<id>].plo` через `prompts/loMapping.js` (`confirmed: false`) |
 | `suggest_readings(query)` | Картка `materials.recommended[]` через `prompts/readings.js`; лише з перевіреним URL, інакше нічого |
 
-Коди помилок інструментів: `LOCKED`, `UNKNOWN_SLOT`, `SLOT_NOT_WRITABLE`, `NOT_SCALAR`, `USE_PROPOSE_DRAFT`, `AMBIGUOUS_VALUE`, `POLICY_NEEDS_INSTRUCTION`, `SLOT_NOT_DRAFTABLE`, `UNKNOWN_ENTITY`, `UNVERIFIED_URL`, `NEEDS_CONFIRM`, `ONE_WRITE_PER_TURN` та коди `accept` (`STALE_DRAFT` тощо).
+Коди помилок інструментів: `LOCKED`, `UNKNOWN_SLOT`, `SLOT_NOT_WRITABLE`, `NOT_SCALAR`, `USE_PROPOSE_DRAFT`, `USE_PROPOSE_ITEMS`, `USE_PROPOSE_INSTRUCTOR`, `SLOT_NOT_LIST`, `NO_CHANGE`, `AMBIGUOUS_VALUE`, `POLICY_NEEDS_INSTRUCTION`, `SLOT_NOT_DRAFTABLE`, `UNKNOWN_ENTITY`, `UNVERIFIED_URL`, `NEEDS_CONFIRM`, `ONE_WRITE_PER_TURN` та коди `accept` (`STALE_DRAFT` тощо).
+
+**Відповідь на картку-питання** (`POST …/suggestions/:sid/answer`) маршрутизується за ціллю: політика → картка стає `choice` (дослівна відповідь викладача або варіант довідника, без дефолту); наративні D-слоти → формулювальник; решта → хід оркестратора з `ctx.cardContext` (питання, шлях, поточне значення) без `acceptSuggestion`. Чернетка ходу переноситься в саму картку (`question → edit`, нова `target`), значення, записане `set_slot`, закриває питання як `accepted`; без результату картка лишається питанням з `answer`.
+
+**«Change the value» для чернетки списку:** `proposedValues` з `path: '[<id>].<поле>'` змінюють поле сутності в `draft.value` (числа лишаються числами, інакше 400 `INVALID_VALUE`); `draft.template` картки не змінюється.
 
 `runOrchestratorTurn(ctx)`: `ctx.deps = { mutate(syllabusId, expectedRevision, fn, ctx), getState(syllabusId), createDraftSuggestions(inputs, ctx), runChecks(state, refs), findSuggestion(id), acceptSuggestion(id, { expectedRevision, userId }) }`. Перші п'ять мають дефолти (`store.mutate`, `store.getState`, `draftSuggestions.createDraftSuggestions`, `checks.runChecks`, `Suggestion.findById`); `acceptSuggestion` реалізує сервіс рішень чату, без нього `apply_edit` повертає `NOT_CONFIGURED`.
 
 ## 9. Спільні модулі та інтерфейси (W2)
 
-- **`services/ai/facts.js` — серверний сканер фактів.** `scanFacts(text, { known })`, `mergeProposedValues(modelValues, scanned)`, `toTemplate`, `renderTemplate`. Застосовується до **кожної** чернетки моделі; `known` = репліки викладача (лише `origin: instructor`) + тексти довідників + людський текст поточного значення слота (`chat/known.readableText`, без id, `blockIds` і провенансу). Числа рахуються лише як окремі слова: `clo3`, `b0012`, `obj2` чисел не дають.
+- **`services/ai/facts.js` — серверний сканер фактів.** `scanFacts(text, { known })`, `isKnownFact(label, value, corpusOf(known))`, `mergeProposedValues(modelValues, scanned)`, `toTemplate`, `renderTemplate`. Факт «відомий» лише в тому самому контексті: кількість — те саме число з тією самою одиницею поруч (≤ 3 слова: «48 students» не робить відомим «48 hours»), відсоток — число з `%`/percent, дата — ті самі день/місяць/рік, назва в лапках — точний збіг; голе число — будь-де в корпусі. Застосовується до **кожної** чернетки моделі; `known` = репліки викладача (лише `origin: instructor`) + тексти довідників + людський текст поточного значення слота (`chat/known.readableText`, без id, `blockIds` і провенансу). Числа рахуються лише як окремі слова: `clo3`, `b0012`, `obj2` чисел не дають.
 - **`services/chat/draftSuggestions.js` — створення v5-карток.** `buildDraftSuggestion(input, { syllabusId, state, refs, known })` і `createDraftSuggestions(inputs, ctx)`; `hashValue(value)` дає `basisHash`. Порядок: severity (`SEVERITY_ORDER`) × 100 + `TemplateSection.order`.
   - **URL.** Будь-який URL у `text`/`value` чернетки (Reword, answer, Ревізор, formulator, оркестратор), якого немає в `known` чи в поточному значенні слота і який не перевірений (`sources[]` з `verified: true` — їх заздалегідь перевіряє `readings.js` через `caseSources.verifyUrl`), вирізається синхронно (`caseSources.stripUrls`); поле `url`, що спорожніло, стає `null` (`verified: false`), а до опису картки додається «Source not confirmed: an unverified link was removed from this draft.»
 - **`target.path` — конкретний шлях стану.** Приклади: `summary.shortDescription`, `outcomes[]` (увесь масив), `assessments[as1].criteria`, `policies{policy.late}`.
@@ -242,10 +254,12 @@ readiness = {
 
 Усі маршрути — `manager` / `director` / `admin` (крім читання власних призначень викладачем).
 
+**Силабус належить призначенню.** `POST /api/syllabus` і `/upload` беруть `offeringId` або знаходять призначення за `programCode` + `courseCode` (регістр і пробіли не важать). Чуже призначення → 403 `OFFERING_FORBIDDEN`; пара курс × набір уже має силабус → 409 `OFFERING_TAKEN { syllabusId }` (унікальний індекс `Syllabus.offeringId`). Код курсу прив'язаного силабуса через `PUT /api/syllabus/:id` не змінюється (400 `OFFERING_COURSE_LOCKED`). Трек 2 бере код курсу з призначення (пріоритет над файлом) або з форми, якщо у файлі коду немає.
+
 | Маршрут | Призначення |
 |---|---|
 | `GET /cabinet/offerings?programCode=` | призначення курс × набір; викладач бачить лише свої |
-| `POST /cabinet/offerings`, `PUT /:id`, `DELETE /:id` | CRUD призначень (`courseCode`, `type`, `lecturerId`, `deadline`); дубль → 409, видалення з силабусами → 409 |
+| `POST /cabinet/offerings`, `PUT /:id`, `DELETE /:id` | CRUD призначень (`courseCode`, `type`, `lecturerId`, `deadline`); `programCode` — лише редакція з `Program.editions` (400 `UNKNOWN_PROGRAM_CODE`), `lecturerId` — наявний активний користувач (400 `UNKNOWN_LECTURER`), `courseCode` довільний; дубль → 409 `OFFERING_EXISTS`, видалення з силабусами → 409 `OFFERING_IN_USE`. Після запису кеш довідників скидається, E-поля силабусів пари перераховуються (`store.mutate`), затвердження At a Glance і Learning Outcomes знімається, якщо змінився `courseKind` |
 | `GET /cabinet/lecturers` | `{ lecturers[{ _id, firstName, lastName, email, role }] }` для вибору в призначенні |
 | `GET /cabinet/plo-coverage?programCode=` | матриця покриття ПРН; невідомий код → 404 `UNKNOWN_PROGRAM_CODE` |
 
@@ -254,13 +268,15 @@ readiness = {
 ```
 { programCode,
   courses:  [{ offeringId, courseCode, courseName, type, syllabusId|null,
-               cells: { <PLO code>: { weight, clos: [{ id, text, coverage, assessments: [{ id, name, weight }] }] } } }],
+               cells: { <PLO code>: { weight, clos: [{ id, text, coverage, assessments: [{ id, name, weight }] }],
+                                      unconfirmed: [{ id, text, coverage }] } } }],
   outcomes: [{ code, text, sum, uncovered }] }
 ```
 
 - `weight`: `full` = 1, `partial` = 0,5, відсутня клітинка = 0. Для кількох CLO на один ПРН береться максимум, як у перевірці `plo.coverage`.
 - `sum` — Σ по курсах; `uncovered: true` при Σ = 0 (програма обіцяє результат, якого не дає жоден курс набору).
-- Силабус призначення: за `offeringId`, інакше (старі силабуси) за `programCode` + код курсу; з кількох береться найсвіжіший зі `state`. Силабуси в `analyzing` / `error` не враховуються. Курс без силабуса лишається порожнім стовпцем.
+- Зараховуються лише підтверджені зв'язки (`plo[].confirmed: true`); непідтверджені (з файлу чи від моделі) — у `unconfirmed`, у `weight` і Σ не входять. Те саме правило в перевірці `plo.coverage`; трек 2 створює картку `plo.confirm:<clo>` на кожен CLO зі зв'язками з файлу.
+- Силабус призначення: за `offeringId`, інакше (старі силабуси) за `programCode` + код курсу і лише якщо автор — `lecturerId` призначення; з кількох береться найсвіжіший зі `state`. Силабуси в `analyzing` / `error` не враховуються. Курс без силабуса лишається порожнім стовпцем.
 - Збирає `services/plo/coverage.js` (чиста функція `buildCoverage`).
 
 ## 11. Матеріали доповнення 29.10 і межа часткового релізу

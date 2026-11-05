@@ -1,7 +1,7 @@
 // Трек 1 (ТЗ v2.1): інтерв'юер + розповідь → чернетки + мапінг PLO + політики-картки. Мережі немає: мокається лише
-// services/ai/client (інтерв'юер, формулювальник і мапінг PLO ходять у справжній код), оркестратор — як у chat.test.js.
+// services/ai/client.createResponse. Інтерв'юер, формулювальник, мапінг PLO і оркестратор (runner → handlers →
+// propose_items) — справжній код: сесії, оцінювання й матеріали потрапляють у стан лише через картки й Confirm (аудит A02).
 jest.mock('../services/ai/client', () => ({ ...jest.requireActual('../services/ai/client'), createResponse: jest.fn() }));
-jest.mock('../services/ai/tools/runner', () => ({ runOrchestratorTurn: jest.fn() }));
 
 const helpers = require('./helpers');
 const request = require('supertest');
@@ -14,7 +14,6 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const store = require('../services/syllabusState/store');
 const flow = require('../services/chat/flow');
-const { setPath } = require('../services/syllabusState/paths');
 const { createEmptyState } = require('../services/syllabusState/empty');
 const { SLOTS, sectionGaps } = require('../services/syllabusState/slots');
 const { loadFixtureRefs } = require('../services/references/fixtureRefs');
@@ -36,28 +35,40 @@ const DRAFTS = {
   'course.outcomes': 'Prepare a negotiation plan for a complex deal\nAnalyze the interests of the counterpart',
   'course.capstone': 'This course prepares you for the analytical depth of your Capstone project.',
 };
-const entity = { source: 'instructor_directed', evidenceBlockIds: [] };
-const WRITES = {
-  'schedule.sessions': (st) => setPath(st, 'sessions[]', [
-    { id: 's1', n: 1, topic: 'Interests and positions', type: 'lecture', hours: 2, format: null, guest: null, additional: null, date: null, time: null, ...entity },
-  ]),
-  'assessment.criteria': (st) => setPath(st, 'assessments[]', [
-    { id: 'as1', name: 'Negotiation simulation', fixtureRef: null, weight: 60, criteria: 'Preparation and outcome quality.', deadline: '2026-12-01', isParticipation: false, isControl: false, outcomeIds: [], ...entity },
-    { id: 'as2', name: 'Final paper', fixtureRef: null, weight: 40, criteria: 'Depth of analysis.', deadline: '2026-12-15', isParticipation: false, isControl: false, outcomeIds: [], ...entity },
-  ]),
-  'materials.required': (st) => setPath(st, 'materials.required[]', [
-    { id: 'm1', citation: 'Fisher, Ury. Getting to Yes.', url: null, verified: false, ...entity },
-  ]),
+// Що «модель-оркестратор» пропонує інструментом propose_items на відповідь про кожен слот
+const SESSION_TOPICS = ['Interests and positions', 'BATNA', 'Value creation', 'Anchoring', 'Team negotiations', 'Final simulation'];
+const item = (fields) => ({
+  id: null, label: '', hours: null, weight: null, type: null, format: null, date: null, time: null, deadline: null, criteria: null, guest: null, url: null, group: null, ...fields,
+});
+const ORCHESTRATOR_ITEMS = {
+  'schedule.sessions': { key: 'schedule.sessions', mode: 'append', items: SESSION_TOPICS.map((label) => item({ label, hours: 2, type: 'lecture' })) },
+  'assessment.criteria': { key: 'assessment.components', mode: 'append', items: [
+    item({ label: 'Negotiation simulation', weight: 60, deadline: '2026-12-01', criteria: 'Preparation and outcome quality.' }),
+    item({ label: 'Final paper', weight: 40, deadline: '2026-12-15', criteria: 'Depth of analysis.' }),
+  ] },
+  // Модель переформулювала назву: дослівно викладач її не казав → proposedValue для підтвердження
+  'materials.required': { key: 'materials.required', mode: 'append', items: [item({ label: 'Fisher, R., Ury, W. Getting to Yes.' })] },
 };
+const SLOT_RE = /\b(?:course|schedule|assessment|materials|instructor|glance)\.[a-z_]+/;
 
 let owner;
 const created = [];
 const auth = () => ({ Authorization: `Bearer ${helpers.tokenFor(owner)}` });
 const post = (s, path, body = {}) => request(app).post(`/api/chat/${s._id}${path}`).set(auth()).send(body);
 
-/** Модель-скрипт: відповідь за ім'ям strict json_schema. */
+/**
+ * Модель-скрипт: оркестратор (виклик з tools) — один propose_items для поточного слота, потім текстова відповідь;
+ * решта — відповідь за ім'ям strict json_schema.
+ */
 function scriptedModel() {
   createResponse.mockImplementation(async (args) => {
+    if (args.tools) {
+      const done = args.input.some((i) => i.type === 'function_call_output');
+      const slot = (SLOT_RE.exec(String(args.input[1].content)) || [])[0];
+      const call = ORCHESTRATOR_ITEMS[slot];
+      if (done || !call) return { output_text: done ? 'The draft is on a card. Press Confirm to save it.' : 'Noted.', output: [] };
+      return { output: [{ type: 'function_call', call_id: `call_${slot}`, name: 'propose_items', arguments: JSON.stringify(call) }] };
+    }
     const name = args.text.format.name;
     const user = args.input[1].content;
     const respond = (v) => ({ output_text: JSON.stringify(v) });
@@ -78,16 +89,6 @@ function scriptedModel() {
       return respond({ mappings: ids.map((outcomeId) => ({ outcomeId, plo: codes.slice(0, 2).map((code) => ({ code, coverage: 'full', reason: 'Matches the wording.' })) })) });
     }
     throw new Error(`unexpected LLM call: ${name}`);
-  });
-}
-
-/** Оркестратор: «розуміє» відповідь на питання поточного слота й пише стан (як це робили б інструменти). */
-function scriptedRunner() {
-  runner.runOrchestratorTurn.mockImplementation(async (ctx) => {
-    const write = WRITES[ctx.currentSlotKey];
-    if (!write) return { reply: 'Noted.', createdSuggestionIds: [], stateChanged: false, currentSlotKey: ctx.currentSlotKey, revision: ctx.revision };
-    const r = await store.mutate(ctx.syllabus._id, ctx.revision, write, { by: ctx.userId, source: 'instructor_directed', refs: ctx.refs });
-    return { reply: 'Saved.', createdSuggestionIds: [], stateChanged: true, currentSlotKey: null, revision: r.revision };
   });
 }
 
@@ -114,9 +115,16 @@ function expectNoTwoQuestionsInARow(messages) {
   });
 }
 
+/** Confirm кожної pending-картки; непідтверджені proposedValues спершу підтверджуються (як робить кнопка Confirm у UI). */
 async function acceptAllPending(s) {
   let guard = 0;
   for (let c = await pending(s); c.length && guard < 20; c = await pending(s), guard += 1) {
+    const unconfirmed = (c[0].draft?.proposedValues || []).filter((v) => !v.confirmed);
+    if (unconfirmed.length) {
+      expect((await post(s, `/suggestions/${c[0]._id}/accept`, {})).body.code).toBe('UNCONFIRMED_VALUES');
+      const values = await post(s, `/suggestions/${c[0]._id}/values`, { values: unconfirmed.map((v) => ({ id: v.id, confirmed: true })) });
+      expect(values.status).toBe(200);
+    }
     const res = await post(s, `/suggestions/${c[0]._id}/accept`, {});
     expect(res.status).toBe(200);
   }
@@ -132,9 +140,10 @@ afterAll(async () => {
   await helpers.disconnectDb();
 });
 beforeEach(() => {
+  jest.restoreAllMocks();
   jest.clearAllMocks();
   scriptedModel();
-  scriptedRunner();
+  jest.spyOn(runner, 'runOrchestratorTurn');
   jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(() => console.error.mockRestore());
@@ -195,9 +204,14 @@ describe('skip і стрибок у розділ', () => {
     expect((await Conversation.findOne({ syllabusId: s._id })).currentSlotKey).toBe('assessment.criteria');
     expect(runner.runOrchestratorTurn).not.toHaveBeenCalled();
     expectNoTwoQuestionsInARow(messages);
-    // Відповідь іде в оркестратор зі слотом оцінювання
-    await post(s, '/message', { text: 'A simulation (60%) and a final paper (40%).' });
+    // Відповідь іде в оркестратор зі слотом оцінювання; компоненти — картка propose_items, у стан без Confirm не потрапляють
+    await post(s, '/message', { text: 'A negotiation simulation (60%) and a final paper (40%).' });
     expect(runner.runOrchestratorTurn).toHaveBeenCalledWith(expect.objectContaining({ currentSlotKey: 'assessment.criteria' }));
+    const [card] = await pending(s);
+    expect(card).toMatchObject({ origin: 'orchestrator', kind: 'edit', target: { path: 'assessments[]' } });
+    // Дедлайни 2026-12-01 / 2026-12-15 викладач не називав → окремі proposedValues полів
+    expect(card.draft.proposedValues.map((v) => [v.path, v.value])).toEqual([['[as1].deadline', '2026-12-01'], ['[as2].deadline', '2026-12-15']]);
+    expect((await store.getState(s._id)).state.assessments).toEqual([]);
   });
 
   test('повторний postNextStep при відкритому питанні не додає друге питання', async () => {
@@ -228,14 +242,26 @@ describe('сценарний діалог треку 1', () => {
     // 2. Сесії → відповідь; індивідуальну роботу пропускаємо; 3. оцінювання; 4. матеріали
     let current = (await Conversation.findOne({ syllabusId: s._id })).currentSlotKey;
     expect(current).toBe('schedule.sessions');
-    await post(s, '/message', { text: 'Six sessions, two academic hours each.' });
+    await post(s, '/message', { text: `Six two-hour lectures: ${SESSION_TOPICS.join(', ')}.` });
+    // Чернетка сесій — картка: до Confirm стан порожній, наступного питання немає
+    expect((await store.getState(s._id)).state.sessions).toEqual([]);
+    const [sessionsCard] = await pending(s);
+    expect(sessionsCard).toMatchObject({ target: { path: 'sessions[]' } });
+    expect(sessionsCard.draft.proposedValues).toEqual([]); // години й теми названо викладачем
+    await acceptAllPending(s);
+    expect((await store.getState(s._id)).state.sessions.map((x) => [x.n, x.topic, x.hours])).toEqual(SESSION_TOPICS.map((t, i) => [i + 1, t, 2]));
     current = (await Conversation.findOne({ syllabusId: s._id })).currentSlotKey;
     expect(current).toBe('schedule.individual_work');
     await post(s, '/skip', { slotKey: 'schedule.individual_work' });
     expect((await Conversation.findOne({ syllabusId: s._id })).currentSlotKey).toBe('assessment.criteria');
-    await post(s, '/message', { text: 'A simulation and a final paper with criteria and deadlines.' });
+    await post(s, '/message', { text: 'A negotiation simulation, 60%, due 2026-12-01, graded on preparation and outcome quality; a final paper, 40%, due 2026-12-15, graded on depth of analysis.' });
+    expect((await pending(s))[0].draft.proposedValues).toEqual([]);
+    await acceptAllPending(s);
     expect((await Conversation.findOne({ syllabusId: s._id })).currentSlotKey).toBe('materials.required');
     await post(s, '/message', { text: 'Getting to Yes by Fisher and Ury.' });
+    const [materialsCard] = await pending(s);
+    expect(materialsCard.draft.proposedValues.map((v) => v.value)).toEqual(['Fisher, R., Ury, W. Getting to Yes.']);
+    await acceptAllPending(s);
 
     // 5. Політики — картки policy-choice, а не питання інтерв'юера: обираємо перший варіант кожної
     let guard = 0;
