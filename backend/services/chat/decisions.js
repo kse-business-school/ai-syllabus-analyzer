@@ -145,6 +145,7 @@ async function acceptSuggestion(syllabusId, suggestionId, opts = {}, userId) {
 }
 
 async function acceptUnderLock(syllabusId, suggestionId, { optionId = null, expectedRevision } = {}, userId, lock) {
+  if (lock) await reconcileCourseCode(syllabusId); // R04: довершити незавершене узгодження перед новою прив'язкою
   const ctx = await context(syllabusId, suggestionId, userId);
   const { suggestion: s, conversation } = ctx;
   if (s.status !== 'pending') throw notPending();
@@ -579,7 +580,11 @@ async function reopenSuggestion(syllabusId, suggestionId, userId) {
 async function reopenUnderLock(syllabusId, suggestionId, userId) {
   const ctx = await context(syllabusId, suggestionId, userId);
   const { suggestion: s, conversation } = ctx;
-  if (s.status === 'pending') throw httpError(409, 'This suggestion is already open.', { code: 'NOT_DECIDED' });
+  if (s.status === 'pending') {
+    // R04: повтор Reopen картки коду довершує узгодження метаданих, якщо минулого разу воно не вдалося
+    if (s.target.path === 'header.courseCode' && await reconcileCourseCode(syllabusId)) return s;
+    throw httpError(409, 'This suggestion is already open.', { code: 'NOT_DECIDED' });
+  }
 
   const changes = s.status === 'accepted' ? await lastAcceptChanges(syllabusId, s) : [];
   const claimed = await Suggestion.findOneAndUpdate(
@@ -604,8 +609,16 @@ async function reopenUnderLock(syllabusId, suggestionId, userId) {
       });
       throw err;
     }
-    // N06: відкат коду курсу відкочує й прив'язку — метадані й offeringId узгоджуються з кодом у стані
-    if (s.target.path === 'header.courseCode') await reconcileCourseCode(syllabusId);
+    // N06: відкат коду курсу відкочує й прив'язку — метадані й offeringId узгоджуються з кодом у стані.
+    // R04: збій узгодження — 503 retryable; повтор Reopen (або наступна дія з карткою коду) довершує його
+    if (s.target.path === 'header.courseCode') {
+      try {
+        await reconcileCourseCode(syllabusId);
+      } catch (err) {
+        console.warn(`course code reconcile after reopen failed for ${String(syllabusId)}: ${err.message}`);
+        throw httpError(503, 'The section was reopened, but the course assignment is not updated yet. Press Reopen again to finish.', { code: 'RECONCILE_INCOMPLETE', retryable: true });
+      }
+    }
   }
   await postServerMessage(conversation, `Back to: ${s.title}`, s._id);
   await afterDecision(conversation, { card: claimed });

@@ -456,3 +456,73 @@ describe('N01–N11 — залишкові знахідки повторної �
     expect(await Program.exists({ code: 'N11P' })).toBeNull();
   });
 });
+
+describe('R01–R04 — друга повторна перевірка Codex', () => {
+  test('R01: syncCodeRegistry не чіпає довідників коду, який використовує чинна програма (застарілий рядок реєстру)', async () => {
+    const p = (await programs.createProgram({ name: 'R01', code: 'R01P', editions: [{ code: 'R01X', copyFrom: 'MBA28' }] })).program;
+    const before = await ProgramOutcome.countDocuments({ programCode: 'R01X' });
+    expect(before).toBeGreaterThan(0);
+    // Рядок реєстру вказує на неіснуючу програму, а код насправді належить p
+    const ghost = new (require('mongoose').Types.ObjectId)();
+    await ProgramCode.updateOne({ code: 'R01X' }, { $set: { programId: ghost } });
+    await programs.syncCodeRegistry();
+    expect(await ProgramOutcome.countDocuments({ programCode: 'R01X' })).toBe(before);
+    expect(await ProgramCode.exists({ code: 'R01X' })).toBeTruthy();
+    expect((await Program.findById(p._id).lean()).editions.map((e) => e.code)).toEqual(['R01X']);
+  });
+
+  test('R01: syncCodeRegistry не видаляє довідників коду, на який посилаються силабуси', async () => {
+    const ghost = new (require('mongoose').Types.ObjectId)();
+    await ProgramOutcome.create({ programCode: 'R01ORPHAN', code: 'ПРН1', text: 'X.', order: 1 });
+    await ProgramCode.create({ code: 'R01ORPHAN', programId: ghost });
+    await Syllabus.create({ title: 'Uses orphan', instructor: lecturer._id, programCode: 'R01ORPHAN', status: 'in_progress' });
+    await programs.syncCodeRegistry();
+    expect(await ProgramOutcome.countDocuments({ programCode: 'R01ORPHAN' })).toBe(1);
+  });
+
+  test('R02: запис, під час якого блокування сплило, не повідомляється як успішний', async () => {
+    await programs.createProgram({ name: 'R02', code: 'R02P', editions: [{ code: 'R02X' }] });
+    const real = ProgramOutcome.bulkWrite.bind(ProgramOutcome);
+    jest.spyOn(ProgramOutcome, 'bulkWrite').mockImplementationOnce(async (...args) => {
+      await Lock.updateOne({ key: 'ref:R02X:outcomes' }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
+      return real(...args);
+    });
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(editor.saveOutcomes('R02X', [{ code: 'ПРН1', text: 'A.' }])).rejects.toMatchObject({ code: 'LOCK_LOST' });
+  });
+
+  test('R03: збій відкату копії не лишає блокувань довідника', async () => {
+    jest.spyOn(ProgramOutcome, 'insertMany').mockImplementationOnce(async () => { throw new Error('insert failed'); });
+    jest.spyOn(ProgramOutcome, 'deleteMany').mockImplementationOnce(async () => { throw new Error('rollback failed'); });
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(programs.createProgram({ name: 'R03', code: 'R03P', editions: [{ code: 'R03X', copyFrom: 'MBA28' }] })).rejects.toThrow();
+    expect(await Lock.countDocuments({ key: /^ref:R03X:/ })).toBe(0);
+  });
+
+  test('R04: збій узгодження після Reopen → 503 retryable; повтор Reopen його довершує', async () => {
+    await offering('R04-OWN', lecturer._id);
+    references.invalidateCache();
+    const refs = await references.getRefs('MBA28');
+    const s = await helpers.createSyllabus(lecturer, { programCode: 'MBA28', track: 'upload', programId: mba._id });
+    await store.initState(s._id, createEmptyState({ programCode: 'MBA28', track: 'upload', refs }), { refs });
+    const { state } = await store.getState(s._id);
+    const [sg] = await createDraftSuggestions(courseHintCards({ code: 'R04-OWN', title: 'Core' }), { syllabusId: s._id, state, refs, known: [] });
+    const url = `/api/chat/${s._id}/suggestions/${sg._id}`;
+    expect((await request(app).post(`${url}/accept`).set(bearer(lecturer)).send({ optionId: 'confirm' })).status).toBe(200);
+    const realUpdate = Syllabus.updateOne.bind(Syllabus);
+    jest.spyOn(Syllabus, 'updateOne').mockImplementation(async (filter, update, ...rest) => {
+      if (update?.$unset?.offeringId !== undefined) throw new Error('metadata write failed');
+      return realUpdate(filter, update, ...rest);
+    });
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const failed = await request(app).post(`${url}/reopen`).set(bearer(lecturer)).send({});
+    expect(failed.status).toBe(503);
+    expect(failed.body.code).toBe('RECONCILE_INCOMPLETE');
+    Syllabus.updateOne.mockRestore();
+    const retry = await request(app).post(`${url}/reopen`).set(bearer(lecturer)).send({});
+    expect(retry.status).toBe(200);
+    const doc = await Syllabus.findById(s._id).lean();
+    expect(doc.offeringId ?? null).toBeNull();
+    expect(doc.course?.code ?? null).toBeNull();
+  });
+});

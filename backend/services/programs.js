@@ -132,24 +132,43 @@ async function syncCodeRegistry() {
       console.warn(`programme code registry: ${program.code}: ${err.message}`);
     }
   }
-  const effective = new Map(programs.map((p) => [String(p._id), new Set(effectiveCodes(p))]));
   const staleBefore = new Date(Date.now() - STALE_RESERVATION_MS);
-  for (const row of await ProgramCode.find({}).lean()) {
-    if (effective.get(String(row.programId))?.has(row.code)) {
-      if (row.committed === false) await ProgramCode.updateOne({ _id: row._id }, { $set: { committed: true } });
-      continue;
-    }
-    if (row.committed === false && row.updatedAt > staleBefore) continue; // операція, можливо, ще триває
+  for (const { _id: rowId, programId, code } of await ProgramCode.find({}).select('_id programId code').lean()) {
     try {
-      await locks.withLock(`program:${row.programId}`, async (lock) => {
-        await deleteReferencesOf([row.code]);
-        await locks.assertHeld(lock);
-        await ProgramCode.deleteOne({ _id: row._id });
-      });
+      await locks.withLock(`program:${programId}`, (lock) => finishRegistryRow(rowId, code, staleBefore, lock));
     } catch (err) {
-      console.warn(`programme code registry: cleanup of ${row.code}: ${err.message}`);
+      console.warn(`programme code registry: cleanup of ${code}: ${err.message}`);
     }
   }
+}
+
+/**
+ * Один рядок реєстру під блокуванням його програми (R01): усе перечитується вже під блокуванням, а довідники коду
+ * видаляються лише тоді, коли код не є ефективним кодом жодної програми і на нього не посилаються ні силабуси,
+ * ні призначення. Конфлікт реєстру з чинною програмою очистки не запускає — його розв'язує адміністратор.
+ */
+async function finishRegistryRow(rowId, code, staleBefore, lock) {
+  const row = await ProgramCode.findById(rowId).lean();
+  if (!row) return;
+  const owner = await Program.findById(row.programId).lean();
+  if (owner && effectiveCodes(owner).includes(row.code)) {
+    if (row.committed === false) await ProgramCode.updateOne({ _id: row._id, committed: false }, { $set: { committed: true } });
+    return;
+  }
+  if (row.committed === false && row.updatedAt > staleBefore) return; // операція, можливо, ще триває
+  const claimant = await Program.findOne({ $or: [{ 'editions.code': code }, { code, 'editions.0': { $exists: false } }] }).select('code').lean();
+  if (claimant) {
+    console.warn(`programme code registry: ${code} is registered to another programme but used by ${claimant.code}; resolve manually`);
+    return;
+  }
+  const [syllabi, offerings] = await Promise.all([Syllabus.countDocuments({ programCode: code }), CourseOffering.countDocuments({ programCode: code })]);
+  if (syllabi || offerings) {
+    console.warn(`programme code registry: ${code} is not a cohort of any programme but ${syllabi} syllabi and ${offerings} assignments use it; resolve manually`);
+    return;
+  }
+  await purgeCodeReferences(code, lock);
+  await locks.assertHeld(lock);
+  await ProgramCode.deleteOne({ _id: row._id, code });
 }
 
 /** Код, на який посилаються силабуси чи призначення курсів, прибрати не можна. */
@@ -173,6 +192,32 @@ async function deleteReferencesOf(codes) {
   await Promise.all([ProgramOutcome.deleteMany(filter), ProgramCourse.deleteMany(filter), CapstoneGuide.deleteMany(filter), ReferenceOverride.deleteMany(filter)]);
 }
 
+/**
+ * Очистка довідників одного коду під блокуваннями всіх трьох довідників (R01): редактор не пише в них посередині.
+ * Блокування програми (programLock) має бути чинним до самого видалення.
+ */
+async function purgeCodeReferences(code, programLock) {
+  const held = [];
+  try {
+    for (const kind of ['outcomes', 'courses', 'capstone']) held.push(await locks.acquire(`ref:${code}:${kind}`, { code: 'REFERENCE_CONFLICT' }));
+    await locks.assertHeld(programLock);
+    await deleteReferencesOf([code]);
+  } finally {
+    await releaseAll(held);
+  }
+}
+
+/** Звільняє кожне блокування, навіть якщо звільнення іншого впало (R03). */
+async function releaseAll(held) {
+  for (const lock of held.splice(0)) {
+    try {
+      await locks.release(lock);
+    } catch (err) {
+      console.warn(`lock ${lock.key}: release failed (${err.message}); it expires by TTL`);
+    }
+  }
+}
+
 const COPY_KINDS = [
   { kind: 'outcomes', Model: ProgramOutcome },
   { kind: 'courses', Model: ProgramCourse },
@@ -194,9 +239,7 @@ async function copyEditionReferences(from, to) {
   const result = { outcomes: 0, courses: 0, capstone: 0 };
   const held = [];
   const copiedKinds = [];
-  const release = async () => {
-    for (const lock of held.splice(0)) await locks.release(lock);
-  };
+  const release = () => releaseAll(held);
   const rollback = async () => {
     for (const kind of copiedKinds) {
       const { Model } = COPY_KINDS.find((k) => k.kind === kind);
@@ -220,8 +263,12 @@ async function copyEditionReferences(from, to) {
       result[kind] = kind === 'capstone' ? 1 : rows.length;
     }
   } catch (err) {
-    await rollback();
-    await release();
+    // R03: блокування звільняються й тоді, коли відкат сам упав
+    try {
+      await rollback();
+    } finally {
+      await release();
+    }
     throw err;
   }
   invalidateCache();
@@ -292,7 +339,9 @@ async function applyEditions(programId, editions, lock, { isNew = false } = {}) 
     } catch (err) {
       // Відкат лише своєї операції й лише поки блокування наше
       if (await locks.isHeld(lock)) {
-        for (const copy of [...copies].reverse()) await copy.rollback();
+        for (const copy of [...copies].reverse()) {
+          await copy.rollback().catch((e) => console.warn(`programme ${program.code}: rollback of a copy failed (${e.message})`));
+        }
         await releaseReserved(program._id, token, claimed);
       }
       invalidateCache();
@@ -305,10 +354,10 @@ async function applyEditions(programId, editions, lock, { isNew = false } = {}) 
   // Після коміту: збої лише логуються, збережений набір не відкочується (N02)
   try {
     await commitCodes(program._id, token);
-    if (removed.length) {
-      await deleteReferencesOf(removed);
+    for (const code of removed) {
+      await purgeCodeReferences(code, lock);
       await locks.assertHeld(lock);
-      await releaseCodes(program._id, removed);
+      await releaseCodes(program._id, [code]);
     }
   } catch (err) {
     console.warn(`programme ${program.code}: cleanup after saving cohorts is incomplete (${err.message}); syncCodeRegistry will finish it`);
@@ -355,9 +404,11 @@ async function deleteProgram(programId) {
     await locks.assertHeld(lock);
     await Program.deleteOne({ _id: programId });
     try {
-      await deleteReferencesOf(codes);
-      await locks.assertHeld(lock);
-      await ProgramCode.deleteMany({ programId });
+      for (const code of codes) {
+        await purgeCodeReferences(code, lock);
+        await locks.assertHeld(lock);
+        await ProgramCode.deleteMany({ programId, code });
+      }
     } catch (err) {
       console.warn(`programme ${program.code}: cleanup after deletion is incomplete (${err.message}); syncCodeRegistry will finish it`);
     }

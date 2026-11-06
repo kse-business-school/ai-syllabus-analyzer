@@ -114,16 +114,18 @@ const courseCodeLockKey = (syllabusId) => `syllabus-code:${String(syllabusId)}`;
  */
 async function reconcileCourseCode(syllabusId) {
   const syllabus = await Syllabus.findById(syllabusId).select('offeringId course.code state.header.courseCode').lean();
-  if (!syllabus) return;
+  if (!syllabus) return false;
   const code = syllabus.state?.header?.courseCode ?? null;
-  const $set = { 'course.code': code };
-  const update = { $set };
+  const update = { $set: { 'course.code': code } };
   if (syllabus.offeringId) {
     const offering = await CourseOffering.findById(syllabus.offeringId).select('courseCode').lean();
-    if (!offering || normCourseCode(offering.courseCode) !== normCourseCode(code)) update.$unset = { offeringId: '' };
-    else return;
+    if (offering && normCourseCode(offering.courseCode) === normCourseCode(code)) return false;
+    update.$unset = { offeringId: '' };
+  } else if ((syllabus.course?.code ?? null) === code) {
+    return false;
   }
   await Syllabus.updateOne({ _id: syllabusId }, update);
+  return true;
 }
 
 /** Посилання призначення мають існувати: набір — серед Program.editions, викладач — активний користувач. */

@@ -77,6 +77,18 @@ async function replaceRows(Model, programCode, snapshot, ops, lock) {
     }
     throw err;
   }
+  await assertStillHeld(lock, programCode);
+}
+
+/**
+ * R02: перевірка перед записом не є fencing — якщо блокування сплило посеред запису, інший запит міг уже
+ * зберегти свій перелік. Такий запис не повідомляється як успішний (LOCK_LOST) і лишає слід у журналі.
+ * Повне fencing потребує транзакцій MongoDB (replica set) — див. docs/AUDIT_V5_2026-11-04.md §9.
+ */
+async function assertStillHeld(lock, programCode) {
+  if (await locks.isHeld(lock)) return;
+  console.error(`reference ${lock.key}: the lock expired during the write; ${programCode} may contain rows from two saves — open the reference and save it again`);
+  await locks.assertHeld(lock);
 }
 
 /** Силабуси набору зі станом (лише потрібні поля). */
@@ -246,6 +258,7 @@ async function writeCapstone(programCode, raw, lock) {
       plagiarismThreshold: raw.plagiarismThreshold === undefined ? (current?.plagiarismThreshold ?? null) : parseThreshold(raw.plagiarismThreshold),
     },
   }, { upsert: true });
+  await assertStillHeld(lock, programCode);
   references.invalidateCache();
   return references.getCapstone(programCode);
 }
