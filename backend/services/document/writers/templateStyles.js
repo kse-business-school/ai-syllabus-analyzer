@@ -22,6 +22,8 @@ const COLUMN_FRACTIONS = {
   glance: [0.3, 0.7],
   matrix: [0.4, 0.35, 0.25],
   schedule: [0.17, 0.3, 0.1, 0.1, 0.13, 0.2],
+  scheduleExtended: [0.16, 0.22, 0.27, 0.23, 0.12],
+  guests: [0.35, 0.4, 0.25],
   assessment: [0.22, 0.1, 0.48, 0.2],
   instructor: [0.25, 0.75],
 };

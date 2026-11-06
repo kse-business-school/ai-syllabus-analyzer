@@ -180,16 +180,20 @@ const LiveDocumentPanel = ({
           >
             {sections.map((sec) => {
               const meta = titles.get(sec.key);
-              const docTitle = meta?.docTitle;
+              // Назву групи бекенд віддає мовою документа (sec.docTitle); номер 0 — теж номер (профіль MMM)
+              const docTitle = sec.docTitle || meta?.docTitle;
+              const numbered = sec.docNumber != null;
               const groupHeading =
-                sec.docNumber && sec.docNumber !== lastDocNumber && docTitle && docTitle !== sec.title
+                numbered && sec.docNumber !== lastDocNumber && docTitle && docTitle !== sec.title
                   ? `${sec.docNumber}. ${docTitle}`
                   : null;
               const ownHeading = groupHeading
                 ? sec.title
-                : sec.docNumber && sec.docNumber !== lastDocNumber
+                : numbered && sec.docNumber !== lastDocNumber
                 ? `${sec.docNumber}. ${sec.title}`
                 : sec.title;
+              // Підказка слота (B-6.5): лише в UI, у .docx не потрапляє
+              const hint = meta?.hint?.en || meta?.hint?.uk || null;
               lastDocNumber = sec.docNumber ?? lastDocNumber;
               const focused = focusedKey === sec.key;
               const isHighlighted = activeHighlight === sec.key;
@@ -328,6 +332,12 @@ const LiveDocumentPanel = ({
                       </Box>
                     )}
                   </Box>
+
+                  {hint && !readOnly && (
+                    <Typography variant="caption" component="p" sx={{ color: 'text.secondary', fontStyle: 'italic', mb: 1, whiteSpace: 'pre-line' }}>
+                      {hint}
+                    </Typography>
+                  )}
 
                   {/* Позначки регуляторних перевірок */}
                   {failedChecks.map((c, idx) => (

@@ -15,6 +15,13 @@ const templateSectionSchema = new mongoose.Schema({
   // Українські назва й питання розділу (B-1.3): для силабусів мовою uk
   titleUk: { type: String, default: null },
   questionUk: { type: String, default: null },
+  docTitleUk: { type: String, default: null },
+  // Профіль програми (B-6.1): запис програми з disabled: true прибирає спільний розділ із її силабусів
+  disabled: { type: Boolean, default: false },
+  // Підказка слота для викладача (B-6.5): лише в UI, у .docx не потрапляє
+  hint: { en: { type: String, default: null }, uk: { type: String, default: null } },
+  // Текст рівня програми (B-6.4, scope programme): однаковий у кожному силабусі програми, викладач його не змінює
+  fixedText: { type: mongoose.Schema.Types.Mixed, default: null }, // { en: [{ title, text }], uk: [...] }
   fixtureRef: { type: String, default: null },
   computeFrom: { type: [String], default: [] },
 }, { timestamps: true });

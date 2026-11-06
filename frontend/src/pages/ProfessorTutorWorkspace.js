@@ -113,7 +113,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
 
   // Readiness, Download .docx і відкриті перевірки — у верхній панелі
   const { setChrome } = useWorkspaceChrome();
-  const grouped = useMemo(() => computeGroupedReadiness(ws.readiness, ws.state), [ws.readiness, ws.state]);
+  const grouped = useMemo(() => computeGroupedReadiness(ws.readiness, ws.state, ws.sections), [ws.readiness, ws.state, ws.sections]);
   const openChecks = (ws.checks || []).filter((c) => c.passed === false).length;
   const hasDocument = Boolean(ws.state);
   const { downloadDocx, downloading } = ws;

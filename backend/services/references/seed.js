@@ -5,7 +5,7 @@ const OutcomeMapping = require('../../models/OutcomeMapping');
 const ProgramCourse = require('../../models/ProgramCourse');
 const CapstoneGuide = require('../../models/CapstoneGuide');
 const ReferenceOverride = require('../../models/ReferenceOverride');
-const { readFixture, readOutcomesFixture, readCoursesFixture } = require('./fixtureRefs');
+const { readFixture, readOutcomesFixture, readCoursesFixture, readTemplateFixtures } = require('./fixtureRefs');
 
 /** Набори, чий довідник kind змінено в кабінеті: сід їх не чіпає (services/references/editor.js). */
 async function managedCodes(kind) {
@@ -20,9 +20,9 @@ function upsertOps(items, filterOf) {
 }
 
 async function seedReferences() {
-  const template = readFixture('template.sections.json').sections
-    .map((s) => ({ programCode: null, ...s }));
-  await TemplateSection.bulkWrite(upsertOps(template, (d) => ({ programCode: null, key: d.key })));
+  // Спільний шаблон і профілі програм (template.sections.<ПРОГРАМА>.json, programCode у файлі)
+  const template = readTemplateFixtures();
+  await TemplateSection.bulkWrite(upsertOps(template, (d) => ({ programCode: d.programCode, key: d.key })));
 
   const lo = readOutcomesFixture();
   const managedOutcomes = await managedCodes('outcomes');

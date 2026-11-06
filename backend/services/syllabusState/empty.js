@@ -47,11 +47,13 @@ function createEmptyState({ programCode, track = 'scratch', refs, course = {}, l
       language: null,
       term: { start: null, end: null },
       courseKind: courseKindOf(refs, course.code),
+      programBlock: null,
       computed: null, // заповнює recompute
       ...prov(course.title || course.code ? 'instructor_directed' : null),
     },
     summary: {
       prerequisites: { fixtureRefs: [], text: null, ...prov() },
+      practicalApplication: { text: null, ...prov() },
       shortDescription: { text: null, ...prov() },
       objectives: [],
       capstone: { criteriaKeys: [], projectTypes: [], text: null, ...prov() },
@@ -59,10 +61,12 @@ function createEmptyState({ programCode, track = 'scratch', refs, course = {}, l
     outcomes: [],
     instructors: [],
     sessions: [],
+    modules: [],
+    guests: [],
     individualWork: [],
     assessments: [],
     compensation: { items: [] },
-    materials: { required: [], recommended: [] },
+    materials: { required: [], recommended: [], bySession: [] },
     policies: policiesFromRefs(refs, language),
     sections: {},
   };

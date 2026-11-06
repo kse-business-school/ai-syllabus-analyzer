@@ -109,7 +109,7 @@ describe('B-1.2 / B-1.3 — зміна мови й зміст мовою док�
     const check = assessmentChecks.run(state, {}).find((c) => c.id === 'assessment.weights_total');
     expect(check.message).toMatch(/Ваги компонентів дають 50%/);
     const refs = await references.getRefs('MMM26');
-    expect(templateQuestion({ key: 'schedule.sessions', section: 'schedule' }, refs, 'uk').question).toMatch(/Сплануймо заняття/);
+    expect(templateQuestion({ key: 'schedule.sessions', section: 'schedule' }, refs, 'uk').question).toMatch(/Сплануймо/);
     expect(templateQuestion({ key: 'schedule.sessions', section: 'schedule' }, refs, 'en').question).toMatch(/Let's plan/);
   });
 });

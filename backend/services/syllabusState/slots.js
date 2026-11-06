@@ -19,6 +19,8 @@ const SLOTS = [
   { key: 'glance.self_study_hours', section: 'at_a_glance', path: 'header.computed.selfStudyHours', type: 'E', editability: 'locked', required: false },
   { key: 'glance.assessment_total', section: 'at_a_glance', path: 'header.computed.assessmentTotal', type: 'E', editability: 'locked', required: false },
   { key: 'glance.course_kind', section: 'at_a_glance', path: 'header.courseKind', type: 'E', editability: 'locked', required: false },
+  // Корпус і блок програми (B-8.6): закритий список Program.blocks; для програм без списку слота немає в профілі
+  { key: 'glance.program_block', section: 'at_a_glance', path: 'header.programBlock', type: 'B', fallbackType: 'C', editability: 'free', required: false, fixture: 'program-blocks' },
 
   // 1 · Summary
   { key: 'course.title', section: 'course_info', path: 'header.courseTitle', type: 'A', editability: 'free', required: true },
@@ -28,6 +30,9 @@ const SLOTS = [
   { key: 'course.outcomes', section: 'learning_outcomes', path: 'outcomes[]', type: 'D', editability: 'free', required: true },
   { key: 'course.outcomes_plo', section: 'learning_outcomes', path: 'outcomes[].plo', type: 'D', editability: 'free', required: false, fixture: 'learning-outcomes' },
   { key: 'course.capstone', section: 'connection_to_capstone', path: 'summary.capstone', type: 'D', editability: 'free', required: true, fixture: 'capstone' },
+  // Профіль MMM: зв'язок із ПРН програми (розділ 1) і практичне застосування (розділ 3)
+  { key: 'course.programme_outcomes', section: 'programme_outcomes', path: 'outcomes[].plo', type: 'D', editability: 'free', required: true, fixture: 'learning-outcomes' },
+  { key: 'course.practical_application', section: 'practical_application', path: 'summary.practicalApplication', type: 'D', editability: 'free', required: true },
 
   // 2 · Instructor
   { key: 'instructor.profile', section: 'instructor', path: 'instructors[]', type: 'A', editability: 'free', required: true },
@@ -37,6 +42,10 @@ const SLOTS = [
   { key: 'schedule.session_format', section: 'schedule', path: 'sessions[].format', type: 'B', editability: 'library', required: false },
   { key: 'schedule.additional', section: 'schedule', path: 'sessions[].additional', type: 'D', editability: 'free', required: false },
   { key: 'schedule.individual_work', section: 'schedule', path: 'individualWork[]', type: 'C', editability: 'free', required: false },
+  { key: 'schedule.modules', section: 'schedule', path: 'modules[]', type: 'C', editability: 'free', required: false },
+
+  // Гостьові спікери (B-8.2)
+  { key: 'guests.list', section: 'guest_speakers', path: 'guests[]', type: 'C', editability: 'free', required: false },
 
   // 4 · Assessment
   { key: 'assessment.components', section: 'assessment', path: 'assessments[]', type: 'B', fallbackType: 'C', editability: 'library', required: true, fixture: 'assessment-components' },
@@ -46,6 +55,7 @@ const SLOTS = [
   // 5 · Materials
   { key: 'materials.required', section: 'materials', path: 'materials.required[]', type: 'C', editability: 'free', required: true },
   { key: 'materials.recommended', section: 'materials', path: 'materials.recommended[]', type: 'D', editability: 'free', required: false },
+  { key: 'materials.by_session', section: 'materials', path: 'materials.bySession[]', type: 'C', editability: 'free', required: false },
 
   // 6 · Policies: по слоту на блок довідника; editability блоку = його mode (locked|library)
   { key: 'policy.*', section: 'policies', path: 'policies{key}', type: 'B', editability: 'library', required: true, fixture: 'policies.library' },
@@ -108,6 +118,11 @@ const SECTION_GAPS = {
     }),
   ],
   materials: (s) => [!(s.materials?.required || []).some((m) => filled(m.citation)) && 'At least one required material'],
+  // Профіль MMM
+  programme_outcomes: (s) => [!(s.outcomes || []).some((o) => (o.plo || []).some((p) => p.confirmed === true)) && 'At least one confirmed link to a programme outcome'],
+  practical_application: (s) => [!isFullSentence(s.summary?.practicalApplication?.text) && 'Practical application: at least one full sentence'],
+  guest_speakers: (s) => (s.guests || []).map((g, i) => !filled(g.name) && `Guest ${i + 1}: name`),
+  pedagogical_approach: () => [], // текст програми (locked), викладач його не заповнює
   // Без жодного блоку (порожній довідник політик) розділ не може бути повним
   policies: (s) => (!(s.policies || []).length ? ['Policies: the policy library is empty']
     : s.policies.filter((p) => !policyDecided(p)).map((p) => `${p.key}: choose an option or write your own`)),

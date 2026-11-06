@@ -145,3 +145,20 @@ describe('sectionStatus (B-5.3/B-5.4)', () => {
     expect(sectionStatus(null)).toBe('empty');
   });
 });
+
+describe('groupsFromTemplate (B-6.1)', () => {
+  const { groupsFromTemplate } = require('./sectionGroups');
+  test('групи з профілю: однаковий docNumber — одна група, 0 — теж номер, назви мовою документа', () => {
+    const tpl = [
+      { key: 'at_a_glance', order: 1, docNumber: 0, docTitle: 'Course Data', docTitleUk: 'Дані про курс', title: 'Course Data' },
+      { key: 'course_info', order: 2, docNumber: 0, docTitle: 'Course Data', docTitleUk: 'Дані про курс', title: 'Course Title' },
+      { key: 'guest_speakers', order: 3, docNumber: 5, docTitle: 'Guest Speakers', docTitleUk: 'Гостьові спікери', title: 'Guest Speakers' },
+      { key: 'policies', order: 4, docNumber: 9, docTitle: 'Course Policies', title: 'Course Policies' },
+    ];
+    const groups = groupsFromTemplate(tpl, 'uk');
+    expect(groups.map((g) => [g.title, g.backendKeys])).toEqual([
+      ['Дані про курс', ['at_a_glance', 'course_info']], ['Гостьові спікери', ['guest_speakers']],
+      ['Course Policies', ['policies']], ['Використання ШІ', ['policies']],
+    ]);
+  });
+});

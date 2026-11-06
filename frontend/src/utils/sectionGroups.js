@@ -149,13 +149,32 @@ export function resolveGroupStatus(group, backendSections = {}, state = {}) {
   return 'needs_review';
 }
 
+/**
+ * Групи з профілю шаблону програми (B-6.1): розділи з однаковим docNumber — одна група з назвою docTitle
+ * (мовою документа, якщо є docTitleUk); «Use of AI» — віртуальна група після політик. Без шаблону — UI_SECTIONS (MBA).
+ */
+export function groupsFromTemplate(templateSections, language) {
+  if (!Array.isArray(templateSections) || !templateSections.length) return UI_SECTIONS;
+  const uk = language === 'uk';
+  const sorted = [...templateSections].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const groups = [];
+  for (const t of sorted) {
+    const last = groups[groups.length - 1];
+    const title = (uk && t.docTitleUk) || t.docTitle || (uk && t.titleUk) || t.title || t.key;
+    if (t.docNumber != null && last && last.docNumber === t.docNumber) last.backendKeys.push(t.key);
+    else groups.push({ id: t.key, title, docNumber: t.docNumber ?? null, backendKeys: [t.key] });
+    if (t.key === 'policies') groups.push({ id: 'ai_policy', title: uk ? 'Використання ШІ' : 'Use of AI', docNumber: t.docNumber ?? null, backendKeys: ['policies'], isVirtualAi: true });
+  }
+  return groups;
+}
+
 // Групи для відображення + Readiness з бекенду:
 // повертає { groups, approvedCount, totalCount, percent, isEmpty, isAllApproved, label },
 // де approvedCount / totalCount — затверджені / обов'язкові розділи шаблону (readiness.counts), percent — readiness.score.
-export function computeGroupedReadiness(readiness, state) {
+export function computeGroupedReadiness(readiness, state, templateSections) {
   const backendSections = readiness?.sections || {};
 
-  const groups = UI_SECTIONS.map((sec) => {
+  const groups = groupsFromTemplate(templateSections, state?.language).map((sec) => {
     const status = resolveGroupStatus(sec, backendSections, state);
     const entries = sec.backendKeys.map((k) => ({
       key: k,

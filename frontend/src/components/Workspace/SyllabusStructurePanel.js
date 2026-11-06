@@ -13,8 +13,8 @@ const SECTION_DOT = {
   empty: { bgcolor: 'var(--line)' },
 };
 const SyllabusStructurePanel = ({ readiness, state = {}, sections = [], focusedKey, onSelect }) => {
-  const grouped = computeGroupedReadiness(readiness, state);
-  const titleOf = (key) => sections.find((s) => s.key === key)?.title || key;
+  const grouped = computeGroupedReadiness(readiness, state, sections);
+  const titleOf = (key) => { const t = sections.find((s) => s.key === key); return (state?.language === 'uk' && t?.titleUk) || t?.title || key; };
   const { chrome } = useWorkspaceChrome();
   return <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper', borderRight: '1px solid', borderColor: 'divider' }}>
     <List aria-label="Syllabus sections" sx={{ flex: 1, overflowY: 'auto', py: 1.5 }}>

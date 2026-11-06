@@ -26,6 +26,11 @@ const programSchema = new mongoose.Schema({
     }, { _id: false })],
     default: [],
   },
+  // Корпуси й блоки програми (B-8.6) — закритий список для поля At a Glance; порожній — поля немає
+  blocks: {
+    type: [new mongoose.Schema({ code: { type: String, required: true, trim: true }, label: { type: String, required: true, trim: true }, group: { type: String, default: '', trim: true } }, { _id: false })],
+    default: [],
+  },
   // Мова документа за замовчуванням для нових силабусів програми (B-1.1): MBA — en, MMM — uk
   defaultLanguage: { type: String, enum: ['en', 'uk'], default: 'en' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

@@ -56,8 +56,10 @@ async function approveAll(syllabusId, { userId, expectedRevision, keys } = {}) {
   if (expectedRevision !== undefined && expectedRevision !== ctx.revision) {
     throw httpError(409, 'The syllabus was changed in the meantime. Reload and try again.', { code: 'STATE_CONFLICT', details: { revision: ctx.revision } });
   }
+  // Без переліку — розділи профілю набору (B-6.1), крім текстів рівня програми (nature: locked)
+  const profileKeys = (ctx.refs.template || []).filter((t) => t.nature !== 'locked').map((t) => t.key);
   const { approved, skipped } = await store.approveAll(syllabusId, {
-    blockersFor, by: userId, expectedRevision: ctx.revision, keys: keys && keys.length ? keys : undefined,
+    blockersFor, by: userId, expectedRevision: ctx.revision, keys: keys && keys.length ? keys : profileKeys,
   });
   invalidateOutputs(syllabusId);
   await refreshConversationReadiness(syllabusId);
