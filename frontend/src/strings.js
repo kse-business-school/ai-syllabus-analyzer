@@ -50,7 +50,7 @@ export const S = {
   structure: 'Structure',
   chat: 'Chat',
   document: 'Live Document',
-  downloadDocx: 'Download .docx',
+  downloadDocx: 'Download Syllabus',
   downloading: 'Preparing…',
   showChanges: 'Changes',
   cleanView: 'Clean',

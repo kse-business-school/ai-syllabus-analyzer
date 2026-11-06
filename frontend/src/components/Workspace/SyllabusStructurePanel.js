@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button, LinearProgress, List, ListItemButton, Typography, Tooltip, CircularProgress } from '@mui/material';
+import { Box, Button, LinearProgress, List, ListItemButton, Typography, Tooltip } from '@mui/material';
 import { computeGroupedReadiness } from '../../utils/sectionGroups';
 import { useWorkspaceChrome } from '../../contexts/WorkspaceChromeContext';
 
@@ -19,8 +19,7 @@ const SyllabusStructurePanel = ({ readiness, state = {}, focusedKey, onSelect })
       <Box sx={{ position: 'relative' }}>
         <Box sx={{ display: 'flex', mb: 1.25 }}><Box className="brand-plate">Readiness</Box><Typography sx={{ bgcolor: 'background.paper', px: 1.5, py: .5, border: '1px solid', borderColor: 'divider', fontWeight: 700 }}>{grouped.isEmpty ? '—' : `${grouped.percent}%`}</Typography></Box>
         <LinearProgress variant="determinate" value={grouped.percent || 0} aria-label="Readiness" sx={{ height: 6, mb: .75 }} />
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.75 }}>{grouped.isEmpty ? 'No document yet' : `${grouped.approvedCount} of ${grouped.totalCount} approved`}</Typography>
-        <Button fullWidth variant="contained" disabled={!chrome?.canDownload || chrome?.downloading} onClick={chrome?.onDownload} startIcon={chrome?.downloading ? <CircularProgress size={14} color="inherit" /> : null}>{chrome?.downloading ? 'Preparing…' : 'Download .docx'}</Button>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: chrome?.openChecks > 0 ? 1 : 0 }}>{grouped.isEmpty ? 'No document yet' : `${grouped.approvedCount} of ${grouped.totalCount} approved`}</Typography>
         {chrome?.openChecks > 0 && <Button fullWidth color="error" onClick={chrome.onFocusCheck} sx={{ mt: .5, fontSize: 12 }}>{chrome.openChecks} checks open</Button>}
       </Box>
     </Box>
