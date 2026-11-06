@@ -9,6 +9,7 @@ const Syllabus = require('../../models/Syllabus');
 const { canonicalPloCode: normalizePloCode } = require('./ploCode');
 const { httpError } = require('../../utils/httpError');
 const references = require('./index');
+const locks = require('../locks');
 
 
 const MAX_ROWS = 200;
@@ -34,49 +35,46 @@ function text(value, field, { required = false, max = MAX_TEXT } = {}) {
 /** Ключ критерію з назви: «Problem Definition & Relevance» → problem_definition_relevance. */
 const slug = (s) => str(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'criterion';
 
-const LOCK_MS = 30 * 1000;
-const busy = () => httpError(409, 'Someone else is saving this reference right now. Refresh and try again.', { code: 'REFERENCE_CONFLICT' });
+const lockOpts = { message: 'Someone else is saving this reference right now. Refresh and try again.', code: 'REFERENCE_CONFLICT' };
 
 /**
- * Заміна довідника набору під lease (C04). Позначка ReferenceOverride ставиться разом із lease, тож сід не втрутиться
- * посередині; одночасне збереження того самого довідника → 409. Якщо fn впала, позначка, створена цим викликом,
- * прибирається; відновлення самих рядків робить fn (restoreRows). Кеш довідників скидається завжди.
+ * Заміна довідника набору під блокуванням з токеном (C04, N01): одночасне збереження того самого довідника → 409.
+ * Позначка ReferenceOverride ставиться до запису (сід з фікстур не втрутиться посередині). Якщо fn впала, а блокування
+ * досі наше, створена цим викликом позначка прибирається; рядки відновлює fn (replaceRows). Запит, що втратив
+ * блокування (сплив lease), не відкочує нічого: довідником уже володіє інший запит. Кеш довідників скидається завжди.
  */
 async function withReferenceLock(programCode, kind, userId, fn) {
-  const now = new Date();
-  let created = false;
-  try {
-    const res = await ReferenceOverride.findOneAndUpdate(
-      { programCode, kind, $or: [{ lockedUntil: null }, { lockedUntil: { $lt: now } }] },
-      { $set: { lockedUntil: new Date(now.getTime() + LOCK_MS), updatedBy: userId || null } },
-      { upsert: true, new: true, includeResultMetadata: true },
+  return locks.withLock(`ref:${programCode}:${kind}`, async (lock) => {
+    const res = await ReferenceOverride.updateOne(
+      { programCode, kind },
+      { $set: { updatedBy: userId || null }, $setOnInsert: { programCode, kind } },
+      { upsert: true },
     );
-    created = !res.lastErrorObject?.updatedExisting;
-  } catch (err) {
-    if (err?.code === 11000) throw busy();
-    throw err;
-  }
-  try {
-    return await fn();
-  } catch (err) {
-    if (created) await ReferenceOverride.deleteOne({ programCode, kind });
-    throw err;
-  } finally {
-    await ReferenceOverride.updateOne({ programCode, kind }, { $set: { lockedUntil: null } });
-    references.invalidateCache();
-  }
+    const created = Boolean(res.upsertedId);
+    try {
+      return await fn(lock);
+    } catch (err) {
+      if (created && await locks.isHeld(lock)) await ReferenceOverride.deleteOne({ _id: res.upsertedId });
+      throw err;
+    } finally {
+      references.invalidateCache();
+    }
+  }, lockOpts);
 }
 
 /**
  * Замінює рядки набору одним упорядкованим bulkWrite; за помилки повертає попередній перелік (знімок з тими самими _id),
- * тож частковий запис не лишається (C04).
+ * тож частковий запис не лишається (C04). Запис і відновлення — лише поки блокування наше (N01).
  */
-async function replaceRows(Model, programCode, snapshot, ops) {
+async function replaceRows(Model, programCode, snapshot, ops, lock) {
+  await locks.assertHeld(lock);
   try {
     if (ops.length) await Model.bulkWrite(ops, { ordered: true });
   } catch (err) {
-    await Model.deleteMany({ programCode });
-    if (snapshot.length) await Model.insertMany(snapshot);
+    if (await locks.isHeld(lock)) {
+      await Model.deleteMany({ programCode });
+      if (snapshot.length) await Model.insertMany(snapshot);
+    }
     throw err;
   }
 }
@@ -105,7 +103,7 @@ async function saveOutcomes(programCode, rawOutcomes, { userId } = {}) {
     };
   });
 
-  return withReferenceLock(programCode, 'outcomes', userId, async () => {
+  return withReferenceLock(programCode, 'outcomes', userId, async (lock) => {
   const existing = await ProgramOutcome.find({ programCode }).lean();
   const removed = existing.filter((o) => !seen.has(normalizePloCode(o.code)));
   if (removed.length) {
@@ -127,7 +125,7 @@ async function saveOutcomes(programCode, rawOutcomes, { userId } = {}) {
       update: { $set: row }, upsert: true,
     } })),
   ];
-  await replaceRows(ProgramOutcome, programCode, existing, ops);
+  await replaceRows(ProgramOutcome, programCode, existing, ops, lock);
   references.invalidateCache();
   return references.getOutcomes(programCode);
   });
@@ -156,7 +154,7 @@ async function saveCourses(programCode, rawCourses, { userId } = {}) {
       ects,
     };
   });
-  return withReferenceLock(programCode, 'courses', userId, async () => {
+  return withReferenceLock(programCode, 'courses', userId, async (lock) => {
     const existing = await ProgramCourse.find({ programCode }).lean();
     const removed = existing.filter((c) => !seen.has(norm(c.code)));
     const added = rows.filter((r) => !existing.some((c) => norm(c.code) === norm(r.code)));
@@ -167,7 +165,7 @@ async function saveCourses(programCode, rawCourses, { userId } = {}) {
         update: { $set: row }, upsert: true,
       } })),
     ];
-    await replaceRows(ProgramCourse, programCode, existing, ops);
+    await replaceRows(ProgramCourse, programCode, existing, ops, lock);
     references.invalidateCache();
     return { courses: await references.getCourses(programCode), changedCodes: [...removed.map((c) => c.code), ...added.map((c) => c.code)] };
   });
@@ -198,10 +196,10 @@ function parseThreshold(raw) {
 }
 
 async function saveCapstone(programCode, raw = {}, { userId } = {}) {
-  return withReferenceLock(programCode, 'capstone', userId, () => writeCapstone(programCode, raw));
+  return withReferenceLock(programCode, 'capstone', userId, (lock) => writeCapstone(programCode, raw, lock));
 }
 
-async function writeCapstone(programCode, raw) {
+async function writeCapstone(programCode, raw, lock) {
   const current = await CapstoneGuide.findOne({ programCode }).lean();
   const taken = new Set();
   const uniqueKey = (base) => {
@@ -239,6 +237,7 @@ async function writeCapstone(programCode, raw) {
       });
     }
   }
+  await locks.assertHeld(lock);
   await CapstoneGuide.updateOne({ programCode }, {
     $set: {
       projectTypes, structure, criteria,

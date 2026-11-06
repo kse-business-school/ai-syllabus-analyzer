@@ -49,8 +49,9 @@ function cardContextMessage({ cardContext: c }) {
   if (c.mode === 'reword') {
     return [
       'The instructor asks to change the draft on their card. Create a new draft for the same target with the same tool',
-      '(propose_items with mode "replace" and the complete list as it should be after the change, using ids of existing items',
-      'from the current syllabus; or propose_instructor). Change only what the feedback asks for.',
+      '(propose_items with mode "replace" and the complete list as it should be after the change, using ids of the items',
+      'in the current draft; or propose_instructor, where null keeps the draft value). Change only what the feedback asks for.',
+      'This turn cannot change the syllabus itself: set_slot and apply_edit are not available.',
       `Target slot: ${c.slotKey || 'unknown'}; path: ${c.path}`,
       `Current draft on the card (data): ${untrusted(JSON.stringify(c.draft ?? null).slice(0, 6000))}`,
       `Current value in the syllabus (data): ${untrusted(JSON.stringify(c.current ?? null).slice(0, 4000))}`,
@@ -75,7 +76,11 @@ function cardContextMessage({ cardContext: c }) {
  * @returns {Promise<{ reply: string, createdSuggestionIds: string[], stateChanged: boolean, currentSlotKey: string|null, revision: number }>}
  */
 async function runOrchestratorTurn(ctx) {
-  const tctx = createToolContext(ctx);
+  // Reword картки (N07, N08): лише чернетка, на основі значення картки
+  const reword = ctx.cardContext?.mode === 'reword';
+  const tctx = createToolContext(reword ? {
+    ...ctx, draftOnly: true, draftBase: { path: ctx.cardContext.path, value: ctx.cardContext.draft ?? null },
+  } : ctx);
   const tools = buildTools(ctx.state);
   const input = [
     { role: 'system', content: buildOrchestratorInstructions({ refs: ctx.refs, state: ctx.state }) },

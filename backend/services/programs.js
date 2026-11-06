@@ -4,8 +4,9 @@
 //
 // Ефективні коди програми — її набори, а якщо наборів немає, то код самої програми (C05). Кожен ефективний
 // код належить одній програмі: реєстр ProgramCode з унікальним індексом робить захоплення атомарним.
-// Зміни виконуються як «підготувати → застосувати → за помилки відкотити» (C06): транзакцій MongoDB
-// (replica set) розгортання не вимагає, тож усе, що записано до збою, прибирається явно.
+// Зміни виконуються як «підготувати → застосувати → за помилки відкотити» (C06) під блокуванням програми
+// з токеном (services/locks, N01–N04): транзакцій MongoDB (replica set) розгортання не вимагає, тож усе,
+// що записано до збою, прибирається явно й лише власником операції.
 const Program = require('../models/Program');
 const ProgramCode = require('../models/ProgramCode');
 const Syllabus = require('../models/Syllabus');
@@ -16,6 +17,7 @@ const CapstoneGuide = require('../models/CapstoneGuide');
 const ReferenceOverride = require('../models/ReferenceOverride');
 const { invalidateCache } = require('./references');
 const { httpError } = require('../utils/httpError');
+const locks = require('./locks');
 
 const { EDITION_CODE_RE } = Program;
 const MAX_EDITIONS = 50;
@@ -62,13 +64,18 @@ async function assertCodesFree(programId, codes) {
   }
 }
 
-/** Атомарно займає коди за програмою; за конфлікту звільняє вже зайняті в цьому виклику й кидає 409. */
-async function claimCodes(programId, codes) {
+/**
+ * Атомарно займає коди за програмою; за конфлікту звільняє вже зайняті в цьому виклику й кидає 409.
+ * З token коди лише резервуються (committed: false) до commitCodes; без token (реєстр) — одразу закомічені.
+ * Незакомічене резервування тієї самої програми лишилося від перерваної операції (зміни програми серіалізовані
+ * блокуванням) — його переймає поточна операція.
+ */
+async function claimCodes(programId, codes, { token = null } = {}) {
   const created = [];
   try {
     for (const code of codes) {
       try {
-        await ProgramCode.create({ code, programId });
+        await ProgramCode.create({ code, programId, token, committed: !token });
         created.push(code);
       } catch (err) {
         if (err?.code !== 11000) throw err;
@@ -77,26 +84,70 @@ async function claimCodes(programId, codes) {
           const program = owner && await Program.findById(owner.programId).select('code').lean();
           throw codeTaken(code, program?.code || 'another programme');
         }
+        if (token && owner.committed === false) {
+          await ProgramCode.updateOne({ _id: owner._id, committed: false }, { $set: { token } });
+          created.push(code);
+        }
       }
     }
   } catch (err) {
-    await releaseCodes(programId, created);
+    await releaseReserved(programId, token, created);
     throw err;
   }
   return created;
+}
+
+/** Відкат резервувань операції: лише власні й ще незакомічені (N03). Без token — звичайне звільнення. */
+async function releaseReserved(programId, token, codes) {
+  if (!codes.length) return;
+  if (token) await ProgramCode.deleteMany({ programId, code: { $in: codes }, token, committed: false });
+  else await ProgramCode.deleteMany({ programId, code: { $in: codes } });
 }
 
 async function releaseCodes(programId, codes) {
   if (codes.length) await ProgramCode.deleteMany({ programId, code: { $in: codes } });
 }
 
-/** Реєстр з наявних програм (старт сервера, після сіду): конфлікти лише логуються — їх розв'язує адміністратор. */
+const commitCodes = (programId, token) => ProgramCode.updateMany({ programId, token, committed: false }, { $set: { committed: true } });
+
+const STALE_RESERVATION_MS = 10 * 60 * 1000;
+
+/**
+ * Реєстр з наявних програм (старт сервера, після сіду): конфлікти лише логуються — їх розв'язує адміністратор.
+ * Довершує перервані операції (N02): код, що вже не є ефективним кодом своєї програми (прибраний набір, видалена
+ * програма, давнє незакомічене резервування), спершу очищається від довідників і лише потім звільняється.
+ */
 async function syncCodeRegistry() {
-  for (const program of await Program.find({}).lean()) {
+  // Захоплення коду атомарне лише з унікальним індексом; у production autoIndex вимкнено
+  try {
+    await ProgramCode.createIndexes();
+  } catch (err) {
+    console.error(`programme code registry: unique index on code is missing (${err.message}); resolve duplicate codes`);
+  }
+  const programs = await Program.find({}).lean();
+  for (const program of programs) {
     try {
       await claimCodes(program._id, effectiveCodes(program));
     } catch (err) {
       console.warn(`programme code registry: ${program.code}: ${err.message}`);
+    }
+  }
+  const effective = new Map(programs.map((p) => [String(p._id), new Set(effectiveCodes(p))]));
+  const staleBefore = new Date(Date.now() - STALE_RESERVATION_MS);
+  for (const row of await ProgramCode.find({}).lean()) {
+    if (effective.get(String(row.programId))?.has(row.code)) {
+      if (row.committed === false) await ProgramCode.updateOne({ _id: row._id }, { $set: { committed: true } });
+      continue;
+    }
+    if (row.committed === false && row.updatedAt > staleBefore) continue; // операція, можливо, ще триває
+    try {
+      await locks.withLock(`program:${row.programId}`, async (lock) => {
+        await deleteReferencesOf([row.code]);
+        await locks.assertHeld(lock);
+        await ProgramCode.deleteOne({ _id: row._id });
+      });
+    } catch (err) {
+      console.warn(`programme code registry: cleanup of ${row.code}: ${err.message}`);
     }
   }
 }
@@ -122,60 +173,59 @@ async function deleteReferencesOf(codes) {
   await Promise.all([ProgramOutcome.deleteMany(filter), ProgramCourse.deleteMany(filter), CapstoneGuide.deleteMany(filter), ReferenceOverride.deleteMany(filter)]);
 }
 
+const COPY_KINDS = [
+  { kind: 'outcomes', Model: ProgramOutcome },
+  { kind: 'courses', Model: ProgramCourse },
+  { kind: 'capstone', Model: CapstoneGuide },
+];
+
 /**
- * Копіює довідники набору from у набір to (ПРН з мітками, нормативні курси, Capstone), лише якщо в to їх ще немає.
+ * Копіює довідники набору from у набір to (ПРН з мітками, нормативні курси, Capstone) — кожен лише в порожню
+ * колекцію набору to і під блокуванням довідника ref:<to>:<kind> (N04), яке тримається до release().
  * Призначення курсів не копіюються: викладачі й дедлайни в кожному наборі свої. Скопійоване позначається
  * ReferenceOverride, щоб сід з фікстур не змішав його з даними фікстури того самого коду.
- * Помилка посередині прибирає все, що цей виклик уже записав.
- * @returns {Promise<{ outcomes: number, courses: number, capstone: number, rollback: () => Promise<void> }>}
+ * Відкат = видалити всі рядки набору to у скопійованих колекціях: до копіювання їх не було, тож навіть частковий
+ * insertMany не лишає рядків.
+ * @returns {Promise<{ outcomes: number, courses: number, capstone: number, rollback: () => Promise<void>, release: () => Promise<void> }>}
  */
 async function copyEditionReferences(from, to) {
   const src = normCode(from);
   const dst = normCode(to);
   const result = { outcomes: 0, courses: 0, capstone: 0 };
-  const written = { outcomes: [], courses: [], capstone: [], overrides: [] };
+  const held = [];
+  const copiedKinds = [];
+  const release = async () => {
+    for (const lock of held.splice(0)) await locks.release(lock);
+  };
   const rollback = async () => {
-    await Promise.all([
-      ProgramOutcome.deleteMany({ _id: { $in: written.outcomes } }), ProgramCourse.deleteMany({ _id: { $in: written.courses } }),
-      CapstoneGuide.deleteMany({ _id: { $in: written.capstone } }), ReferenceOverride.deleteMany({ _id: { $in: written.overrides } }),
-    ]);
+    for (const kind of copiedKinds) {
+      const { Model } = COPY_KINDS.find((k) => k.kind === kind);
+      const lock = held.find((l) => l.key === `ref:${dst}:${kind}`);
+      if (lock && !(await locks.isHeld(lock))) continue; // довідником уже володіє інший запит
+      await Model.deleteMany({ programCode: dst });
+      await ReferenceOverride.deleteMany({ programCode: dst, kind });
+    }
     invalidateCache();
   };
-  const mark = async (kind) => {
-    const res = await ReferenceOverride.updateOne({ programCode: dst, kind }, { $setOnInsert: { programCode: dst, kind } }, { upsert: true });
-    if (res.upsertedId) written.overrides.push(res.upsertedId);
-  };
   try {
-    if (!(await ProgramOutcome.exists({ programCode: dst }))) {
-      const rows = await ProgramOutcome.find({ programCode: src }).lean();
-      if (rows.length) {
-        written.outcomes.push(...(await ProgramOutcome.insertMany(rows.map((r) => ({ ...strip(r), programCode: dst })))).map((d) => d._id));
-        await mark('outcomes');
-      }
-      result.outcomes = rows.length;
-    }
-    if (!(await ProgramCourse.exists({ programCode: dst }))) {
-      const rows = await ProgramCourse.find({ programCode: src }).lean();
-      if (rows.length) {
-        written.courses.push(...(await ProgramCourse.insertMany(rows.map((r) => ({ ...strip(r), programCode: dst })))).map((d) => d._id));
-        await mark('courses');
-      }
-      result.courses = rows.length;
-    }
-    if (!(await CapstoneGuide.exists({ programCode: dst }))) {
-      const guide = await CapstoneGuide.findOne({ programCode: src }).lean();
-      if (guide) {
-        written.capstone.push((await CapstoneGuide.create({ ...strip(guide), programCode: dst }))._id);
-        await mark('capstone');
-        result.capstone = 1;
-      }
+    for (const { kind, Model } of COPY_KINDS) {
+      held.push(await locks.acquire(`ref:${dst}:${kind}`, { code: 'REFERENCE_CONFLICT' }));
+      if (await Model.exists({ programCode: dst })) continue;
+      const rows = await Model.find({ programCode: src }).lean();
+      if (kind === 'capstone') rows.splice(1);
+      if (!rows.length) continue;
+      copiedKinds.push(kind);
+      await Model.insertMany(rows.map((r) => ({ ...strip(r), programCode: dst })));
+      await ReferenceOverride.updateOne({ programCode: dst, kind }, { $setOnInsert: { programCode: dst, kind } }, { upsert: true });
+      result[kind] = kind === 'capstone' ? 1 : rows.length;
     }
   } catch (err) {
     await rollback();
+    await release();
     throw err;
   }
   invalidateCache();
-  return { ...result, rollback };
+  return { ...result, rollback, release };
 }
 
 /** Усі ефективні коди (для copyFrom можна взяти набір будь-якої програми або код програми без наборів). */
@@ -187,15 +237,24 @@ async function knownEditionCodes() {
 /**
  * Замінює список наборів програми. Порівнюються ефективні коди (C05): перехід «без наборів ↔ з наборами»
  * прибирає або займає код самої програми за тими самими правилами, що й набори.
- * Порядок: перевірки → зайняти нові коди → скопіювати довідники → зберегти програму (умова на версію) →
- * звільнити й очистити прибрані коди. Збій до збереження відкочує коди й копії (C06).
+ * Усе — під блокуванням program:<id> (N03): дві зміни однієї програми не перемежовуються.
+ * Порядок: перевірки → зарезервувати нові коди → скопіювати довідники → зберегти програму (CAS за версією —
+ * точка коміту) → закомітити коди → очистити довідники прибраних кодів, поки коди ще належать програмі,
+ * і лише потім звільнити їх (N02). Збій до коміту відкочує резервування й копії цієї операції; збій очистки
+ * після коміту не відкочує збережене — його довершить syncCodeRegistry.
  * @param {{ isNew?: boolean }} opts isNew — щойно створена програма ще не володіє власним кодом
  * @returns {Promise<{ program, copied: Record<string, object> }>}
  */
-async function setEditions(programId, rawEditions, { isNew = false } = {}) {
+async function setEditions(programId, rawEditions, opts = {}) {
+  const editions = parseEditions(rawEditions);
+  return locks.withLock(`program:${programId}`, (lock) => applyEditions(programId, editions, lock, opts), PROGRAM_LOCK);
+}
+
+const PROGRAM_LOCK = { message: 'Someone else is changing this programme right now. Refresh and try again.', code: 'PROGRAM_CONFLICT' };
+
+async function applyEditions(programId, editions, lock, { isNew = false } = {}) {
   const program = await Program.findById(programId);
   if (!program) throw httpError(404, 'Programme not found', { code: 'PROGRAM_NOT_FOUND' });
-  const editions = parseEditions(rawEditions);
   const before = new Set(isNew && !program.editions?.length ? [] : effectiveCodes(program));
   const after = effectiveCodes(program, editions);
   const added = after.filter((c) => !before.has(c));
@@ -210,44 +269,69 @@ async function setEditions(programId, rawEditions, { isNew = false } = {}) {
     }
   }
 
-  const claimed = await claimCodes(program._id, added);
+  const token = lock.token;
+  const claimed = await claimCodes(program._id, added, { token });
   const copies = [];
   const copied = {};
+  let saved;
   try {
-    for (const e of toCopy) {
-      const { rollback, ...counts } = await copyEditionReferences(e.copyFrom, e.code);
-      copies.push(rollback);
-      copied[e.code] = counts;
+    try {
+      for (const e of toCopy) {
+        const copy = await copyEditionReferences(e.copyFrom, e.code);
+        copies.push(copy);
+        const { rollback, release, ...counts } = copy;
+        copied[e.code] = counts;
+      }
+      await locks.assertHeld(lock);
+      saved = await Program.findOneAndUpdate(
+        { _id: program._id, __v: program.__v },
+        { $set: { editions: editions.map(({ code, label }) => ({ code, label })) }, $inc: { __v: 1 } },
+        { new: true, runValidators: true },
+      );
+      if (!saved) throw httpError(409, 'The programme was changed by someone else. Refresh and try again.', { code: 'PROGRAM_CONFLICT' });
+    } catch (err) {
+      // Відкат лише своєї операції й лише поки блокування наше
+      if (await locks.isHeld(lock)) {
+        for (const copy of [...copies].reverse()) await copy.rollback();
+        await releaseReserved(program._id, token, claimed);
+      }
+      invalidateCache();
+      throw err;
     }
-    const saved = await Program.findOneAndUpdate(
-      { _id: program._id, __v: program.__v },
-      { $set: { editions: editions.map(({ code, label }) => ({ code, label })) }, $inc: { __v: 1 } },
-      { new: true, runValidators: true },
-    );
-    if (!saved) throw httpError(409, 'The programme was changed by someone else. Refresh and try again.', { code: 'PROGRAM_CONFLICT' });
-    await releaseCodes(program._id, removed);
-    await deleteReferencesOf(removed);
-    invalidateCache();
-    return { program: saved, copied };
-  } catch (err) {
-    for (const rollback of copies.reverse()) await rollback();
-    await releaseCodes(program._id, claimed);
-    invalidateCache();
-    throw err;
+  } finally {
+    for (const copy of copies) await copy.release();
   }
+
+  // Після коміту: збої лише логуються, збережений набір не відкочується (N02)
+  try {
+    await commitCodes(program._id, token);
+    if (removed.length) {
+      await deleteReferencesOf(removed);
+      await locks.assertHeld(lock);
+      await releaseCodes(program._id, removed);
+    }
+  } catch (err) {
+    console.warn(`programme ${program.code}: cleanup after saving cohorts is incomplete (${err.message}); syncCodeRegistry will finish it`);
+  }
+  invalidateCache();
+  return { program: saved, copied };
 }
 
 /** Нова програма разом із наборами; будь-яка помилка не лишає ні програми, ні зайнятих кодів, ні копій. */
 async function createProgram({ name, code, academicDirectorEmail, editions }, { userId } = {}) {
   const programCode = normCode(code);
   if (!name || !programCode) throw httpError(400, 'name and code are required', { code: 'VALIDATION_ERROR' });
-  const withEditions = Array.isArray(editions) && editions.length > 0;
+  // N11: передані набори перевіряються завжди, до створення програми
+  const parsed = editions === undefined || editions === null ? [] : parseEditions(editions);
+  const withEditions = parsed.length > 0;
   if (!withEditions) await assertCodesFree(null, [programCode]);
   const program = await Program.create({ name, code: programCode, academicDirectorEmail, createdBy: userId, editions: [] });
   try {
-    if (withEditions) return await setEditions(program._id, editions, { isNew: true });
-    await claimCodes(program._id, [programCode]);
-    return { program, copied: {} };
+    return await locks.withLock(`program:${program._id}`, async (lock) => {
+      if (withEditions) return applyEditions(program._id, parsed, lock, { isNew: true });
+      await claimCodes(program._id, [programCode]);
+      return { program, copied: {} };
+    }, PROGRAM_LOCK);
   } catch (err) {
     await Program.deleteOne({ _id: program._id });
     await ProgramCode.deleteMany({ programId: program._id });
@@ -255,19 +339,30 @@ async function createProgram({ name, code, academicDirectorEmail, editions }, { 
   }
 }
 
-/** Видалення програми (C14): ні силабусів програми, ні силабусів чи призначень її кодів; потім очистка кодів і довідників. */
+/**
+ * Видалення програми (C14): ні силабусів програми, ні силабусів чи призначень її кодів. Точка коміту — видалення
+ * програми; далі очистка довідників і лише потім звільнення кодів (N02). Збій очистки довершить syncCodeRegistry.
+ */
 async function deleteProgram(programId) {
-  const program = await Program.findById(programId).lean();
-  if (!program) throw httpError(404, 'Programme not found', { code: 'PROGRAM_NOT_FOUND' });
-  const used = await Syllabus.countDocuments({ programId });
-  if (used) throw httpError(409, `This programme cannot be deleted: syllabi refer to it (${used})`, { code: 'PROGRAM_IN_USE' });
-  const owned = (await ProgramCode.find({ programId }).lean()).map((c) => c.code);
-  const codes = [...new Set([...effectiveCodes(program), ...owned])];
-  await assertRemovable(codes);
-  await Program.deleteOne({ _id: programId });
-  await ProgramCode.deleteMany({ programId });
-  await deleteReferencesOf(codes);
-  invalidateCache();
+  return locks.withLock(`program:${programId}`, async (lock) => {
+    const program = await Program.findById(programId).lean();
+    if (!program) throw httpError(404, 'Programme not found', { code: 'PROGRAM_NOT_FOUND' });
+    const used = await Syllabus.countDocuments({ programId });
+    if (used) throw httpError(409, `This programme cannot be deleted: syllabi refer to it (${used})`, { code: 'PROGRAM_IN_USE' });
+    const owned = (await ProgramCode.find({ programId }).lean()).map((c) => c.code);
+    const codes = [...new Set([...effectiveCodes(program), ...owned])];
+    await assertRemovable(codes);
+    await locks.assertHeld(lock);
+    await Program.deleteOne({ _id: programId });
+    try {
+      await deleteReferencesOf(codes);
+      await locks.assertHeld(lock);
+      await ProgramCode.deleteMany({ programId });
+    } catch (err) {
+      console.warn(`programme ${program.code}: cleanup after deletion is incomplete (${err.message}); syncCodeRegistry will finish it`);
+    }
+    invalidateCache();
+  }, PROGRAM_LOCK);
 }
 
 module.exports = {

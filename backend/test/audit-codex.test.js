@@ -186,8 +186,8 @@ describe('C05 · C06 · C14 — набори програм', () => {
 
   test('C06: збій копіювання другого набору відкочує програму, коди й скопійовані довідники', async () => {
     let calls = 0;
-    const real = CapstoneGuide.create.bind(CapstoneGuide);
-    jest.spyOn(CapstoneGuide, 'create').mockImplementation(async (...args) => {
+    const real = CapstoneGuide.insertMany.bind(CapstoneGuide);
+    jest.spyOn(CapstoneGuide, 'insertMany').mockImplementation(async (...args) => {
       calls += 1;
       if (calls === 2) throw new Error('copy failed');
       return real(...args);
@@ -272,5 +272,187 @@ describe('C11 — Reword структурованої картки', () => {
     const view = res.body.suggestions.find((v) => v.id === String(card._id));
     expect(view.draft.value.map((a) => a.name)).toEqual(['Final exam']);
     expect(res.body.suggestions.filter((v) => v.status === 'pending' && v.target.path === 'assessments[]')).toHaveLength(1);
+  });
+});
+
+// ---------- Повторна перевірка Codex 05.11 (N01–N11) ----------
+const locks = require('../services/locks');
+const Lock = require('../models/Lock');
+const ProgramCourse = require('../models/ProgramCourse');
+
+describe('N01–N11 — залишкові знахідки повторної перевірки', () => {
+  const expire = (lock) => Lock.updateOne({ key: lock.key }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
+
+  test('N01: власник, що втратив блокування, не знімає чужого й не комітить; зайнятий довідник → 409', async () => {
+    const a = await locks.acquire('ref:N01:outcomes');
+    await expect(editor.saveOutcomes('N01', [{ code: 'ПРН1', text: 'X.' }])).rejects.toMatchObject({ code: 'REFERENCE_CONFLICT' });
+    await expire(a);
+    const b = await locks.acquire('ref:N01:outcomes');
+    await locks.release(a);
+    expect(await locks.isHeld(b)).toBe(true);
+    await expect(locks.assertHeld(a)).rejects.toMatchObject({ code: 'LOCK_LOST' });
+    await expect(editor.saveOutcomes('N01', [{ code: 'ПРН1', text: 'C.' }])).rejects.toMatchObject({ code: 'REFERENCE_CONFLICT' });
+    await locks.release(b);
+  });
+
+  test('N01: збій запису після втрати блокування не відкочує даних нового власника', async () => {
+    await programs.createProgram({ name: 'N01b', code: 'N01BP', editions: [{ code: 'N01B' }] });
+    await editor.saveOutcomes('N01B', [{ code: 'ПРН1', text: 'Old.' }]);
+    jest.spyOn(ProgramOutcome, 'bulkWrite').mockImplementationOnce(async () => {
+      // Поки A «пише», його lease спливає, і B замінює довідник
+      await Lock.updateOne({ key: 'ref:N01B:outcomes' }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
+      jest.restoreAllMocks();
+      await editor.saveOutcomes('N01B', [{ code: 'ПРН2', text: 'B.' }]);
+      throw new Error('A failed');
+    });
+    await expect(editor.saveOutcomes('N01B', [{ code: 'ПРН3', text: 'A.' }])).rejects.toThrow('A failed');
+    expect((await ProgramOutcome.find({ programCode: 'N01B' }).lean()).map((o) => o.code)).toEqual(['ПРН2']);
+    expect(await ReferenceOverride.exists({ programCode: 'N01B', kind: 'outcomes' })).toBeTruthy();
+  });
+
+  test('N02: збій очистки після збереження не руйнує нового набору; syncCodeRegistry довершує очистку', async () => {
+    const p = (await programs.createProgram({ name: 'N02', code: 'N02P', editions: [{ code: 'N02OLD', copyFrom: 'MBA28' }] })).program;
+    expect(await ProgramOutcome.countDocuments({ programCode: 'N02OLD' })).toBeGreaterThan(0);
+    jest.spyOn(ProgramOutcome, 'deleteMany').mockImplementationOnce(async () => { throw new Error('cleanup failed'); });
+    const { program } = await programs.setEditions(p._id, [{ code: 'N02NEW', copyFrom: 'MBA28' }]);
+    jest.restoreAllMocks();
+    expect(program.editions.map((e) => e.code)).toEqual(['N02NEW']);
+    expect(await ProgramCode.findOne({ code: 'N02NEW' }).lean()).toMatchObject({ committed: true });
+    expect(await ProgramOutcome.countDocuments({ programCode: 'N02NEW' })).toBeGreaterThan(0);
+    // Старий код ще не звільнено: інша програма не може його взяти, поки довідники не прибрано
+    expect(await ProgramCode.exists({ code: 'N02OLD' })).toBeTruthy();
+    const other = (await programs.createProgram({ name: 'N02 other', code: 'N02Q' })).program;
+    await expect(programs.setEditions(other._id, [{ code: 'N02OLD' }])).rejects.toMatchObject({ code: 'EDITION_CODE_TAKEN' });
+    await programs.syncCodeRegistry();
+    expect(await ProgramCode.exists({ code: 'N02OLD' })).toBeNull();
+    expect(await ProgramOutcome.countDocuments({ programCode: 'N02OLD' })).toBe(0);
+    expect(await ProgramOutcome.countDocuments({ programCode: 'N02NEW' })).toBeGreaterThan(0);
+  });
+
+  test('N03: два одночасні setEditions однієї програми — другий 409, дані першого цілі', async () => {
+    const p = (await programs.createProgram({ name: 'N03', code: 'N03P' })).program;
+    const results = await Promise.allSettled([
+      programs.setEditions(p._id, [{ code: 'N03X', copyFrom: 'MBA28' }]), programs.setEditions(p._id, [{ code: 'N03X', copyFrom: 'MBA28' }]),
+    ]);
+    const ok = results.filter((r) => r.status === 'fulfilled');
+    expect(ok.length).toBeGreaterThanOrEqual(1);
+    results.filter((r) => r.status === 'rejected').forEach((r) => expect(r.reason.code).toBe('PROGRAM_CONFLICT'));
+    expect((await Program.findById(p._id).lean()).editions.map((e) => e.code)).toEqual(['N03X']);
+    expect(await ProgramCode.findOne({ code: 'N03X' }).lean()).toMatchObject({ committed: true, programId: p._id });
+    expect(await ProgramOutcome.countDocuments({ programCode: 'N03X' })).toBe(await ProgramOutcome.countDocuments({ programCode: 'MBA28' }));
+  });
+
+  test('N04: частковий insertMany копії не лишає рядків', async () => {
+    const real = ProgramOutcome.insertMany.bind(ProgramOutcome);
+    jest.spyOn(ProgramOutcome, 'insertMany').mockImplementationOnce(async (rows) => {
+      await real(rows.slice(0, 1));
+      throw new Error('partial insert');
+    });
+    await expect(programs.createProgram({ name: 'N04', code: 'N04P', editions: [{ code: 'N04X', copyFrom: 'MBA28' }] })).rejects.toThrow('partial insert');
+    expect(await ProgramOutcome.countDocuments({ programCode: 'N04X' })).toBe(0);
+    expect(await ProgramCode.countDocuments({ code: { $in: ['N04P', 'N04X'] } })).toBe(0);
+    expect(await Lock.countDocuments({ key: /N04X/ })).toBe(0);
+  });
+
+  test('N05: два одночасні PUT коду курсу лишають state, course.code і offeringId узгодженими', async () => {
+    const own = await offering('N05-OWN', lecturer._id);
+    const created = await createSyllabus(lecturer, { courseCode: 'N05-BEFORE' });
+    const id = created.body.syllabus._id;
+    const put = () => request(app).put(`/api/syllabus/${id}`).set(bearer(lecturer)).send({ courseCode: 'N05-OWN' });
+    const results = await Promise.all([put(), put()]);
+    expect(results.some((r) => r.status === 200)).toBe(true);
+    results.filter((r) => r.status !== 200).forEach((r) => expect(r.status).toBe(409));
+    const doc = await Syllabus.findById(id).lean();
+    expect(doc.course.code).toBe('N05-OWN');
+    expect(String(doc.offeringId)).toBe(String(own._id));
+    expect((await store.getState(id)).state.header.courseCode).toBe('N05-OWN');
+  });
+
+  test('N06: Confirm → Reopen картки коду курсу повертає null у state, metadata й offeringId', async () => {
+    await offering('N06-OWN', lecturer._id);
+    references.invalidateCache();
+    const refs = await references.getRefs('MBA28');
+    const s = await helpers.createSyllabus(lecturer, { programCode: 'MBA28', track: 'upload', programId: mba._id });
+    await store.initState(s._id, createEmptyState({ programCode: 'MBA28', track: 'upload', refs }), { refs });
+    const { state } = await store.getState(s._id);
+    const [sg] = await createDraftSuggestions(courseHintCards({ code: 'N06-OWN', title: 'Core' }), { syllabusId: s._id, state, refs, known: [] });
+    expect((await request(app).post(`/api/chat/${s._id}/suggestions/${sg._id}/accept`).set(bearer(lecturer)).send({ optionId: 'confirm' })).status).toBe(200);
+    expect((await Syllabus.findById(s._id).lean()).offeringId).toBeTruthy();
+    const reopen = await request(app).post(`/api/chat/${s._id}/suggestions/${sg._id}/reopen`).set(bearer(lecturer)).send({});
+    expect(reopen.status).toBe(200);
+    const doc = await Syllabus.findById(s._id).lean();
+    expect((await store.getState(s._id)).state.header.courseCode).toBeNull();
+    expect(doc.course?.code ?? null).toBeNull();
+    expect(doc.offeringId ?? null).toBeNull();
+  });
+
+  const pendingCard = async (part) => {
+    const refs = await references.getRefs('MBA28');
+    const s = await helpers.createSyllabus(lecturer, { programCode: 'MBA28', track: 'scratch' });
+    await store.initState(s._id, createEmptyState({ programCode: 'MBA28', track: 'scratch', refs }), { refs });
+    const { state, revision } = await store.getState(s._id);
+    const built = typeof part === 'function' ? part(state) : part;
+    const [card] = await createDraftSuggestions([{ origin: 'orchestrator', kind: 'edit', severity: 'medium', title: 'Draft', ...built, factsScanned: true }], { syllabusId: s._id, state, refs, known: [] });
+    return { s, card, revision };
+  };
+  const toolCall = (name, args) => async (req) => {
+    if (req.input.some((i) => i.type === 'function_call_output')) return { output_text: 'Updated.', output: [] };
+    return { output: [{ type: 'function_call', call_id: 'c1', name, arguments: JSON.stringify(args) }] };
+  };
+
+  test('N07: Reword «зміни лише ім\'я» зберігає email і освіту з чернетки картки', async () => {
+    const { s, card } = await pendingCard((state) => slotDrafts.instructorDraft({
+      state, known: ['Jane Draft original@example.com Draft University'],
+      values: { name: 'Jane Draft', email: 'original@example.com', education: ['Draft University'] },
+    }));
+    createResponse.mockImplementation(toolCall('propose_instructor', {
+      name: 'Jane Renamed', position: null, email: null, office_hours: null, assistants: null, expertise: null, education: null, experience: null,
+    }));
+    const res = await request(app).post(`/api/chat/${s._id}/suggestions/${card._id}/refine`).set(bearer(lecturer)).send({ feedback: 'Change only the name to Jane Renamed' });
+    expect(res.status).toBe(200);
+    const view = res.body.suggestions.find((v) => v.id === String(card._id));
+    expect(view.draft.value[0]).toMatchObject({ name: 'Jane Renamed', email: 'original@example.com', education: ['Draft University'] });
+  });
+
+  test('N08: хід Reword не змінює стан (set_slot → DRAFT_ONLY)', async () => {
+    const { s, card, revision } = await pendingCard((state) => slotDrafts.itemsDraft('assessment.components', { state, known: [], items: [{ id: null, label: 'Exam', weight: 100 }] }));
+    createResponse.mockImplementation(toolCall('set_slot', { key: 'glance.ects', value: '6' }));
+    const res = await request(app).post(`/api/chat/${s._id}/suggestions/${card._id}/refine`).set(bearer(lecturer)).send({ feedback: 'Use 6 ECTS in this draft' });
+    expect(res.status).toBe(200);
+    const after = await store.getState(s._id);
+    expect(after.revision).toBe(revision);
+    expect(after.state.header.ects ?? null).toBeNull();
+  });
+
+  test('N09: десяткові числа не роблять відомими їхніх частин', () => {
+    expect(scanFacts('5% and 8 hours', { known: ['Weight is 0.5%; deadline is 4.8 hours.'] }).map((f) => f.value)).toEqual(['5%', '8 hours']);
+    expect(scanFacts('5% and 8 hours', { known: ['Weight is 5%; deadline is 8 hours.'] })).toEqual([]);
+  });
+
+  test('N10: повтор PUT courses після 503 SYNC_INCOMPLETE доводить state до core', async () => {
+    const created = await createSyllabus(lecturer, { courseCode: 'N10.1' });
+    const id = created.body.syllabus._id;
+    expect((await store.getState(id)).state.header.courseKind).toBe('elective');
+    const current = (await ProgramCourse.find({ programCode: 'MBA28' }).lean()).map(({ code, uk, en, ects }) => ({ code, uk, en, ects }));
+    const body = { courses: [...current, { code: 'N10.1', uk: 'Курс N10' }] };
+    const realMutate = store.mutate;
+    jest.spyOn(store, 'mutate').mockImplementation(async (sid, ...rest) => {
+      if (String(sid) === String(id)) throw new Error('temporary store failure');
+      return realMutate(sid, ...rest);
+    });
+    const first = await request(app).put('/api/references/MBA28/courses').set(bearer(director)).send(body);
+    expect(first.status).toBe(503);
+    expect(first.body.code).toBe('SYNC_INCOMPLETE');
+    jest.restoreAllMocks();
+    const retry = await request(app).put('/api/references/MBA28/courses').set(bearer(director)).send(body);
+    expect(retry.status).toBe(200);
+    expect((await store.getState(id)).state.header.courseKind).toBe('core');
+    // Повернути довідник набору, щоб не впливати на інші тести
+    await request(app).put('/api/references/MBA28/courses').set(bearer(director)).send({ courses: current });
+  });
+
+  test('N11: editions неправильного типу → 400 INVALID_EDITIONS, програма не створюється', async () => {
+    await expect(programs.createProgram({ name: 'Invalid editions', code: 'N11P', editions: 'invalid' })).rejects.toMatchObject({ code: 'INVALID_EDITIONS' });
+    expect(await Program.exists({ code: 'N11P' })).toBeNull();
   });
 });

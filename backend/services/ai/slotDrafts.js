@@ -271,12 +271,14 @@ function factsAndTemplate({ entities, before, fields, labelOf, line, known }) {
  *   append — додає/править, решта лишається; replace — список стає рівно таким.
  * @returns {{ target, value, text, template, proposedValues } | { error, message }}
  */
-function itemsDraft(slotKey, { state, items, mode = 'append', known = [] }) {
+function itemsDraft(slotKey, { state, items, mode = 'append', known = [], base = null }) {
   const def = ITEM_SLOTS[slotKey];
   if (!def) return { error: 'SLOT_NOT_LIST', message: `Use propose_items only for: ${Object.keys(ITEM_SLOTS).join(', ')}` };
   if (!Array.isArray(items) || !items.length || items.length > MAX_ITEMS) return { error: 'INVALID_VALUE', message: `Give between 1 and ${MAX_ITEMS} items` };
   if (!['append', 'replace'].includes(mode)) return { error: 'INVALID_VALUE', message: 'mode must be append or replace' };
-  const existing = getPath(state, def.path) || [];
+  // Reword (N07): зміни накладаються на чернетку картки (base), а факти рахуються проти прийнятого стану
+  const accepted = getPath(state, def.path) || [];
+  const existing = Array.isArray(base) ? base : accepted;
   const byId = new Map(existing.map((e) => [e.id, e]));
   const taken = new Set(existing.map((e) => e.id));
   const fields = [def.main, ...def.fields];
@@ -309,15 +311,19 @@ function itemsDraft(slotKey, { state, items, mode = 'append', known = [] }) {
   }
   if (JSON.stringify(entities) === JSON.stringify(existing)) return { error: 'NO_CHANGE', message: 'The list already looks like this' };
   const { proposedValues, text, template } = factsAndTemplate({
-    entities, before: byId, fields, known, line: def.line,
+    entities, before: new Map(accepted.map((e) => [e.id, e])), fields, known, line: def.line,
     labelOf: (e) => (def.numbered ? `${def.noun} ${e.n}` : String(e[def.main.name] || def.noun).slice(0, 40)),
   });
   return { target: { path: def.path, entityId: null }, value: entities, text, template, proposedValues };
 }
 
-/** Чернетка профілю викладача (instructors[0]); null-поля не змінюються. */
-function instructorDraft({ state, values, known = [] }) {
-  const list = state.instructors || [];
+/**
+ * Чернетка профілю викладача (instructors[0]); null-поля не змінюються. Reword (N07): base — значення чернетки
+ * картки, null-поля зберігають її значення; факти рахуються проти прийнятого стану.
+ */
+function instructorDraft({ state, values, known = [], base = null }) {
+  const accepted = (state.instructors || [])[0] || null;
+  const list = Array.isArray(base) && base.length ? base : (state.instructors || []);
   const old = list[0] || null;
   const entity = old ? { ...old } : {
     id: 'ins1', crmId: null, name: null, position: null, email: null, officeHours: null, assistants: null,
@@ -334,7 +340,7 @@ function instructorDraft({ state, values, known = [] }) {
   entity.evidenceBlockIds = [];
   const line = (e, f) => INSTRUCTOR_FIELDS.filter((x) => fieldString(e[x.name])).map((x) => `${x.label}: ${f(x.name)}`).join('\n');
   const { proposedValues, text, template } = factsAndTemplate({
-    entities: [entity], before: new Map(old ? [[old.id, old]] : []), fields: INSTRUCTOR_FIELDS, known, line, labelOf: () => 'Instructor',
+    entities: [entity], before: new Map(accepted ? [[accepted.id, accepted]] : []), fields: INSTRUCTOR_FIELDS, known, line, labelOf: () => 'Instructor',
   });
   return { target: { path: 'instructors[]', entityId: null }, value: [entity, ...list.slice(1)], text, template, proposedValues };
 }

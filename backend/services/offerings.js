@@ -99,6 +99,33 @@ async function claimOfferingForCode(syllabus, courseCode, user) {
   };
 }
 
+/**
+ * Усі силабуси набору (N10, після зміни переліку нормативних курсів): перерахунок ідемпотентний, тож повтор
+ * запиту після 503 SYNC_INCOMPLETE доводить до ладу й ті силабуси, чий курс у diff уже не потрапляє.
+ */
+const syncCohortSyllabi = (programCode) => syncOfferingSyllabi({ programCode, allCourses: true });
+
+/** Ключ блокування зміни коду курсу силабуса (N05): PUT, Confirm і Reopen картки коду серіалізуються. */
+const courseCodeLockKey = (syllabusId) => `syllabus-code:${String(syllabusId)}`;
+
+/**
+ * Узгоджує метадані силабуса з кодом курсу в стані (N06, після Reopen коду): прив'язка до призначення
+ * з іншим кодом знімається, course.code = код зі стану. Викликати під courseCodeLockKey.
+ */
+async function reconcileCourseCode(syllabusId) {
+  const syllabus = await Syllabus.findById(syllabusId).select('offeringId course.code state.header.courseCode').lean();
+  if (!syllabus) return;
+  const code = syllabus.state?.header?.courseCode ?? null;
+  const $set = { 'course.code': code };
+  const update = { $set };
+  if (syllabus.offeringId) {
+    const offering = await CourseOffering.findById(syllabus.offeringId).select('courseCode').lean();
+    if (!offering || normCourseCode(offering.courseCode) !== normCourseCode(code)) update.$unset = { offeringId: '' };
+    else return;
+  }
+  await Syllabus.updateOne({ _id: syllabusId }, update);
+}
+
 /** Посилання призначення мають існувати: набір — серед Program.editions, викладач — активний користувач. */
 async function assertOfferingRefs({ programCode, lecturerId }) {
   if (programCode !== undefined) {
@@ -121,7 +148,7 @@ const MAX_SYNC_ATTEMPTS = 3;
  * Запис — через store.mutate (знімає approved з зачепленого розділу At a Glance і пише SlotChange).
  * @returns {Promise<number>} скільки силабусів змінилось
  */
-async function syncOfferingSyllabi({ programCode, courseCode, offeringId = null }) {
+async function syncOfferingSyllabi({ programCode, courseCode, offeringId = null, allCourses = false }) {
   invalidateCache();
   const code = String(programCode || '').trim().toUpperCase();
   const wanted = normCourseCode(courseCode);
@@ -129,7 +156,8 @@ async function syncOfferingSyllabi({ programCode, courseCode, offeringId = null 
   if (offeringId) or.push({ offeringId });
   const candidates = await Syllabus.find({ $or: or, state: { $exists: true, $ne: null }, legacy: { $ne: true }, needsRebuild: { $ne: true } })
     .select('_id offeringId programCode state.header.courseCode course.code status').lean();
-  const affected = candidates.filter((s) => (offeringId && String(s.offeringId) === String(offeringId))
+  const affected = candidates.filter((s) => (allCourses && s.programCode === code)
+    || (offeringId && String(s.offeringId) === String(offeringId))
     || normCourseCode(s.state?.header?.courseCode || s.course?.code) === wanted);
   if (!affected.length) return 0;
   const refs = await getRefs(code);
@@ -168,5 +196,5 @@ async function syncOfferingSyllabi({ programCode, courseCode, offeringId = null 
 
 module.exports = {
   normCourseCode, findOfferingFor, resolveOfferingForCreate, assertOfferingFree, offeringTakenError, assertOfferingRefs, syncOfferingSyllabi,
-  claimOfferingForCode,
+  claimOfferingForCode, courseCodeLockKey, reconcileCourseCode, syncCohortSyllabi,
 };

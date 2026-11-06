@@ -5,7 +5,7 @@ const Program = require('../models/Program');
 const references = require('../services/references');
 const { sendError } = require('../utils/httpError');
 const editor = require('../services/references/editor');
-const { syncOfferingSyllabi } = require('../services/offerings');
+const { syncCohortSyllabi } = require('../services/offerings');
 const { PROGRAMME_ROLES } = require('../services/roles');
 
 // Довідники v5 за programCode (docs/api-v5.md §6 «Довідники»)
@@ -54,10 +54,10 @@ router.put('/:programCode/outcomes', programmeStaff, async (req, res) => {
 router.put('/:programCode/courses', programmeStaff, async (req, res) => {
   try {
     const programCode = await references.assertKnownProgramCode(req.params.programCode);
-    const { courses, changedCodes } = await editor.saveCourses(programCode, req.body.courses, { userId: req.user.userId });
-    // Курс став (або перестав бути) нормативним: courseKind силабусів набору перераховується одразу
-    let resynced = 0;
-    for (const courseCode of changedCodes) resynced += await syncOfferingSyllabi({ programCode, courseCode });
+    const { courses } = await editor.saveCourses(programCode, req.body.courses, { userId: req.user.userId });
+    // Курс став (або перестав бути) нормативним: courseKind перераховується в усіх силабусах набору (N10) —
+    // повтор після 503 SYNC_INCOMPLETE довершує синхронізацію, навіть коли довідник уже збережено
+    const resynced = await syncCohortSyllabi(programCode);
     res.json({ courses, resynced });
   } catch (err) { sendError(res, err); }
 });

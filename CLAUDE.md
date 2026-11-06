@@ -79,7 +79,8 @@ backend/
   models/                   User (+lecturerProfile), Program (+editions), Syllabus (state, stateRevision, baselineState, programCode, track),
                             Suggestion (v5: target, draft, proposedValues), Conversation, Message, SlotChange, Policy (+syllabus-policy),
                             TemplateSection, ProgramOutcome, OutcomeMapping, ProgramCourse, CapstoneGuide, ReferenceOverride (довідник набору змінено в кабінеті — сід не чіпає),
-                            CourseOffering (курс × набір: type, lecturerId, deadline)
+                            CourseOffering (курс × набір: type, lecturerId, deadline), ProgramCode (реєстр кодів наборів: token, committed),
+                            Lock (блокування з токеном власника для багатодокументних операцій)
   routes/                   auth, syllabus (create/upload/status/analyze), chat (View, рішення, розділи, політики, документ, outputs), cabinet,
                             users (+profile/lecturer), policies, references
   services/
@@ -87,6 +88,7 @@ backend/
     checks/                 детерміновані перевірки ТЗ §2 (glance, assessment, workload, regulations, outcomes, plo) + llm.js (судження)
     references/             getRefs(programCode), courseKind, normalizePloCode, seed, editor (ПРН, нормативні курси, Capstone набору з кабінету), policies, fixtureRefs
     programs.js, offerings.js   набори програм (editions, copyFrom) і призначення курс × набір
+    locks.js                acquire / assertHeld / release / withLock: зміни програми, довідника набору, коду курсу силабуса
     ai/
       client.js             єдина обгортка OpenAI (createResponse)
       facts.js              сканер фактів → proposedValues; toTemplate/renderTemplate («Change the value»)
@@ -188,6 +190,7 @@ frontend/src/
   - Набір (MBA29, EMBA25…) додає admin у кабінеті (Programmes → Cohorts) або `PUT /api/cabinet/programs/:id { editions }`; `copyFrom` копіює ПРН, нормативні курси й Capstone з наявного набору.
   - Перший запуск — `fixtures/reference/programs.json`; коди наборів у коді (сід, міграції, фронт) не зашивати, за замовчуванням — найновіший набір програми.
   - ПРН, нормативні курси й Capstone набору правлять manager / director / admin у Library (`PUT /api/references/:programCode/{outcomes|courses|capstone}`); після правки сід цей довідник набору не перезаписує (`ReferenceOverride`).
+- **Багатодокументні зміни без транзакцій** (набори програми, довідник набору, код курсу силабуса) — під `locks.withLock(key)`. Комітити й відкочувати можна лише після `assertHeld` / `isHeld`, а відкат прибирає тільки записи своєї операції.
 - **Аналіз:** записи лише з фільтром `ownedAnalysis(id, leaseToken)`; запуск лише через `runAnalysis` / `runAnalysisInBackground`.
 - **Помилки:** сервіси кидають `httpError(statusCode, message, { code, retryable, details })`, маршрути віддають через `sendError`. `message` — англійською.
 - **Перелік вихідних файлів** — лише `services/outputFormats.js`.

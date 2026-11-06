@@ -98,9 +98,11 @@ function isExplicitConfirm(text) {
  * Залежності, яких не передав виклик, беруться зі справжніх модулів (завантажуються ліниво: чисті тести їх не потребують).
  * acceptSuggestion дефолту не має — його реалізує сервіс рішень чату.
  */
-function withDefaultDeps(deps = {}) {
+function withDefaultDeps(deps = {}, { draftOnly = false } = {}) {
   const out = { ...deps };
   if (!out.mutate) out.mutate = (...a) => require('../../syllabusState/store').mutate(...a);
+  // Хід Reword лише будує чернетку (N08): будь-який запис стану — помилка, навіть якщо інструмент його спробує
+  if (draftOnly) out.mutate = async () => { throw Object.assign(new Error('This turn only drafts; the syllabus cannot be changed'), { code: 'DRAFT_ONLY' }); };
   if (!out.getState) out.getState = (...a) => require('../../syllabusState/store').getState(...a);
   if (!out.createDraftSuggestions) out.createDraftSuggestions = (...a) => require('../../chat/draftSuggestions').createDraftSuggestions(...a);
   if (!out.runChecks) out.runChecks = (...a) => require('../../checks').runChecks(...a);
@@ -132,7 +134,10 @@ function createToolContext(ctx) {
     userId: ctx.userId ?? null,
     lastUtterance: last,
     utterances,
-    deps: withDefaultDeps(ctx.deps),
+    deps: withDefaultDeps(ctx.deps, { draftOnly: Boolean(ctx.draftOnly) }),
+    // Reword картки (N07, N08): чернетка будується на значенні картки, а стан не змінюється
+    draftOnly: Boolean(ctx.draftOnly),
+    draftBase: ctx.draftBase || null,
     startedAt: Date.now(),
     createdIds: [],
     wrote: false,
@@ -198,7 +203,13 @@ async function get_slot(tctx, { key }) {
   };
 }
 
+const draftOnlyError = () => fail('DRAFT_ONLY', 'This turn only rewords the draft on the card; use propose_items or propose_instructor');
+
+/** Значення чернетки картки для Reword, якщо інструмент пише в той самий шлях. */
+const draftBaseFor = (tctx, path) => (tctx.draftBase && tctx.draftBase.path === path ? tctx.draftBase.value : null);
+
 async function set_slot(tctx, { key, value }) {
+  if (tctx.draftOnly) return draftOnlyError();
   const { slot, error } = slotError(key, tctx.state);
   if (error) return error;
   if (key.startsWith('policy.') || slot.type === 'E' || slot.editability !== 'free') {
@@ -369,7 +380,7 @@ async function propose_items(tctx, { key, mode, items }) {
     return fail('UNVERIFIED_URL', 'Links cannot be added unless the instructor gave them; use suggest_readings');
   }
   const known = knownTexts(tctx, key, getPath(tctx.state, ITEM_SLOTS[key].path));
-  const part = itemsDraft(key, { state: tctx.state, items, mode, known });
+  const part = itemsDraft(key, { state: tctx.state, items, mode, known, base: draftBaseFor(tctx, ITEM_SLOTS[key].path) });
   if (part.error) return fail(part.error, part.message);
   return createStructuredDraft(tctx, key, slot, part, mode === 'replace' ? 'The list drafted from your answers in chat.' : 'Items drafted from your answers in chat.');
 }
@@ -379,12 +390,13 @@ async function propose_instructor(tctx, values) {
   const { slot, error } = slotError(key, tctx.state);
   if (error) return error;
   if (unverifiedUrl(tctx, Object.values(values || {}).flat())) return fail('UNVERIFIED_URL', 'Links cannot be added unless the instructor gave them');
-  const part = instructorDraft({ state: tctx.state, values, known: knownTexts(tctx, key, tctx.state.instructors) });
+  const part = instructorDraft({ state: tctx.state, values, known: knownTexts(tctx, key, tctx.state.instructors), base: draftBaseFor(tctx, 'instructors[]') });
   if (part.error) return fail(part.error, part.message);
   return createStructuredDraft(tctx, key, slot, part, 'Instructor details drafted from your answers in chat.');
 }
 
 async function apply_edit(tctx, { draft_id: draftId }) {
+  if (tctx.draftOnly) return draftOnlyError();
   const suggestion = await tctx.deps.findSuggestion(draftId);
   if (!suggestion || String(suggestion.syllabusId) !== String(tctx.syllabusId)) return fail('NOT_FOUND', 'Draft not found');
   if (suggestion.status !== 'pending') return fail('NOT_PENDING', 'This draft has already been decided');

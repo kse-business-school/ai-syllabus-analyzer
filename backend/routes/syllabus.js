@@ -23,7 +23,8 @@ const { resolveProfile } = require('../services/lecturers/profile');
 const { prepareInstructor } = require('../services/lecturers/cards');
 const { createDraftSuggestions } = require('../services/chat/draftSuggestions');
 const { canSeeAll } = require('../services/roles');
-const { resolveOfferingForCreate, assertOfferingFree, offeringTakenError, normCourseCode, claimOfferingForCode } = require('../services/offerings');
+const { resolveOfferingForCreate, assertOfferingFree, offeringTakenError, normCourseCode, claimOfferingForCode, courseCodeLockKey } = require('../services/offerings');
+const locks = require('../services/locks');
 
 const CLEANUP_GRACE_MS = 10 * 60 * 1000;
 
@@ -382,54 +383,57 @@ router.put('/:id', auth, [
     if (!errors.isEmpty()) {
       return res.status(400).json({ message: 'Validation failed', code: 'VALIDATION_ERROR', errors: errors.array() });
     }
-    const syllabus = await Syllabus.findById(req.params.id);
-    if (!syllabus) return sendError(res, notFound());
-    if (!isOwner(req.user, syllabus)) return sendError(res, forbidden('You can only edit your own syllabi.'));
-    if (syllabus.status === 'analyzing') {
-      return sendError(res, httpError(409, 'The file is still being analysed. Try again when the analysis finishes.', { code: 'ANALYSIS_IN_PROGRESS' }));
-    }
-
-    const { title, courseCode, courseName, credits, semester, year, programId, programCode } = req.body;
-    const sameProgram = programId === undefined || String(programId) === String(syllabus.programId || '');
-    const sameEdition = programCode === undefined || String(programCode).trim().toUpperCase() === String(syllabus.programCode || '');
-    if (!sameProgram || !sameEdition) {
-      return sendError(res, httpError(400, 'The programme and its edition cannot be changed. Create a new syllabus for another programme.', { code: 'PROGRAM_CHANGE_NOT_ALLOWED' }));
-    }
-
-    // Зміна коду курсу — ті самі правила призначення, що й при створенні (C01): прив'язаний код не змінюється,
-    // чужий чи зайнятий курс → 403/409, своє вільне призначення займається до запису стану
-    let claim = { courseCode: courseCode === undefined ? undefined : (courseCode || null), release: async () => {} };
-    if (courseCode !== undefined && normCourseCode(courseCode) !== normCourseCode(syllabus.course?.code)) {
-      claim = await claimOfferingForCode(syllabus, courseCode, req.user);
-    }
-
-    // Спершу стан (умова на ревізію): якщо запис не вдався, метадані теж не змінюються
-    const header = {};
-    if (courseName) header.courseTitle = courseName;
-    else if (title) header.courseTitle = title;
-    if (courseCode !== undefined) header.courseCode = claim.courseCode;
-    const v5 = syllabus.state && !syllabus.legacy && !syllabus.needsRebuild;
-    if (v5 && Object.keys(header).length) {
-      try {
-        await store.mutate(syllabus._id, syllabus.stateRevision || 0, (st) => {
-          st.header = { ...st.header, ...header };
-        }, { by: req.user.userId, source: 'instructor_directed', refs: await getRefs(syllabus.programCode) });
-      } catch (err) {
-        await claim.release();
-        throw err;
+    // N05: зміна коду курсу (claim → стан → метадані) — під блокуванням силабуса; читання — вже під ним
+    const saved = await locks.withLock(courseCodeLockKey(req.params.id), async (lock) => {
+      const syllabus = await Syllabus.findById(req.params.id);
+      if (!syllabus) throw notFound();
+      if (!isOwner(req.user, syllabus)) throw forbidden('You can only edit your own syllabi.');
+      if (syllabus.status === 'analyzing') {
+        throw httpError(409, 'The file is still being analysed. Try again when the analysis finishes.', { code: 'ANALYSIS_IN_PROGRESS' });
       }
-    }
 
-    const updates = {};
-    if (title) updates.title = title;
-    if (courseCode !== undefined) updates['course.code'] = claim.courseCode;
-    if (courseName !== undefined) updates['course.name'] = courseName;
-    if (credits !== undefined) updates['course.credits'] = parseInt(credits, 10);
-    if (semester !== undefined) updates['course.semester'] = semester;
-    if (year !== undefined) updates['course.year'] = parseInt(year, 10);
-    const saved = Object.keys(updates).length
-      ? await Syllabus.findByIdAndUpdate(syllabus._id, { $set: updates }, { new: true })
-      : await Syllabus.findById(syllabus._id);
+      const { title, courseCode, courseName, credits, semester, year, programId, programCode } = req.body;
+      const sameProgram = programId === undefined || String(programId) === String(syllabus.programId || '');
+      const sameEdition = programCode === undefined || String(programCode).trim().toUpperCase() === String(syllabus.programCode || '');
+      if (!sameProgram || !sameEdition) {
+        throw httpError(400, 'The programme and its edition cannot be changed. Create a new syllabus for another programme.', { code: 'PROGRAM_CHANGE_NOT_ALLOWED' });
+      }
+
+      // Зміна коду курсу — ті самі правила призначення, що й при створенні (C01): прив'язаний код не змінюється,
+      // чужий чи зайнятий курс → 403/409, своє вільне призначення займається до запису стану
+      let claim = { courseCode: courseCode === undefined ? undefined : (courseCode || null), release: async () => {} };
+      if (courseCode !== undefined && normCourseCode(courseCode) !== normCourseCode(syllabus.course?.code)) {
+        claim = await claimOfferingForCode(syllabus, courseCode, req.user);
+      }
+
+      // Спершу стан (умова на ревізію): якщо запис не вдався, метадані теж не змінюються
+      const header = {};
+      if (courseName) header.courseTitle = courseName;
+      else if (title) header.courseTitle = title;
+      if (courseCode !== undefined) header.courseCode = claim.courseCode;
+      const v5 = syllabus.state && !syllabus.legacy && !syllabus.needsRebuild;
+      if (v5 && Object.keys(header).length) {
+        try {
+          await store.mutate(syllabus._id, syllabus.stateRevision || 0, (st) => {
+            st.header = { ...st.header, ...header };
+          }, { by: req.user.userId, source: 'instructor_directed', refs: await getRefs(syllabus.programCode) });
+        } catch (err) {
+          if (await locks.isHeld(lock)) await claim.release();
+          throw err;
+        }
+      }
+
+      const updates = {};
+      if (title) updates.title = title;
+      if (courseCode !== undefined) updates['course.code'] = claim.courseCode;
+      if (courseName !== undefined) updates['course.name'] = courseName;
+      if (credits !== undefined) updates['course.credits'] = parseInt(credits, 10);
+      if (semester !== undefined) updates['course.semester'] = semester;
+      if (year !== undefined) updates['course.year'] = parseInt(year, 10);
+      return Object.keys(updates).length
+        ? await Syllabus.findByIdAndUpdate(syllabus._id, { $set: updates }, { new: true })
+        : await Syllabus.findById(syllabus._id);
+    });
     res.json({ message: 'The syllabus was updated', syllabus: publicSyllabus(saved) });
   } catch (error) {
     if (!error?.statusCode) console.error('Update syllabus error:', error);

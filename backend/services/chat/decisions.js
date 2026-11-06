@@ -7,7 +7,8 @@ const Conversation = require('../../models/Conversation');
 const Message = require('../../models/Message');
 const User = require('../../models/User');
 const Syllabus = require('../../models/Syllabus');
-const { claimOfferingForCode } = require('../offerings');
+const { claimOfferingForCode, courseCodeLockKey, reconcileCourseCode } = require('../offerings');
+const locks = require('../locks');
 const Suggestion = require('../../models/Suggestion');
 const SlotChange = require('../../models/SlotChange');
 const store = require('../syllabusState/store');
@@ -132,7 +133,18 @@ function buildPlan(s, optionId, ctx) {
   };
 }
 
-async function acceptSuggestion(syllabusId, suggestionId, { optionId = null, expectedRevision } = {}, userId) {
+/** Картки коду курсу (Confirm, Reopen) — під тим самим блокуванням, що й PUT /api/syllabus/:id (N05, N06). */
+async function underCourseCodeLock(syllabusId, suggestionId, fn) {
+  const s = await Suggestion.findOne({ _id: suggestionId, syllabusId }).select('target.path').lean();
+  if (s?.target?.path !== 'header.courseCode') return fn(null);
+  return locks.withLock(courseCodeLockKey(syllabusId), fn);
+}
+
+async function acceptSuggestion(syllabusId, suggestionId, opts = {}, userId) {
+  return underCourseCodeLock(syllabusId, suggestionId, (lock) => acceptUnderLock(syllabusId, suggestionId, opts, userId, lock));
+}
+
+async function acceptUnderLock(syllabusId, suggestionId, { optionId = null, expectedRevision } = {}, userId, lock) {
   const ctx = await context(syllabusId, suggestionId, userId);
   const { suggestion: s, conversation } = ctx;
   if (s.status !== 'pending') throw notPending();
@@ -159,8 +171,11 @@ async function acceptSuggestion(syllabusId, suggestionId, { optionId = null, exp
     { $set: { status: 'accepted', acceptedAt: new Date(), acceptedRevision: null, selectedOptionId: optionId || null, stale: false }, $inc: { __v: 1 } },
     { new: true },
   );
+  const releaseClaim = async () => {
+    if (claim && (!lock || await locks.isHeld(lock))) await claim.release();
+  };
   if (!claimed) {
-    if (claim) await claim.release();
+    await releaseClaim();
     throw notPending();
   }
 
@@ -180,7 +195,7 @@ async function acceptSuggestion(syllabusId, suggestionId, { optionId = null, exp
     await Suggestion.updateOne({ _id: s._id, status: 'accepted', __v: claimed.__v }, {
       $set: { status: 'pending', selectedOptionId: s.selectedOptionId || null }, $unset: { acceptedAt: '' },
     });
-    if (claim) await claim.release();
+    await releaseClaim();
     throw err;
   }
   if (claim && !claim.offering && s.target.path === 'header.courseCode') {
@@ -558,6 +573,10 @@ async function lastAcceptChanges(syllabusId, suggestion) {
 }
 
 async function reopenSuggestion(syllabusId, suggestionId, userId) {
+  return underCourseCodeLock(syllabusId, suggestionId, () => reopenUnderLock(syllabusId, suggestionId, userId));
+}
+
+async function reopenUnderLock(syllabusId, suggestionId, userId) {
   const ctx = await context(syllabusId, suggestionId, userId);
   const { suggestion: s, conversation } = ctx;
   if (s.status === 'pending') throw httpError(409, 'This suggestion is already open.', { code: 'NOT_DECIDED' });
@@ -585,6 +604,8 @@ async function reopenSuggestion(syllabusId, suggestionId, userId) {
       });
       throw err;
     }
+    // N06: відкат коду курсу відкочує й прив'язку — метадані й offeringId узгоджуються з кодом у стані
+    if (s.target.path === 'header.courseCode') await reconcileCourseCode(syllabusId);
   }
   await postServerMessage(conversation, `Back to: ${s.title}`, s._id);
   await afterDecision(conversation, { card: claimed });

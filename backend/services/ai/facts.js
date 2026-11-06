@@ -111,8 +111,11 @@ function timeKeys(text) {
 const DATE_RE = PATTERNS.find((p) => p.label === 'Date').re;
 const TIME_RE = PATTERNS.find((p) => p.label === 'Time').re;
 const escapeRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** Точний збіг фрагмента окремими словами (C03: «8 hours» не знаходиться всередині «48 hours»). */
-const containsWhole = (haystack, needle) => new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(needle)}(?![\\p{L}\\p{N}])`, 'u').test(haystack);
+/**
+ * Точний збіг фрагмента окремими словами (C03: «8 hours» не знаходиться всередині «48 hours») і не частиною
+ * десяткового числа (N09: «5%» — не в «0.5%», «8 hours» — не в «4.8 hours», «4» — не в «4.8»).
+ */
+const containsWhole = (haystack, needle) => new RegExp(`(?<![\\p{L}\\p{N}]|\\p{N}[.,])${escapeRe(needle)}(?![\\p{L}\\p{N}]|[.,]\\p{N})`, 'u').test(haystack);
 
 /** Корпус відомого: точний текст, усі числа, числа з одиницями, дати й часи. */
 function corpusOf(known) {

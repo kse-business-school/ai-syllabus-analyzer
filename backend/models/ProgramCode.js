@@ -5,6 +5,10 @@ const mongoose = require('mongoose');
 const programCodeSchema = new mongoose.Schema({
   code: { type: String, required: true, uppercase: true, trim: true },
   programId: { type: mongoose.Schema.Types.ObjectId, ref: 'Program', required: true },
+  // Операція, що зайняла код (N03): до збереження програми код лише зарезервовано (committed: false),
+  // і відкат цієї операції прибирає тільки власні незакомічені резервування
+  token: { type: String, default: null },
+  committed: { type: Boolean, default: true },
 }, { timestamps: true });
 
 programCodeSchema.index({ code: 1 }, { unique: true });
