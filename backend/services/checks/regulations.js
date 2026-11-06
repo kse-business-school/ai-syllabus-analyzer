@@ -1,7 +1,7 @@
 // Положення про організацію освітнього процесу KSE і Політика ШІ (ТЗ §2) — лише з даних стану, без LLM.
 // Зіставлення компонент ↔ категорії заборон ШІ — судження моделі, воно в checks/llm.js.
 const { policyDecided } = require('../syllabusState/slots');
-const { makeCheck, filled, policyOf, textSources, sentences, excerpt, findPhrase } = require('./common');
+const { tr, pluralUk, makeCheck, filled, policyOf, textSources, sentences, excerpt, findPhrase } = require('./common');
 
 // Режими довідника policy.ai_mode, що дозволяють ШІ
 const AI_PERMITTING_MODES = ['ai_mode_disclosure', 'ai_mode_scoped', 'ai_mode_required'];
@@ -70,7 +70,8 @@ function alternativeTasks(state) {
   if (hasComp || inPolicies) return [];
   return [makeCheck({
     rule: 'regulations.alternative_tasks', severity: 'critical', section: 'assessment', path: 'compensation.items[]',
-    message: 'The syllabus must offer an alternative task to students who miss an assessment for a valid reason (Regulations 2.5.6(1)). What alternative task will you offer?',
+    message: tr(state, 'The syllabus must offer an alternative task to students who miss an assessment for a valid reason (Regulations 2.5.6(1)). What alternative task will you offer?',
+      'Силабус має передбачати альтернативне завдання для студентів, які пропустили контроль з поважної причини (Положення, п. 2.5.6(1)). Яке альтернативне завдання ви запропонуєте?'),
     details: { regulation: '2.5.6(1)' },
   })];
 }
@@ -88,7 +89,8 @@ function passingScore(state) {
   const values = [...new Set(found.map((f) => f.value))];
   return [makeCheck({
     rule: 'regulations.passing_score', severity: 'critical', section: found[0].section, path: found[0].path,
-    message: `The syllabus sets a passing score of ${values.join(' / ')}. Under the Regulations (2.5.4(2)) a student passes with at least ${PASSING_SCORE} out of 100 points.`,
+    message: tr(state, `The syllabus sets a passing score of ${values.join(' / ')}. Under the Regulations (2.5.4(2)) a student passes with at least ${PASSING_SCORE} out of 100 points.`,
+      `Силабус встановлює прохідний бал ${values.join(' / ')}. За Положенням (п. 2.5.4(2)) курс зараховано від ${PASSING_SCORE} зі 100 балів.`),
     details: { regulation: '2.5.4(2)', required: PASSING_SCORE, found: found.map((f) => ({ value: f.value, ...publicMention(f) })) },
   })];
 }
@@ -102,7 +104,8 @@ function retake(state) {
   if (described) return [];
   return [makeCheck({
     rule: 'regulations.retake', severity: 'high', section: 'assessment', path: 'compensation.items[]',
-    message: 'The syllabus mentions a retake, but does not describe how it works (Regulations 2.5.6(4)). How can a student retake an assessment, and how is it graded?',
+    message: tr(state, 'The syllabus mentions a retake, but does not describe how it works (Regulations 2.5.6(4)). How can a student retake an assessment, and how is it graded?',
+      'Силабус згадує перескладання, але не описує його порядок (Положення, п. 2.5.6(4)). Як студент може перескласти контроль і як його оцінюють?'),
     details: { regulation: '2.5.6(4)', mentions: mentions.map(publicMention) },
   })];
 }
@@ -113,7 +116,8 @@ function attendance(state) {
   if (p && (policyDecided(p) || filled(p.text))) return [];
   return [makeCheck({
     rule: 'regulations.attendance', severity: 'high', section: 'policies', path: 'policies{policy.attendance}',
-    message: 'The syllabus has no attendance requirements (Regulations 2.4.3). Which attendance rule applies to this course?',
+    message: tr(state, 'The syllabus has no attendance requirements (Regulations 2.4.3). Which attendance rule applies to this course?',
+      'У силабусі немає вимог до відвідування (Положення, п. 2.4.3). Яке правило відвідування діє в курсі?'),
     details: { regulation: '2.4.3' },
   })];
 }
@@ -125,7 +129,8 @@ function bonusPenalty(state) {
   if (!mentions.length) return [];
   return [makeCheck({
     rule: 'regulations.bonus_penalty', severity: 'medium', section: mentions[0].section, path: mentions[0].path,
-    message: 'The syllabus mentions bonus or penalty points without saying how they work (Regulations 2.5.4(1)). How many points are added or deducted, and when?',
+    message: tr(state, 'The syllabus mentions bonus or penalty points without saying how they work (Regulations 2.5.4(1)). How many points are added or deducted, and when?',
+      'Силабус згадує бонусні чи штрафні бали, але не пояснює, як вони працюють (Положення, п. 2.5.4(1)). Скільки балів додається чи знімається і коли?'),
     details: { regulation: '2.5.4(1)', mentions: mentions.map(publicMention) },
   })];
 }
@@ -138,7 +143,8 @@ function aiRules(state) {
   if (mode && policyDecided(mode)) return [];
   return [makeCheck({
     rule: 'regulations.ai_rules', severity: 'warning', section: 'policies', path: 'policies{policy.ai_mode}',
-    message: 'The syllabus does not state the rules for AI use yet. Which option fits the course, or are the rules given in each assignment brief?',
+    message: tr(state, 'The syllabus does not state the rules for AI use yet. Which option fits the course, or are the rules given in each assignment brief?',
+      'Силабус ще не визначає правил використання ШІ. Який варіант підходить курсу, чи правила подано в кожному завданні?'),
     details: { aiModeOption: mode?.optionKey || null, aiPlaceOption: place?.optionKey || null },
   })];
 }
@@ -177,7 +183,8 @@ function aiProhibitions(state, refs) {
   if (!scope.applicable) return [];
   return [makeCheck({
     rule: 'regulations.ai_prohibitions', severity: 'info', section: 'policies', path: 'policies{policy.ai_mode}', passed: true,
-    message: `AI use is permitted in this course, so each assessment component is cross-checked against the uses the KSE AI Policy prohibits (section 3).`,
+    message: tr(state, `AI use is permitted in this course, so each assessment component is cross-checked against the uses the KSE AI Policy prohibits (section 3).`,
+      'У курсі дозволено використання ШІ, тож кожен компонент оцінювання звіряється із забороненими способами за Політикою KSE щодо ШІ (розділ 3).'),
     details: { mode: scope.mode, componentIds: scope.components.map((a) => a.id), categories: scope.categories, needsJudgement: true },
   })];
 }
@@ -193,7 +200,8 @@ function controlMandatory(state) {
     if (!mentions.length) return [];
     return [makeCheck({
       rule: 'regulations.control_mandatory', entityId: a.id, severity: 'medium', section: 'assessment', path: mentions[0].path,
-      message: `"${a.name}" is a control assessment, but the syllabus describes it as optional. Control assessments are compulsory under the Regulations (2.4.3). Is it meant to be optional?`,
+      message: tr(state, `"${a.name}" is a control assessment, but the syllabus describes it as optional. Control assessments are compulsory under the Regulations (2.4.3). Is it meant to be optional?`,
+        `«${a.name}» — контрольний захід, але силабус описує його як необов'язковий. За Положенням (п. 2.4.3) контрольні заходи обов'язкові. Він справді має бути необов'язковим?`),
       details: { regulation: '2.4.3', attendanceOption, mentions: mentions.map(publicMention) },
     })];
   });
@@ -207,15 +215,16 @@ function language(state) {
   if (known.length) {
     return [makeCheck({
       rule: 'regulations.language', severity: 'info', section: 'at_a_glance', path: 'language', passed: true,
-      message: `The syllabus is in ${known[0]}, as the Regulations allow (2.4.5(1)).`,
+      message: tr(state, `The syllabus is in ${known[0]}, as the Regulations allow (2.4.5(1)).`, `Силабус ${known[0] === 'Ukrainian' ? 'українською' : 'англійською'}, як дозволяє Положення (п. 2.4.5(1)).`),
       details: { regulation: '2.4.5(1)', language: known[0] },
     })];
   }
   return [makeCheck({
     rule: 'regulations.language', severity: 'info', section: 'at_a_glance', path: 'header.language',
     message: raw.length
-      ? `The syllabus language is given as "${raw[0]}". The Regulations (2.4.5(1)) expect Ukrainian or English. Which language is the course taught in?`
-      : 'The syllabus language is not set. The Regulations (2.4.5(1)) expect Ukrainian or English.',
+      ? tr(state, `The syllabus language is given as "${raw[0]}". The Regulations (2.4.5(1)) expect Ukrainian or English. Which language is the course taught in?`,
+        `Мову силабуса зазначено як «${raw[0]}». Положення (п. 2.4.5(1)) передбачає українську або англійську. Якою мовою викладається курс?`)
+      : tr(state, 'The syllabus language is not set. The Regulations (2.4.5(1)) expect Ukrainian or English.', 'Мову силабуса не вказано. Положення (п. 2.4.5(1)) передбачає українську або англійську.'),
     details: { regulation: '2.4.5(1)', language: raw[0] || null },
   })];
 }

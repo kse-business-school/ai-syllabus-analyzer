@@ -23,6 +23,7 @@ module.exports = {
   answerSuggestion: decisions.answerSuggestion,
   approveSection: sections.approveSection,
   unapproveSection: sections.unapproveSection,
+  setDocumentLanguage: sections.setDocumentLanguage,
   approveAllSections: sections.approveAll,
   choosePolicy: policies.choosePolicy,
   freeChatMessage,

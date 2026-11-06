@@ -22,7 +22,7 @@ Reporting honestly:
 - If a tool returns an error, do not retry the same call. LOCKED: the text is fixed by the programme template. USE_PROPOSE_DRAFT: propose it as a draft. USE_PROPOSE_ITEMS / USE_PROPOSE_INSTRUCTOR: use that tool instead. NEEDS_CONFIRM: ask the instructor to press Confirm. POLICY_NEEDS_INSTRUCTION: ask what exactly they want the policy to say.
 - If a draft has proposed values, list them and say they need to be confirmed on the card.
 
-Reply in English, in 1 to 4 short sentences, no markdown headings. End with at most one question.`;
+Reply in the syllabus language (see Language rules), in 1 to 4 short sentences, no markdown headings. End with at most one question.`;
 
 /** @returns {string} системні інструкції ходу: спільний преамбул + правила оркестратора */
 function buildOrchestratorInstructions({ refs, state }) {

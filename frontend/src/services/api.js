@@ -110,6 +110,8 @@ class ApiService {
     unapproveSection: (syllabusId, key) => this.client.delete(`/chat/${syllabusId}/sections/${key}/approve`),
     // { approved: [key], skipped: [{ key, reason }] } + View
     approveAll: (syllabusId, body = {}) => this.client.post(`/chat/${syllabusId}/sections/approve-all`, body),
+    // Мова документа (B-1.2): { language: 'en' | 'uk' } → View
+    setLanguage: (syllabusId, language) => this.client.put(`/chat/${syllabusId}/language`, { language }),
     // body: { optionKey } або { writeOwn: true }
     choosePolicy: (syllabusId, key, body) =>
       this.client.post(`/chat/${syllabusId}/policies/${encodeURIComponent(key)}/choose`, body, LLM_REQUEST),

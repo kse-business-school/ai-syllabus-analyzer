@@ -81,3 +81,35 @@ describe('B-1.1 / B-1.4 — мова документа й двомовний д
     expect(text).toContain(option.textUk);
   });
 });
+
+describe('B-1.2 / B-1.3 — зміна мови й зміст мовою документа', () => {
+  const { buildPreamble } = require('../services/ai/prompts/preamble');
+  const assessmentChecks = require('../services/checks/assessment');
+  const { templateQuestion } = require('../services/ai/interviewPlan');
+
+  test('PUT /language змінює мову документа, наявний текст не перекладається', async () => {
+    const res = await create(mba, 'MBA28', 'Switch language');
+    const id = res.body.syllabus._id;
+    const before = (await store.getState(id)).state;
+    const put = await request(app).put(`/api/chat/${id}/language`).set(auth).send({ language: 'uk' });
+    expect(put.status).toBe(200);
+    const after = (await store.getState(id)).state;
+    expect(after.language).toBe('uk');
+    expect(after.policies).toEqual(before.policies); // тексти не перекладено
+    expect((await request(app).put(`/api/chat/${id}/language`).set(auth).send({ language: 'de' })).status).toBe(400);
+  });
+
+  test('промпти: мова змісту — мова документа', () => {
+    expect(buildPreamble({ refs: {}, state: { language: 'uk' } })).toMatch(/The syllabus language is Ukrainian/);
+    expect(buildPreamble({ refs: {}, state: { language: 'en' } })).toMatch(/The syllabus language is English/);
+  });
+
+  test('повідомлення перевірок і шаблонні питання — мовою документа', async () => {
+    const state = { language: 'uk', assessments: [{ id: 'as1', name: 'Іспит', weight: 50, criteria: 'x', deadline: '2026-12-01' }], sessions: [], header: {} };
+    const check = assessmentChecks.run(state, {}).find((c) => c.id === 'assessment.weights_total');
+    expect(check.message).toMatch(/Ваги компонентів дають 50%/);
+    const refs = await references.getRefs('MMM26');
+    expect(templateQuestion({ key: 'schedule.sessions', section: 'schedule' }, refs, 'uk').question).toMatch(/Сплануймо заняття/);
+    expect(templateQuestion({ key: 'schedule.sessions', section: 'schedule' }, refs, 'en').question).toMatch(/Let's plan/);
+  });
+});

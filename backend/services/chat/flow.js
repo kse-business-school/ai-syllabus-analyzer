@@ -1,6 +1,7 @@
 // Потік розмови v5: створення з привітанням (трек 1 — питання, трек 2 — «Here's what I found…»),
 // «наступний крок» після кожного рішення (картка або питання інтерв'юера), skip, лічильник збоїв AI.
 
+const { sectionTitle, sectionQuestion, phrases } = require('../references/sectionText');
 const Conversation = require('../../models/Conversation');
 const Message = require('../../models/Message');
 const Suggestion = require('../../models/Suggestion');
@@ -96,12 +97,15 @@ function policyQuestion(ctx, skipped) {
 /** Запасне питання треку 2 (інтерв'юер лише для треку 1): TemplateSection першого порожнього, потім неповного розділу. */
 function fallbackQuestion(ctx, readiness, skipped) {
   const status = (t) => readiness.sections[t.key]?.status;
+  const language = ctx.state?.language;
+  const say = phrases(language);
   const ask = (t) => {
     if (t.key === 'policies') return policyQuestion(ctx, skipped);
+    const title = sectionTitle(t, language);
     return {
       slotKey: t.key,
-      question: t.question,
-      why: status(t) === 'empty' ? `The section "${t.title}" is still empty.` : `The section "${t.title}" is not complete yet.`,
+      question: sectionQuestion(t, language),
+      why: status(t) === 'empty' ? say.empty(title) : say.incomplete(title),
     };
   };
   const open = (t) => (t.question || t.key === 'policies') && !skipped.includes(t.key) && !readiness.sections[t.key]?.approved;
@@ -138,7 +142,7 @@ async function pickQuestion(conversation, ctx) {
     console.error('interviewer failed, using the template question:', err.message);
   }
   // Слот обирає лише з дозволених кодом; усе інше (збій, чужий слот) — детермінований наступний слот
-  if (!q || !q.question || !allowed.some((s) => s.key === q.slotKey)) return templateQuestion(allowed[0], ctx.refs);
+  if (!q || !q.question || !allowed.some((s) => s.key === q.slotKey)) return templateQuestion(allowed[0], ctx.refs, ctx.state?.language);
   return q;
 }
 

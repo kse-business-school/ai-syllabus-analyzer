@@ -271,6 +271,7 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
     // B-5.1: відмова Approve (наприклад, SECTION_INCOMPLETE з прогалинами) показується в банері, а не мовчить
     approveSection: async (key) => reportFailure(await mutate((id) => client.chat.approveSection(id, key))),
     unapproveSection: async (key) => reportFailure(await mutate((id) => client.chat.unapproveSection(id, key))),
+    setLanguage: async (language) => reportFailure(await mutate((id) => client.chat.setLanguage(id, language))),
     // { ok, data: { approved, skipped, ...View } }. keys — розділи з картки (без них — усі); ревізія — на момент натискання.
     approveAll: (keys) => {
       const expectedRevision = viewRef.current?.revision;

@@ -7,7 +7,7 @@
 const { createHash } = require('crypto');
 const { validateSchema } = require('../../utils/jsonSchema');
 const { aiPermissionScope } = require('./regulations');
-const { makeCheck, filled, findPhrase, normName } = require('./common');
+const { tr, pluralUk, makeCheck, filled, findPhrase, normName } = require('./common');
 const { sortChecks } = require('./index');
 
 const PROMPT_VERSION = 'checks-llm-v1';
@@ -122,7 +122,8 @@ async function aiProhibitionChecks(state, refs, opts) {
     const a = components.find((x) => x.id === j.componentId);
     return [llmCheck({
       rule: 'llm.ai_prohibition', entityId: a.id, severity: 'warning', section: 'policies', path: 'policies{policy.ai_mode}',
-      message: `AI use is permitted in this course, but "${a.name}" may fall under a use the KSE AI Policy prohibits (section 3): "${j.category}". Should AI be excluded for this component?`,
+      message: tr(state, `AI use is permitted in this course, but "${a.name}" may fall under a use the KSE AI Policy prohibits (section 3): "${j.category}". Should AI be excluded for this component?`,
+        `У курсі дозволено ШІ, але «${a.name}» може підпадати під заборонене Політикою KSE щодо ШІ використання (розділ 3): «${j.category}». Виключити ШІ для цього компонента?`),
       details: { componentId: a.id, category: j.category, comment: j.comment, mode: scope.mode, promptVersion: PROMPT_VERSION },
     })];
   });
@@ -134,7 +135,8 @@ async function scheduleChecks(state, refs, opts) {
   const items = scheduleItems(state);
   const noMatch = (a, comment = null) => llmCheck({
     rule: 'llm.component_schedule', entityId: a.id, severity: 'warning', section: 'schedule', path: 'sessions[]',
-    message: `"${a.name}" does not appear in the schedule. In which session does it take place, or should it be added?`,
+    message: tr(state, `"${a.name}" does not appear in the schedule. In which session does it take place, or should it be added?`,
+      `«${a.name}» немає в розкладі. На якому занятті він відбувається, чи його треба додати?`),
     details: { componentId: a.id, comment, promptVersion: PROMPT_VERSION },
   });
   if (!items.length) return unmatched.map((a) => noMatch(a));

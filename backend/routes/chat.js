@@ -156,6 +156,14 @@ router.delete('/:syllabusId/sections/:key/approve', auth, gateMutate,
     await workspaceService.unapproveSection(req.params.syllabusId, req.params.key, { userId: req.user.userId });
   }));
 
+// Мова документа (B-1.2): лише власник; написаний текст не перекладається
+router.put('/:syllabusId/language', auth, gateMutate, [
+  body('language').isIn(['en', 'uk']).withMessage('language must be "en" or "uk"'),
+  expectedRevision,
+], mutation((req) => workspaceService.setDocumentLanguage(req.params.syllabusId, req.body.language, {
+  userId: req.user.userId, expectedRevision: revisionOf(req),
+})));
+
 // ---------- політики ----------
 
 router.post('/:syllabusId/policies/:key/choose', auth, gateMutate, [

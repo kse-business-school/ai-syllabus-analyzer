@@ -296,6 +296,8 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
       onApproveSection={handleApproveFromDoc}
       onUnapproveSection={handleUnapproveFromDoc}
       onDiscussSection={handleDiscussInChat}
+      language={ws.state?.language || null}
+      onChangeLanguage={(language) => ws.actions.setLanguage(language)}
       readOnly={ws.readOnly || isReadOnlyAdmin || !ready}
     />
   );

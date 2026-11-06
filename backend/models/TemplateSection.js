@@ -12,6 +12,9 @@ const templateSectionSchema = new mongoose.Schema({
   nature: { type: String, default: 'fixed' },
   slotTypes: { type: [String], default: [] },
   question: { type: String, default: null },
+  // Українські назва й питання розділу (B-1.3): для силабусів мовою uk
+  titleUk: { type: String, default: null },
+  questionUk: { type: String, default: null },
   fixtureRef: { type: String, default: null },
   computeFrom: { type: [String], default: [] },
 }, { timestamps: true });

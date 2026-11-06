@@ -700,6 +700,11 @@ export function createMockClient() {
       r.state.sections[key] = { ...(r.state.sections[key] || {}), approved: false };
       r.revision += 1;
     }),
+    setLanguage: (id, language) => respond(id, (r) => {
+      mutation(r);
+      r.state.language = language;
+      r.revision += 1;
+    }),
     approveAll: (id, { sections } = {}) => respond(id, (r) => {
       mutation(r);
       const candidates = approveAllCandidates(r);

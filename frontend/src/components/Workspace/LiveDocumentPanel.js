@@ -3,6 +3,13 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Paper from '@mui/material/Paper';
@@ -32,12 +39,22 @@ const LiveDocumentPanel = ({
   onApproveSection,
   onUnapproveSection,
   onDiscussSection,
+  language = null,
+  onChangeLanguage,
   readOnly = false,
 }) => {
   const scrollRef = useRef(null);
   const sections = document?.sections;
   const titles = new Map(templateSections.map((s) => [s.key, s]));
   const [activeHighlight, setActiveHighlight] = useState(null);
+  const [pendingLanguage, setPendingLanguage] = useState(null);
+  const hasText = (sections || []).some((s) => s.blocks?.length);
+  // B-1.2: на заповненому документі — окрема дія з попередженням; написаний текст не перекладається
+  const requestLanguage = (value) => {
+    if (!value || value === language) return;
+    if (hasText) setPendingLanguage(value);
+    else onChangeLanguage?.(value);
+  };
 
   useEffect(() => {
     if (!highlightedSectionKey) return undefined;
@@ -104,7 +121,26 @@ const LiveDocumentPanel = ({
             <ToggleButton value="changes">{S.showChanges}</ToggleButton>
           </ToggleButtonGroup>
         </Box>
+        {language && onChangeLanguage && (
+          <TextField select size="small" label="Document language" value={language} disabled={readOnly}
+            onChange={(e) => requestLanguage(e.target.value)} sx={{ minWidth: 150, '& .MuiInputBase-root': { height: 30, fontSize: '0.75rem' } }}>
+            <MenuItem value="en">English</MenuItem>
+            <MenuItem value="uk">Ukrainian</MenuItem>
+          </TextField>
+        )}
       </Box>
+      <Dialog open={Boolean(pendingLanguage)} onClose={() => setPendingLanguage(null)}>
+        <DialogTitle>Change the document language?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Text that is already in the syllabus stays as it is and is not translated. New drafts, questions about the content and checks will use {pendingLanguage === 'uk' ? 'Ukrainian' : 'English'}.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingLanguage(null)}>Cancel</Button>
+          <Button variant="contained" onClick={() => { onChangeLanguage?.(pendingLanguage); setPendingLanguage(null); }}>Change language</Button>
+        </DialogActions>
+      </Dialog>
 
       {document?.loading && <LinearProgress sx={{ height: 2 }} />}
 

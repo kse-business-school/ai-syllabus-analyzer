@@ -64,4 +64,17 @@ async function approveAll(syllabusId, { userId, expectedRevision, keys } = {}) {
   return { approved, skipped };
 }
 
-module.exports = { blockersBuilder, approvableSections, approveSection, unapproveSection, approveAll };
+/**
+ * Мова документа (B-1.2): окрема дія власника. Уже написаний текст не перекладається — змінюється лише
+ * state.language, від якої залежать нові чернетки, питання, перевірки й тексти довідника політик.
+ */
+async function setDocumentLanguage(syllabusId, language, { userId, expectedRevision } = {}) {
+  if (!['en', 'uk'].includes(language)) throw httpError(400, 'language must be "en" or "uk"', { code: 'VALIDATION_ERROR' });
+  const ctx = await loadContext(syllabusId);
+  await store.mutate(syllabusId, expectedRevision ?? ctx.revision, (st) => { st.language = language; }, {
+    by: userId, source: 'instructor_directed', refs: ctx.refs,
+  });
+  invalidateOutputs(syllabusId);
+}
+
+module.exports = { blockersBuilder, approvableSections, approveSection, unapproveSection, approveAll, setDocumentLanguage };
