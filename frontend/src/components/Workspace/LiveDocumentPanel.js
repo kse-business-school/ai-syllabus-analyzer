@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Paper from '@mui/material/Paper';
@@ -16,6 +17,7 @@ import ArrowForward from '@mui/icons-material/ArrowForward';
 import LockOpenOutlined from '@mui/icons-material/LockOpenOutlined';
 import DocumentBlocks from './document/DocumentBlocks';
 import { S } from '../../strings';
+import { sectionStatus } from '../../utils/sectionGroups';
 
 const LiveDocumentPanel = ({
   instructors = [],
@@ -162,6 +164,7 @@ const LiveDocumentPanel = ({
               );
               const isLocked = sec.locked || sec.mode === 'locked';
               const isApproved = Boolean(readiness?.sections?.[sec.key]?.approved);
+              const status = readiness?.sections?.[sec.key] ? sectionStatus(readiness.sections[sec.key]) : null;
 
               return (
                 <Box
@@ -222,6 +225,13 @@ const LiveDocumentPanel = ({
                       }}
                     >
                       {ownHeading}
+                      {/* B-5.1/B-5.4: затверджено — позначка; готовий, але не затверджений — підказка, що дія лишилась */}
+                      {!isLocked && status === 'approved' && (
+                        <Chip size="small" color="success" variant="outlined" icon={<CheckCircleOutline sx={{ fontSize: 13 }} />} label="Approved" sx={{ ml: 1, height: 20, fontSize: '0.6875rem', verticalAlign: 'middle' }} />
+                      )}
+                      {!isLocked && status === 'ready' && (
+                        <Chip size="small" variant="outlined" label="Ready to approve" sx={{ ml: 1, height: 20, fontSize: '0.6875rem', verticalAlign: 'middle', borderColor: 'success.main', color: 'success.main' }} />
+                      )}
                     </Typography>
 
                     {/* Інтерактивні кнопки секції */}

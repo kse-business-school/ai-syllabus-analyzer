@@ -212,3 +212,23 @@ export function computeGroupedReadiness(readiness, state) {
     label: isEmpty ? '—' : `${percent}% · ${approvedCount} of ${totalCount} sections approved`,
   };
 }
+
+// Статус одного розділу шаблону (одиниця Approve і лічильника Readiness, B-5.3/B-5.4):
+// 'approved' | 'ready' (пороги пройдено, відкритих перевірок ≥ high немає, але ще не затверджено) |
+// 'attention' | 'draft' | 'empty'.
+export function sectionStatus(raw) {
+  const s = normalizeSectionReadiness(raw);
+  if (s.approved) return 'approved';
+  if (s.checks.critical + s.checks.high > 0) return 'attention';
+  if (s.status === 'empty') return 'empty';
+  if (s.complete) return 'ready';
+  return 'draft';
+}
+
+export const SECTION_STATUS_LABELS = {
+  approved: 'Approved',
+  ready: 'Ready to approve',
+  attention: 'Needs attention',
+  draft: 'In progress',
+  empty: 'Empty',
+};

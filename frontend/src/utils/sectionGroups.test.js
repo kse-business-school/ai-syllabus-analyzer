@@ -134,3 +134,14 @@ describe('sectionGroups & computeGroupedReadiness', () => {
     ).toBe('approved');
   });
 });
+
+describe('sectionStatus (B-5.3/B-5.4)', () => {
+  const { sectionStatus } = require('./sectionGroups');
+  test('ready to approve — thresholds passed, no blocking checks, not yet approved', () => {
+    expect(sectionStatus({ status: 'draft', complete: true, approved: false, gaps: [], checks: { critical: 0, high: 0, other: 1 } })).toBe('ready');
+    expect(sectionStatus({ status: 'approved', complete: true, approved: true })).toBe('approved');
+    expect(sectionStatus({ status: 'draft', complete: false, gaps: ['Topic'] })).toBe('draft');
+    expect(sectionStatus({ status: 'draft', complete: true, checks: { critical: 1, high: 0, other: 0 } })).toBe('attention');
+    expect(sectionStatus(null)).toBe('empty');
+  });
+});
