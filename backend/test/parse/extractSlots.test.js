@@ -148,7 +148,7 @@ test('дуже довгий документ відсікається з поп�
   createResponse.mockResolvedValue(reply(slots({ header: { ...slots().header, blockIds: ['x0'] }, prerequisites: { text: null, blockIds: [] } })));
   const empty = slots({
     header: { ...slots().header, blockIds: ['x0'] }, shortDescription: { text: null, blockIds: [] }, prerequisites: { text: null, blockIds: [] }, capstone: { text: null, blockIds: [] },
-    objectives: [], outcomes: [], instructors: [], sessions: [], individualWork: [], assessments: [], materials: { required: [], recommended: [] }, policySegments: [],
+    objectives: [], outcomes: [], instructors: [], sessions: [], individualWork: [], assessments: [], materials: { required: [], recommended: [], bySession: [] }, policySegments: [],
   });
   createResponse.mockReset();
   createResponse.mockResolvedValue(reply(empty));

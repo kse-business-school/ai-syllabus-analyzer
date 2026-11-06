@@ -40,7 +40,11 @@ async function parseToState({ blocks, meta = {}, programCode, refs, course = {} 
     ? { code: match.course.code, title: match.course.en || match.course.uk, matchedBy: 'title' }
     : null;
 
-  return { state, policyMatches: policyResult.matches, lockedNotes: policyResult.lockedNotes, courseHint, warnings };
+  return {
+    state, policyMatches: policyResult.matches, lockedNotes: policyResult.lockedNotes, courseHint, warnings,
+    // MMM, розділ 1 (B-8.8): ПРН, які курс підсилює за файлом, — без прив'язки до CLO; стають карткою-питанням
+    programmeOutcomes: slots.programmeOutcomes || [],
+  };
 }
 
 module.exports = { parseToState, courseCodeOf };
