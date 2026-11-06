@@ -2,6 +2,7 @@
 // Не є .docx (його будує services/document/writers/templateDocx.js), але порядок і назви розділів ті самі.
 // Порожні вільні розділи не мають блоків; таблиця At a Glance завжди повна (порожні значення — '—').
 const { SECTION_KEYS } = require('./schema');
+const { blockTitle, lockedText, optionText } = require('../references/policyText');
 
 const CHOOSE_OPTION = '[Choose an option]';
 // Текст library-політики з файлу, поки викладач не обрав варіант і не залишив свій текст
@@ -25,11 +26,11 @@ const list = (title, values) => (values?.length ? [heading(title), ...values.fil
  * Текст з файлу без обраного варіанта (source: 'parsed') — ще не рішення: показується текст файлу з позначкою
  * FROM_FILE_NOTE; плейсхолдер лише тоді, коли тексту немає.
  */
-function policyText(p, block) {
-  if (p.mode === 'locked') return p.text || block?.text || '';
+function policyText(p, block, language) {
+  if (p.mode === 'locked') return p.text || lockedText(block, language) || '';
   const own = ['instructor_directed', 'fixture_edited'].includes(p.source) || p.modified;
   if (own && filled(p.text)) return p.text;
-  if (filled(p.optionKey)) return block?.options?.find((o) => o.key === p.optionKey)?.text || p.text || CHOOSE_OPTION;
+  if (filled(p.optionKey)) return optionText(block?.options?.find((o) => o.key === p.optionKey), language) || p.text || CHOOSE_OPTION;
   if (filled(p.text)) return `${p.text.trim()} ${FROM_FILE_NOTE}`;
   return CHOOSE_OPTION;
 }
@@ -107,7 +108,7 @@ const RENDERERS = {
     const blocks = new Map((refs?.policyLibrary?.blocks || []).map((b) => [b.key, b]));
     return (s.policies || []).flatMap((p) => {
       const block = blocks.get(p.key);
-      return [heading(block?.title || p.key), ...textBlocks(policyText(p, block))];
+      return [heading(blockTitle(block, s.language) || p.key), ...textBlocks(policyText(p, block, s.language))];
     });
   },
 };

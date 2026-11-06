@@ -39,7 +39,7 @@ function toState({ slots, policies, programCode, refs, courseMatch, courseCode }
   // courseKind і ECTS нормативного курсу — лише за кодом (createEmptyState + recompute); назва — тільки підказка.
   // courseCode (parse/index.courseCodeOf) — код із призначення або форми, якщо у файлі його немає
   const code = courseCode !== undefined ? clean(courseCode) : clean(h.code);
-  const state = createEmptyState({ programCode, track: 'upload', refs, course: { code } });
+  const state = createEmptyState({ programCode, track: 'upload', refs, course: { code }, language: detectLanguage(slots) });
 
   const headerHas = [h.title, h.code, h.department, h.ects, h.totalHours, h.language, h.studyMode, h.deliveryFormat, h.termText, h.termStart, h.termEnd].some(filled);
   const d = slots.declared;

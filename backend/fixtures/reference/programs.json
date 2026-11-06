@@ -6,12 +6,42 @@
       "code": "MBA",
       "name": "MBA",
       "editions": [
-        { "code": "MBA27", "label": "MBA27 (2025-26 intake)" },
-        { "code": "MBA28", "label": "MBA28 (2026-27 intake)" }
+        {
+          "code": "MBA27",
+          "label": "MBA27 (2025-26 intake)"
+        },
+        {
+          "code": "MBA28",
+          "label": "MBA28 (2026-27 intake)"
+        }
+      ],
+      "defaultLanguage": "en"
+    },
+    {
+      "code": "MMM",
+      "name": "Marketing Management (MMM)",
+      "defaultLanguage": "uk",
+      "editions": [
+        {
+          "code": "MMM26",
+          "label": "MMM26 (2026-27 intake)"
+        }
       ]
     },
-    { "code": "EMBA", "name": "Executive MBA" },
-    { "code": "CORPORATE", "name": "Corporate Programs" },
-    { "code": "INTENSIVE", "name": "Intensive Programs" }
+    {
+      "code": "EMBA",
+      "name": "Executive MBA",
+      "defaultLanguage": "en"
+    },
+    {
+      "code": "CORPORATE",
+      "name": "Corporate Programs",
+      "defaultLanguage": "en"
+    },
+    {
+      "code": "INTENSIVE",
+      "name": "Intensive Programs",
+      "defaultLanguage": "en"
+    }
   ]
 }

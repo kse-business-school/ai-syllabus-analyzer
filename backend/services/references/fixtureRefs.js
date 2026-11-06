@@ -12,9 +12,27 @@ function readFixture(name) {
   return cache.get(name);
 }
 
+/**
+ * Довідник, розкладений по кількох файлах (B-8.1): «learning-outcomes.json» + «learning-outcomes.<НАБІР>.json» тощо.
+ * Нова програма = новий файл, а не правка наявного. Об'єкти за ключем field зливаються, mappings — додаються.
+ */
+function readFixtureSet(prefix, field) {
+  const names = fs.readdirSync(DIR).filter((n) => n === `${prefix}.json` || (n.startsWith(`${prefix}.`) && n.endsWith('.json'))).sort();
+  const merged = { [field]: {}, mappings: [] };
+  for (const name of names) {
+    const data = readFixture(name);
+    Object.assign(merged[field], data[field] || {});
+    merged.mappings.push(...(data.mappings || []));
+  }
+  return merged;
+}
+
+const readOutcomesFixture = () => readFixtureSet('learning-outcomes', 'programs');
+const readCoursesFixture = () => readFixtureSet('programme-courses', 'programmes');
+
 function loadFixtureRefs(programCode) {
-  const lo = readFixture('learning-outcomes.json').programs[programCode];
-  const pc = readFixture('programme-courses.json').programmes[programCode];
+  const lo = readOutcomesFixture().programs[programCode];
+  const pc = readCoursesFixture().programmes[programCode];
   const { projectTypes, structure, criteria, deliverables, plagiarismThreshold } = readFixture('capstone.criteria.json');
   const { version, blocks } = readFixture('policies.library.json');
   return {
@@ -27,4 +45,4 @@ function loadFixtureRefs(programCode) {
   };
 }
 
-module.exports = { loadFixtureRefs, readFixture, FIXTURE_DIR: DIR };
+module.exports = { loadFixtureRefs, readFixture, readOutcomesFixture, readCoursesFixture, FIXTURE_DIR: DIR };

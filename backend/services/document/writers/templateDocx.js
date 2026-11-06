@@ -7,6 +7,7 @@ const {
 const S = require('./templateStyles');
 const { FROM_FILE_NOTE } = require('../../syllabusState/render');
 const { policyDecided } = require('../../syllabusState/slots');
+const { blockTitle, lockedText, optionText } = require('../../references/policyText');
 const fs = require('fs');
 const path = require('path');
 const logoImage = require('sharp')(fs.readFileSync(path.join(__dirname, '../../../assets/brand/kse-business-school-green.svg'))).resize({ width: 728 }).png().toBuffer();
@@ -273,19 +274,21 @@ function policiesSection(state, refs) {
   for (const b of blocks) {
     knownKeys.add(b.key);
     const p = byKey.get(b.key);
-    if (b.mode === 'locked') { emit(b.title, has(p?.text) ? p.text : b.text, b.title); continue; }
+    // B-1.4: заголовок і текст довідника — мовою документа
+    const title = blockTitle(b, state.language);
+    if (b.mode === 'locked') { emit(title, has(p?.text) ? p.text : lockedText(b, state.language), title); continue; }
     if (has(p?.text) && !has(p?.optionKey)) {
-      if (policyDecided(p)) { emit(b.title, p.text, b.title); continue; } // власний текст викладача
+      if (policyDecided(p)) { emit(title, p.text, title); continue; } // власний текст викладача
       // Текст з файлу без вибору: показуємо його з позначкою, а не порожній плейсхолдер
-      out.push(heading2(b.title), para([run(clean(p.text)), run(` ${FROM_FILE_NOTE}`, { italics: true })]));
+      out.push(heading2(title), para([run(clean(p.text)), run(` ${FROM_FILE_NOTE}`, { italics: true })]));
       continue;
     }
     if (has(p?.optionKey)) {
       const opt = (b.options || []).find((o) => o.key === p.optionKey);
-      emit(b.title, has(p.text) ? p.text : opt?.text, b.title, 'Choose an option');
+      emit(title, has(p.text) ? p.text : optionText(opt, state.language), title, 'Choose an option');
       continue;
     }
-    emit(b.title, null, b.title, 'Choose an option');
+    emit(title, null, title, 'Choose an option');
   }
   // Політики поза довідником (якщо є) — після відомих
   for (const p of state.policies || []) {

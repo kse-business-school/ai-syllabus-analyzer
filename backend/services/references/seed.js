@@ -5,7 +5,7 @@ const OutcomeMapping = require('../../models/OutcomeMapping');
 const ProgramCourse = require('../../models/ProgramCourse');
 const CapstoneGuide = require('../../models/CapstoneGuide');
 const ReferenceOverride = require('../../models/ReferenceOverride');
-const { readFixture } = require('./fixtureRefs');
+const { readFixture, readOutcomesFixture, readCoursesFixture } = require('./fixtureRefs');
 
 /** Набори, чий довідник kind змінено в кабінеті: сід їх не чіпає (services/references/editor.js). */
 async function managedCodes(kind) {
@@ -24,7 +24,7 @@ async function seedReferences() {
     .map((s) => ({ programCode: null, ...s }));
   await TemplateSection.bulkWrite(upsertOps(template, (d) => ({ programCode: null, key: d.key })));
 
-  const lo = readFixture('learning-outcomes.json');
+  const lo = readOutcomesFixture();
   const managedOutcomes = await managedCodes('outcomes');
   const outcomes = Object.entries(lo.programs).filter(([programCode]) => !managedOutcomes.has(programCode)).flatMap(([programCode, p]) =>
     p.outcomes.map((o, i) => ({ programCode, code: o.code, text: o.text, themeDraft: o.themeDraft || '', order: i + 1 })));
@@ -45,7 +45,7 @@ async function seedReferences() {
     );
   }
 
-  const pc = readFixture('programme-courses.json');
+  const pc = readCoursesFixture();
   const managedCourses = await managedCodes('courses');
   const courses = Object.entries(pc.programmes).filter(([programCode]) => !managedCourses.has(programCode)).flatMap(([programCode, p]) =>
     p.core.map((c) => ({ programCode, code: c.code, uk: c.uk, en: c.en || '', ects: c.ects ?? null })));

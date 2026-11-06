@@ -1,6 +1,7 @@
 // Читання і запис значення слота за target.path: єдине місце, де чернетка (draft.value) стає значенням стану.
 // Сам запис у БД робить лише syllabusState/store.mutate; тут — чисті функції над копією стану.
 
+const { optionText } = require('../references/policyText');
 const { httpError } = require('../../utils/httpError');
 const { getPath, setPath, slotOfPath } = require('../syllabusState/paths');
 
@@ -83,12 +84,12 @@ function libraryOption(refs, policyKey, optionKey) {
  * - варіант довідника: optionKey + текст варіанта, source fixture, modified false;
  * - власний/змінений текст: source fixture_edited (якщо варіант уже було обрано) або instructor_directed, modified true.
  */
-function policyPatch(block, { optionKey, text }, refs) {
+function policyPatch(block, { optionKey, text }, refs, language = 'en') {
   if (optionKey) {
     const option = libraryOption(refs, block.key, optionKey);
     if (!option) throw httpError(400, `Unknown option for ${block.key}: ${optionKey}`, { code: 'UNKNOWN_OPTION' });
     return {
-      ...block, optionKey, text: option.text, modified: false, source: 'fixture',
+      ...block, optionKey, text: optionText(option, language), modified: false, source: 'fixture',
       fixtureRef: { key: block.key, version: refs.policyLibrary.version ?? null }, evidenceBlockIds: [],
     };
   }

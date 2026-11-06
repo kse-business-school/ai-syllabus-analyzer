@@ -30,7 +30,7 @@ import api from '../../services/api';
 const ProgramsTab = ({ programs, reload }) => {
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
-  const empty = { name: '', code: '', academicDirectorEmail: '', editions: [] };
+  const empty = { name: '', code: '', academicDirectorEmail: '', defaultLanguage: 'en', editions: [] };
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [snack, setSnack] = useState('');
@@ -42,7 +42,7 @@ const ProgramsTab = ({ programs, reload }) => {
   const openEdit = (p) => {
     setEditing(p._id);
     setForm({
-      name: p.name, code: p.code, academicDirectorEmail: p.academicDirectorEmail || '',
+      name: p.name, code: p.code, academicDirectorEmail: p.academicDirectorEmail || '', defaultLanguage: p.defaultLanguage || 'en',
       editions: (p.editions || []).map((e) => ({ code: e.code, label: e.label || '', copyFrom: '', isNew: false })),
     });
   };
@@ -60,9 +60,9 @@ const ProgramsTab = ({ programs, reload }) => {
     setSaving(true);
     try {
       if (editing) {
-        await api.cabinet.updateProgram(editing, { name: form.name, academicDirectorEmail: form.academicDirectorEmail, editions: editionsPayload() });
+        await api.cabinet.updateProgram(editing, { name: form.name, academicDirectorEmail: form.academicDirectorEmail, defaultLanguage: form.defaultLanguage, editions: editionsPayload() });
       } else {
-        await api.cabinet.createProgram({ name: form.name, code: form.code, academicDirectorEmail: form.academicDirectorEmail, editions: editionsPayload() });
+        await api.cabinet.createProgram({ name: form.name, code: form.code, academicDirectorEmail: form.academicDirectorEmail, defaultLanguage: form.defaultLanguage, editions: editionsPayload() });
       }
       setEditing(null);
       setCreating(false);
@@ -140,6 +140,13 @@ const ProgramsTab = ({ programs, reload }) => {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <TextField label="Academic director email" size="small" fullWidth value={form.academicDirectorEmail}
               onChange={(e) => setForm((f) => ({ ...f, academicDirectorEmail: e.target.value }))} />
+            {/* B-1.1: мова документа нових силабусів програми */}
+            <TextField select label="Document language for new syllabi" size="small" fullWidth value={form.defaultLanguage}
+              onChange={(e) => setForm((f) => ({ ...f, defaultLanguage: e.target.value }))}
+              helperText="Uploaded files keep their own language">
+              <MenuItem value="en">English</MenuItem>
+              <MenuItem value="uk">Ukrainian</MenuItem>
+            </TextField>
 
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Cohorts</Typography>

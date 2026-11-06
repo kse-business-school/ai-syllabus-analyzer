@@ -111,8 +111,8 @@ function buildPlan(s, optionId, ctx) {
       if (typeof text !== 'string') throw httpError(409, 'There is no text to apply.', { code: 'NOT_APPLICABLE' });
       args = { text };
     }
-    source = policyPatch(blockOf(state), args, refs).source;
-    fn = (st) => setPolicy(st, policyKey, policyPatch(blockOf(st), args, refs));
+    source = policyPatch(blockOf(state), args, refs, state.language).source;
+    fn = (st) => setPolicy(st, policyKey, policyPatch(blockOf(st), args, refs, st.language));
   } else {
     if (option && option.value === undefined) throw httpError(409, 'This option has no value to apply.', { code: 'NOT_APPLICABLE' });
     const value = option ? option.value : s.draft.value;

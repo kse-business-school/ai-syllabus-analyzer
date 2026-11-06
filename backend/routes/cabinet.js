@@ -76,9 +76,10 @@ router.post('/programs', auth, admin, async (req, res) => {
 router.put('/programs/:id', auth, admin, async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return sendError(res, httpError(400, 'Invalid programme id', { code: 'INVALID_ID' }));
-    const { name, academicDirectorEmail, editions } = req.body;
+    const { name, academicDirectorEmail, editions, defaultLanguage } = req.body;
     const update = {};
     if (name !== undefined) update.name = name;
+    if (defaultLanguage !== undefined) update.defaultLanguage = defaultLanguage;
     if (academicDirectorEmail !== undefined) update.academicDirectorEmail = academicDirectorEmail;
     let program = await Program.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
     if (!program) return sendError(res, httpError(404, 'Programme not found', { code: 'PROGRAM_NOT_FOUND' }));

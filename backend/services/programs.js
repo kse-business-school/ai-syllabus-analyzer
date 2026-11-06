@@ -367,14 +367,14 @@ async function applyEditions(programId, editions, lock, { isNew = false } = {}) 
 }
 
 /** Нова програма разом із наборами; будь-яка помилка не лишає ні програми, ні зайнятих кодів, ні копій. */
-async function createProgram({ name, code, academicDirectorEmail, editions }, { userId } = {}) {
+async function createProgram({ name, code, academicDirectorEmail, editions, defaultLanguage }, { userId } = {}) {
   const programCode = normCode(code);
   if (!name || !programCode) throw httpError(400, 'name and code are required', { code: 'VALIDATION_ERROR' });
   // N11: передані набори перевіряються завжди, до створення програми
   const parsed = editions === undefined || editions === null ? [] : parseEditions(editions);
   const withEditions = parsed.length > 0;
   if (!withEditions) await assertCodesFree(null, [programCode]);
-  const program = await Program.create({ name, code: programCode, academicDirectorEmail, createdBy: userId, editions: [] });
+  const program = await Program.create({ name, code: programCode, academicDirectorEmail, defaultLanguage, createdBy: userId, editions: [] });
   try {
     return await locks.withLock(`program:${program._id}`, async (lock) => {
       if (withEditions) return applyEditions(program._id, parsed, lock, { isNew: true });
