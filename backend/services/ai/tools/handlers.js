@@ -154,9 +154,9 @@ function createToolContext(ctx) {
 
 const fail = (error, message, extra = {}) => ({ error, message, ...extra });
 
-const slotError = (key, state) => {
+const slotError = (key, state, refs) => {
   const slot = getSlot(key, state);
-  if (!slot || !slotKeysOf(state).includes(key)) return { error: fail('UNKNOWN_SLOT', `Unknown slot: ${key}`) };
+  if (!slot || !slotKeysOf(state, refs).includes(key)) return { error: fail('UNKNOWN_SLOT', `Unknown slot: ${key}`) };
   if (slot.editability === 'locked') return { error: fail('LOCKED', 'This slot is locked and cannot be changed in chat') };
   return { slot };
 };
@@ -188,7 +188,7 @@ const isScalarPath = (p) => !/\[|\{/.test(p) && p !== 'header.term';
 
 async function get_slot(tctx, { key }) {
   const slot = getSlot(key, tctx.state);
-  if (!slot || !slotKeysOf(tctx.state).includes(key)) return fail('UNKNOWN_SLOT', `Unknown slot: ${key}`);
+  if (!slot || !slotKeysOf(tctx.state, tctx.refs).includes(key)) return fail('UNKNOWN_SLOT', `Unknown slot: ${key}`);
   let value;
   if (key.startsWith('policy.')) {
     const p = (tctx.state.policies || []).find((x) => x.key === key);
@@ -210,7 +210,7 @@ const draftBaseFor = (tctx, path) => (tctx.draftBase && tctx.draftBase.path === 
 
 async function set_slot(tctx, { key, value }) {
   if (tctx.draftOnly) return draftOnlyError();
-  const { slot, error } = slotError(key, tctx.state);
+  const { slot, error } = slotError(key, tctx.state, tctx.refs);
   if (error) return error;
   if (key.startsWith('policy.') || slot.type === 'E' || slot.editability !== 'free') {
     return fail('SLOT_NOT_WRITABLE', 'This slot cannot be written directly; use propose_draft');
@@ -235,6 +235,12 @@ async function set_slot(tctx, { key, value }) {
   if (NUMERIC_PATHS.has(slot.path)) {
     next = Number(String(raw).replace(',', '.'));
     if (!Number.isFinite(next) || next < 0) return fail('INVALID_VALUE', 'Expected a non-negative number');
+  } else if (slot.path === 'header.programBlock') {
+    // B-8.6: лише значення із закритого списку програми — за кодом блоку («2.2») або повною назвою
+    const blocks = tctx.refs?.programBlocks || [];
+    const block = blocks.find((b) => norm(b.code) === norm(raw) || norm(b.label) === norm(raw));
+    if (!block) return fail('INVALID_VALUE', blocks.length ? `Programme block must be one of: ${blocks.map((b) => b.label).join('; ')}` : 'This programme has no blocks');
+    next = block.label;
   } else if (slot.path === 'header.deliveryFormat') {
     next = norm(raw);
     if (!DELIVERY_FORMATS.includes(next)) return fail('USE_PROPOSE_DRAFT', `Delivery mode must be one of: ${DELIVERY_FORMATS.join(', ')}`);
@@ -248,7 +254,7 @@ async function set_slot(tctx, { key, value }) {
 }
 
 async function propose_draft(tctx, { key, text, instruction, entity_id: entityId, proposed_values: modelValues }) {
-  const { slot, error } = slotError(key, tctx.state);
+  const { slot, error } = slotError(key, tctx.state, tctx.refs);
   if (error) return error;
   const body = String(text ?? '').trim();
   if (!body || body.length > MAX_DRAFT_CHARS) return fail('INVALID_VALUE', 'The draft text is empty or too long');
@@ -373,7 +379,7 @@ async function createStructuredDraft(tctx, key, slot, part, description) {
 }
 
 async function propose_items(tctx, { key, mode, items }) {
-  const { slot, error } = slotError(key, tctx.state);
+  const { slot, error } = slotError(key, tctx.state, tctx.refs);
   if (error) return error;
   if (!ITEM_SLOTS[key]) return fail('SLOT_NOT_LIST', `propose_items works only for: ${Object.keys(ITEM_SLOTS).join(', ')}`);
   if (unverifiedUrl(tctx, (items || []).flatMap((i) => [i?.url, i?.label, i?.criteria]))) {
@@ -387,7 +393,7 @@ async function propose_items(tctx, { key, mode, items }) {
 
 async function propose_instructor(tctx, values) {
   const key = 'instructor.profile';
-  const { slot, error } = slotError(key, tctx.state);
+  const { slot, error } = slotError(key, tctx.state, tctx.refs);
   if (error) return error;
   if (unverifiedUrl(tctx, Object.values(values || {}).flat())) return fail('UNVERIFIED_URL', 'Links cannot be added unless the instructor gave them');
   const part = instructorDraft({ state: tctx.state, values, known: knownTexts(tctx, key, tctx.state.instructors), base: draftBaseFor(tctx, 'instructors[]') });

@@ -9,6 +9,7 @@ const NARRATIVE_SLOTS = ['course.description', 'course.objectives', 'course.outc
 const DRAFTABLE = {
   'course.description': { mode: 'text', path: 'summary.shortDescription' },
   'course.capstone': { mode: 'text', path: 'summary.capstone' },
+  'course.practical_application': { mode: 'text', path: 'summary.practicalApplication' },
   'course.objectives': { mode: 'list', path: 'summary.objectives[]', idPrefix: 'obj', extra: () => ({}) },
   'course.outcomes': { mode: 'list', path: 'outcomes[]', idPrefix: 'clo', extra: () => ({ plo: [], assessmentIds: [] }) },
   'assessment.criteria': { mode: 'text', path: 'assessments[].criteria', entity: 'assessments' },
@@ -97,7 +98,7 @@ module.exports = { NARRATIVE_SLOTS, DRAFTABLE, NUMERIC_PATHS, splitLines, listEn
 // ---------- Списки сутностей (C і B→C): propose_items / propose_instructor (аудит A02) ----------
 // Модель передає структуровані рядки; сервер будує повні сутності за schema.js, сам знаходить факти (proposedValues
 // з path '[<id>].<поле>') і шаблон картки. «Change the value» змінює саме це поле сутності (applyFieldValues).
-const { SESSION_TYPES, DELIVERY_FORMATS } = require('../syllabusState/schema');
+const { SESSION_TYPES, DELIVERY_FORMATS, GUEST_STATUSES } = require('../syllabusState/schema');
 const { scanFacts, isKnownFact, corpusOf } = require('./facts');
 
 const COMPENSATION_GROUPS = ['comp', 'proof', 'retake', 'improve'];
@@ -117,10 +118,14 @@ const ITEM_SLOTS = {
       field('type', 'type', 'enum', { values: SESSION_TYPES }), field('hours', 'hours', 'number', { unit: 'hours' }),
       field('format', 'format', 'enum', { values: DELIVERY_FORMATS }), field('date', 'date', 'text'), field('time', 'time', 'text'),
       field('guest', 'guest', 'text'),
+      // B-3.4 / B-6.2: модуль, підготовка, дедлайн, гість із розділу «Гостьові спікери» — посилання за id
+      field('module_id', 'moduleId', 'ref', { entity: 'modules' }), field('prep', 'prep', 'text'), field('deadline', 'deadline', 'text'),
+      field('guest_id', 'guestId', 'ref', { entity: 'guests' }),
     ],
-    blank: () => ({ n: 0, topic: null, type: null, hours: null, format: null, guest: null, additional: null, date: null, time: null }),
+    blank: () => ({ n: 0, topic: null, type: null, hours: null, format: null, guest: null, additional: null, date: null, time: null, moduleId: null, prep: null, deadline: null, guestId: null }),
     line: (e, f) => [`Session ${e.n}: ${f('topic')}`, e.type && f('type'), e.hours != null && `${f('hours')} h`, e.format && f('format'),
-      e.date && f('date'), e.time && f('time'), e.guest && `guest: ${f('guest')}`].filter(Boolean).join(' · '),
+      e.date && f('date'), e.time && f('time'), e.guest && `guest: ${f('guest')}`, e.prep && `preparation: ${f('prep')}`,
+      e.deadline && `deadline: ${f('deadline')}`].filter(Boolean).join(' · '),
   },
   'schedule.individual_work': {
     path: 'individualWork[]', idPrefix: 'iw', noun: 'Task',
@@ -136,9 +141,14 @@ const ITEM_SLOTS = {
       field('weight', 'weight', 'number', { unit: 'percent', max: 100 }), field('deadline', 'deadline', 'text'), field('criteria', 'criteria', 'text'),
       // C10: ознаки для детермінованих перевірок (частка активності ≤ 30%, контрольні заходи за Положенням)
       field('participation', 'isParticipation', 'bool'), field('control', 'isControl', 'bool'),
+      // B-6.3: бали замість відсотків — кількість одиниць, максимум балів і рубрика рівнів
+      field('max_points', 'maxPoints', 'number', { unit: 'points' }), field('unit_count', 'unitCount', 'number', { unit: 'units' }),
+      field('rubric', 'rubric', 'rubric'),
     ],
-    blank: () => ({ name: null, fixtureRef: null, weight: null, criteria: null, deadline: null, isParticipation: false, isControl: false, outcomeIds: [] }),
-    line: (e, f) => [f('name'), e.weight != null && `${f('weight')}%`, e.deadline && `deadline: ${f('deadline')}`, e.criteria && `criteria: ${f('criteria')}`,
+    blank: () => ({ name: null, fixtureRef: null, weight: null, criteria: null, deadline: null, isParticipation: false, isControl: false, outcomeIds: [], maxPoints: null, unitCount: null, rubric: [] }),
+    line: (e, f) => [f('name'), e.weight != null && `${f('weight')}%`, e.maxPoints != null && `${f('maxPoints')} points`,
+      e.unitCount != null && `${f('unitCount')} units`, e.rubric?.length && `rubric: ${f('rubric')}`,
+      e.deadline && `deadline: ${f('deadline')}`, e.criteria && `criteria: ${f('criteria')}`,
       e.isParticipation && 'class participation', e.isControl && 'control assessment']
       .filter(Boolean).join(' · '),
   },
@@ -155,6 +165,31 @@ const ITEM_SLOTS = {
     fields: [field('url', 'url', 'url')],
     blank: () => ({ citation: null, url: null, verified: false }),
     line: (e, f) => [f('citation'), e.url && f('url')].filter(Boolean).join(' '),
+  },
+  // B-6.2: тематичні модулі курсу; сесії посилаються на них через module_id
+  'schedule.modules': {
+    path: 'modules[]', idPrefix: 'mod', noun: 'Module', numbered: true,
+    main: field('label', 'title', 'text'),
+    fields: [],
+    blank: () => ({ n: 0, title: null }),
+    line: (e, f) => `Module ${e.n}: ${f('title')}`,
+  },
+  // B-8.2: гостьові спікери — ім'я, компанія, тема/формат, статус
+  'guests.list': {
+    path: 'guests[]', idPrefix: 'g', noun: 'Guest',
+    main: field('label', 'name', 'title'),
+    // Формат виступу (Q&A, кейс) — у темі: аргумент format інструмента — формат заняття (offline/online)
+    fields: [field('company', 'company', 'title'), field('topic', 'topic', 'text'), field('status', 'status', 'enum', { values: GUEST_STATUSES })],
+    blank: () => ({ name: null, company: null, topic: null, format: null, status: null }),
+    line: (e, f) => [f('name'), e.company && f('company'), e.topic && f('topic'), e.format && f('format'), e.status && f('status')].filter(Boolean).join(' · '),
+  },
+  // B-8.4: матеріали до конкретної сесії
+  'materials.by_session': {
+    path: 'materials.bySession[]', idPrefix: 'ms', noun: 'Reading',
+    main: field('label', 'citation', 'title'),
+    fields: [field('session_id', 'sessionId', 'ref', { entity: 'sessions' }), field('url', 'url', 'url')],
+    blank: () => ({ sessionId: null, citation: null, url: null, verified: false }),
+    line: (e, f) => [e.sessionId && `before ${f('sessionId')}:`, f('citation'), e.url && f('url')].filter(Boolean).join(' '),
   },
   'materials.recommended': {
     path: 'materials.recommended[]', idPrefix: 'mr', noun: 'Reading',
@@ -176,7 +211,9 @@ const INSTRUCTOR_FIELDS = [
 ];
 const LIST_SEP = '; ';
 
-const fieldString = (value) => (Array.isArray(value) ? value.join(LIST_SEP) : value == null || typeof value === 'boolean' ? '' : String(value));
+const fieldString = (value) => (Array.isArray(value)
+  ? value.map((v) => (v && typeof v === 'object' ? `${v.points} — ${v.descriptor}` : v)).join(LIST_SEP)
+  : value == null || typeof value === 'boolean' ? '' : String(value));
 
 function cleanText(v) {
   if (v == null) return null;
@@ -185,8 +222,20 @@ function cleanText(v) {
 }
 
 /** Значення з аргументу інструмента → значення поля сутності; { error } якщо не підходить. */
-function coerce(f, raw) {
+function coerce(f, raw, state) {
   if (raw == null) return { skip: true };
+  if (f.kind === 'ref') {
+    // Посилання на сутність іншого списку (модуль, гість, сесія) — лише наявна в стані
+    const id = String(raw).trim();
+    if (!(state?.[f.entity] || []).some((x) => x.id === id)) return { error: `Unknown ${f.entity} id: ${id}; confirm that item first` };
+    return { value: id };
+  }
+  if (f.kind === 'rubric') {
+    if (!Array.isArray(raw) || raw.length > 10) return { error: 'rubric must be a list of up to 10 levels' };
+    const levels = raw.map((r) => ({ points: Number(r?.points), descriptor: cleanText(r?.descriptor) }));
+    if (levels.some((r) => !Number.isFinite(r.points) || r.points < 0 || !r.descriptor)) return { error: 'Each rubric level needs points (a number) and a descriptor' };
+    return { value: levels };
+  }
   if (f.kind === 'number') {
     const n = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
     if (!Number.isFinite(n) || n < 0 || (f.max != null && n > f.max)) return { error: `${f.name} must be a number between 0 and ${f.max ?? 'any'}` };
@@ -214,8 +263,10 @@ function coerce(f, raw) {
 function fieldFacts(f, value, corpus, known) {
   const str = fieldString(value);
   if (!str) return [];
+  if (f.kind === 'ref') return [];
+  if (f.kind === 'rubric') return []; // рубрику без proposedValues пропускає лише itemsDraft (усі рівні названо викладачем)
   if (f.kind === 'number') {
-    const asText = f.unit === 'percent' ? `${str}%` : `${str} hours`;
+    const asText = f.unit === 'percent' ? `${str}%` : f.unit === 'hours' ? `${str} hours` : `${str} ${f.unit}`;
     return isKnownFact(f.unit === 'percent' ? 'Percentage' : 'Quantity', asText, corpus) ? [] : [{ value: str }];
   }
   if (f.kind === 'title') return isKnownFact('Title', str, corpus) ? [] : [{ value: str }];
@@ -288,11 +339,17 @@ function itemsDraft(slotKey, { state, items, mode = 'append', known = [], base =
     if (item?.id && !old) return { error: 'UNKNOWN_ENTITY', message: `Unknown ${def.noun.toLowerCase()} id: ${item.id}; use null for a new item` };
     const entity = old ? { ...old } : { id: nextId(def.idPrefix, taken), ...def.blank(), source: 'ai_draft', evidenceBlockIds: [] };
     for (const f of fields) {
-      const r = coerce(f, item?.[f.from]);
+      const r = coerce(f, item?.[f.from], state);
       if (r.error) return { error: 'INVALID_VALUE', message: r.error };
       if (!r.skip) entity[f.name] = r.value;
     }
     if (!filled(entity[def.main.name])) return { error: 'INVALID_VALUE', message: `Every new ${def.noun.toLowerCase()} needs a ${def.main.name}` };
+    // Рубрика (B-6.3) — лише дослівно від викладача: рівні з балами й описами не стають proposedValues
+    if ((entity.rubric || []).length && JSON.stringify(entity.rubric) !== JSON.stringify(old?.rubric || [])) {
+      const corpus = corpusOf(known);
+      const unstated = entity.rubric.filter((r) => !corpus.numbers.has(String(r.points)) || !isKnownFact('Title', r.descriptor, corpus));
+      if (unstated.length) return { error: 'RUBRIC_NOT_STATED', message: 'Add rubric levels only as the instructor stated them (points and descriptor); ask the instructor for the levels.' };
+    }
     if (old && JSON.stringify(old) !== JSON.stringify(entity)) {
       entity.source = 'ai_draft';
       entity.evidenceBlockIds = [];

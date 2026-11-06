@@ -20,7 +20,7 @@ const SLOTS = [
   { key: 'glance.assessment_total', section: 'at_a_glance', path: 'header.computed.assessmentTotal', type: 'E', editability: 'locked', required: false },
   { key: 'glance.course_kind', section: 'at_a_glance', path: 'header.courseKind', type: 'E', editability: 'locked', required: false },
   // Корпус і блок програми (B-8.6): закритий список Program.blocks; для програм без списку слота немає в профілі
-  { key: 'glance.program_block', section: 'at_a_glance', path: 'header.programBlock', type: 'B', fallbackType: 'C', editability: 'free', required: false, fixture: 'program-blocks' },
+  { key: 'glance.program_block', section: 'at_a_glance', path: 'header.programBlock', type: 'C', editability: 'free', required: false, fixture: 'program-blocks' },
 
   // 1 · Summary
   { key: 'course.title', section: 'course_info', path: 'header.courseTitle', type: 'A', editability: 'free', required: true },

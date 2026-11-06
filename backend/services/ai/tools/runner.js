@@ -81,7 +81,7 @@ async function runOrchestratorTurn(ctx) {
   const tctx = createToolContext(reword ? {
     ...ctx, draftOnly: true, draftBase: { path: ctx.cardContext.path, value: ctx.cardContext.draft ?? null },
   } : ctx);
-  const tools = buildTools(ctx.state);
+  const tools = buildTools(ctx.state, ctx.refs);
   const input = [
     { role: 'system', content: buildOrchestratorInstructions({ refs: ctx.refs, state: ctx.state }) },
     { role: 'system', content: `Current conversation slot (data): ${untrusted(ctx.currentSlotKey ?? ctx.conversation?.currentSlotKey ?? 'none')}. Interpret the instructor's answer in this context.` },

@@ -171,9 +171,26 @@ function deadlinesInTerm(state) {
   });
 }
 
+// B-6.3: бали за одиницями — unitCount × max(rubric.points) = maxPoints (наприклад, 7 лекцій × 2 = 14)
+function pointsConsistency(state) {
+  return (state.assessments || []).flatMap((a, i) => {
+    const levels = (a.rubric || []).map((r) => r.points).filter(isNum);
+    if (!isNum(a.maxPoints) || !isNum(a.unitCount) || !levels.length) return [];
+    const top = Math.max(...levels);
+    const expected = a.unitCount * top;
+    if (sameNumber(expected, a.maxPoints)) return [];
+    return [makeCheck({
+      rule: 'assessment.points_consistency', entityId: a.id, severity: 'high', section: SECTION, path: 'assessments[].maxPoints',
+      message: tr(state, `"${componentLabel(a, i)}" has ${fmt(a.unitCount)} units with up to ${fmt(top)} points each, which gives ${fmt(expected)}, but the maximum is ${fmt(a.maxPoints)} points. Which figure is correct?`,
+        `«${componentLabel(a, i)}»: ${fmt(a.unitCount)} одиниць по ${fmt(top)} бали дають ${fmt(expected)}, а максимум — ${fmt(a.maxPoints)} балів. Яке значення правильне?`),
+      details: { unitCount: a.unitCount, topLevel: top, expected, maxPoints: a.maxPoints },
+    })];
+  });
+}
+
 const run = (state) => [
   ...weightsTotal(state), ...weightConsistency(state), ...rowComplete(state),
-  ...componentCount(state), ...participationShare(state), ...deadlinesInTerm(state),
+  ...componentCount(state), ...participationShare(state), ...deadlinesInTerm(state), ...pointsConsistency(state),
 ];
 
 module.exports = { run, weightMentions, isJustified };
