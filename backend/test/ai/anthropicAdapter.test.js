@@ -199,3 +199,32 @@ describe('client.js: вибір провайдера', () => {
     expect(resolveProvider({})).toBe('openai');
   });
 });
+
+// Живий прогін 07.11: Anthropic відхиляв кожен хід чату — ≤ 16 union-параметрів і ≤ 24 необов'язкових на запит,
+// плюс ліміт розміру граматики strict-режиму. Інструменти чату MMM і MBA мають вкладатися в ці ліміти.
+describe('ліміти strict-інструментів Anthropic', () => {
+  const { buildTools } = require('../../services/ai/tools/definitions');
+  const { createEmptyState } = require('../../services/syllabusState/empty');
+  const { loadFixtureRefs } = require('../../services/references/fixtureRefs');
+  const unions = (s) => {
+    if (Array.isArray(s)) return s.reduce((n, x) => n + unions(x), 0);
+    if (!s || typeof s !== 'object') return 0;
+    return ((Array.isArray(s.type) || Array.isArray(s.anyOf)) ? 1 : 0)
+      + Object.entries(s).reduce((n, [k, v]) => n + (k === 'properties' ? Object.values(v).reduce((m, x) => m + unions(x), 0) : unions(v)), 0);
+  };
+  const optional = (s) => {
+    if (Array.isArray(s)) return s.reduce((n, x) => n + optional(x), 0);
+    if (!s || typeof s !== 'object') return 0;
+    const own = s.type === 'object' && s.properties ? Object.keys(s.properties).filter((k) => !(s.required || []).includes(k)).length : 0;
+    return own + Object.entries(s).reduce((n, [k, v]) => n + (k === 'properties' ? Object.values(v).reduce((m, x) => m + optional(x), 0) : optional(v)), 0);
+  };
+  test.each(['MMM26', 'MBA28'])('%s: union ≤ 16, необов\'язкових ≤ 24 серед strict', (code) => {
+    const refs = loadFixtureRefs(code);
+    const tools = buildTools(createEmptyState({ programCode: code, refs }), refs);
+    const req = toAnthropicRequest({ model: 'claude-haiku-5-5', input: [{ role: 'user', content: 'x' }], tools }, cfg());
+    const strict = req.tools.filter((t) => t.strict);
+    expect(strict.reduce((n, t) => n + unions(t.input_schema), 0)).toBeLessThanOrEqual(16);
+    expect(strict.reduce((n, t) => n + optional(t.input_schema), 0)).toBeLessThanOrEqual(24);
+    expect(strict.map((t) => t.name)).toEqual(expect.arrayContaining(['set_slot', 'apply_edit', 'propose_draft']));
+  });
+});

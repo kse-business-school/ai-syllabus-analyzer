@@ -67,6 +67,66 @@ function sanitizeSchema(schema) {
   return out;
 }
 
+/**
+ * Anthropic обмежує strict-інструменти 16 параметрами з union-типами на запит (живий прогін 07.11: інструменти чату
+ * мали 25–35 → 400 для кожного ходу). Nullable-поле (type [X, 'null'] або anyOf з варіантом null) стає
+ * необов'язковим полем без null: відсутнє поле обробники трактують так само, як null («не сказано»).
+ */
+const MAX_UNION_PARAMS = 16;
+const MAX_STRICT_PROPERTIES = 20;
+
+/** Кількість властивостей схеми (усіх рівнів). */
+function countProperties(schema) {
+  if (Array.isArray(schema)) return schema.reduce((n, x) => n + countProperties(x), 0);
+  if (!schema || typeof schema !== 'object') return 0;
+  return Object.entries(schema).reduce((n, [k, v]) => n + (k === 'properties' && v && typeof v === 'object'
+    ? Object.keys(v).length + Object.values(v).reduce((m, sub) => m + countProperties(sub), 0) : countProperties(v)), 0);
+}
+
+const isUnion = (s) => Boolean(s && typeof s === 'object' && (Array.isArray(s.type) || Array.isArray(s.anyOf)));
+
+/** Кількість параметрів з union-типами (type-масив або anyOf) у схемі — рекурсивно, як їх рахує Anthropic. */
+function countUnions(schema) {
+  if (Array.isArray(schema)) return schema.reduce((n, x) => n + countUnions(x), 0);
+  if (!schema || typeof schema !== 'object') return 0;
+  return (isUnion(schema) ? 1 : 0) + Object.entries(schema).reduce((n, [k, v]) => n + (k === 'properties' && v && typeof v === 'object'
+    ? Object.values(v).reduce((m, sub) => m + countUnions(sub), 0) : countUnions(v)), 0);
+}
+
+function optionalInsteadOfNullable(schema, budget = { convert: Infinity }) {
+  if (Array.isArray(schema)) return schema.map((x) => optionalInsteadOfNullable(x, budget));
+  if (!schema || typeof schema !== 'object') return schema;
+  const out = Object.fromEntries(Object.entries(schema).map(([k, v]) => [k, k === 'properties' && v && typeof v === 'object'
+    ? Object.fromEntries(Object.entries(v).map(([name, sub]) => [name, optionalInsteadOfNullable(sub, budget)]))
+    : optionalInsteadOfNullable(v, budget)]));
+  if (out.type === 'object' && out.properties && Array.isArray(out.required)) {
+    const optional = new Set();
+    for (const [name, sub] of Object.entries(out.properties)) {
+      if (budget.convert <= 0) break;
+      const stripped = withoutNull(sub);
+      if (stripped !== sub) { out.properties[name] = stripped; optional.add(name); budget.convert -= 1; }
+    }
+    out.required = out.required.filter((name) => !optional.has(name));
+  }
+  return out;
+}
+
+/** Схема без варіанта null; та сама схема, якщо null не допускався. */
+function withoutNull(schema) {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema.type) && schema.type.includes('null')) {
+    const types = schema.type.filter((t) => t !== 'null');
+    const { enum: values, ...rest } = schema;
+    return { ...rest, type: types.length === 1 ? types[0] : types, ...(values ? { enum: values.filter((v) => v !== null) } : {}) };
+  }
+  if (Array.isArray(schema.anyOf) && schema.anyOf.some((v) => v?.type === 'null')) {
+    const variants = schema.anyOf.filter((v) => v?.type !== 'null');
+    const { anyOf, ...rest } = schema;
+    return variants.length === 1 ? { ...rest, ...variants[0] } : { ...rest, anyOf: variants };
+  }
+  return schema;
+}
+
 function textOf(content) {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
@@ -115,6 +175,12 @@ function toMessages(input) {
 
 function toTools(tools, model) {
   if (!tools?.length) return undefined;
+  // Скільки nullable-параметрів strict-інструментів зробити необов'язковими: лише надлишок над лімітом union-полів
+  // Великі схеми (propose_items: ~25 полів пункту) роздувають граматику strict-режиму понад ліміт Anthropic:
+  // їх надсилаємо без strict — аргументи все одно повністю перевіряють обробники на сервері (coerce, сканер фактів)
+  tools = tools.map((t) => (t.strict && countProperties(t.parameters) > MAX_STRICT_PROPERTIES ? { ...t, strict: false } : t));
+  const unions = tools.filter((t) => t.strict).reduce((n, t) => n + countUnions(sanitizeSchema(t.parameters || {})), 0);
+  const budget = { convert: Math.max(0, unions - MAX_UNION_PARAMS) };
   return tools.map((tool) => {
     if (tool.type === 'web_search_preview' || tool.type === 'web_search') {
       return {
@@ -126,7 +192,8 @@ function toTools(tools, model) {
     return {
       name: tool.name,
       description: tool.description,
-      input_schema: sanitizeSchema(tool.parameters || { type: 'object', properties: {} }),
+      input_schema: tool.strict ? optionalInsteadOfNullable(sanitizeSchema(tool.parameters || { type: 'object', properties: {} }), budget)
+        : sanitizeSchema(tool.parameters || { type: 'object', properties: {} }),
       ...(tool.strict ? { strict: true } : {}),
     };
   });
