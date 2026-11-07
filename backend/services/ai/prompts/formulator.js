@@ -18,9 +18,9 @@ const proposedValuesSchema = {
 };
 
 const SLOT_RULES = {
-  'course.description': 'Short Course Description: marketing tone that invites the student, address the reader as "you", 3 to 5 sentences, one paragraph. Say what the course is about and what happens in class. Use only what the instructor told you.',
+  'course.description': 'Short Course Description: marketing tone that invites the student, address the reader as "you" (in Ukrainian: «ви»), 3 to 5 sentences, one paragraph. Say what the course is about and what happens in class. Use only what the instructor told you.',
   'course.objectives': 'Course Objectives: what the course sets out to achieve, 3 to 5 items, one per line, no bullets or numbering, each a full sentence-like statement.',
-  'course.outcomes': 'Learning Outcomes (LO): 3 to 6 measurable outcomes, one per line, no bullets or numbering. EVERY outcome starts with an action verb in the base form (Analyze, Design, Evaluate, Apply, Build …). Do not prefix them with "Students will be able to".',
+  'course.outcomes': 'Learning Outcomes (LO): 3 to 6 measurable outcomes, one per line, no bullets or numbering. EVERY outcome starts with an action verb in the base form (Analyze, Design, Evaluate, Apply, Build …; in Ukrainian an infinitive: Аналізувати, Розробити, Оцінити …). Do not prefix them with "Students will be able to".',
   'course.capstone': 'Connection to Capstone: 2 to 4 sentences on how this course prepares students for the Capstone project. Name the Capstone criteria the course prepares for, using their exact names from the list, and put their keys into criteriaKeys.',
   'assessment.criteria': 'Assessment criteria: what a strong submission looks like for this component, in one short paragraph. Use only what the instructor told you.',
 };
@@ -29,20 +29,25 @@ const FACTS_RULE = 'Facts rule: do not invent numbers, percentages, durations, d
 
 const sentenceCount = (text) => (String(text).match(/[^.!?…]+[.!?…]+/g) || []).length;
 const BAD_VERB_START = /^(the|a|an|to|students?|ability|knowledge|understanding|understand|how|this|in|upon)\b/i;
+// Українська (B-1.3): звертання на «ви», результат починається з інфінітива дії («Аналізувати», «Розробити»), не «Розуміти»
+const YOU_UK = /(^|[^\p{L}])(ви|вас|вам|вами|ваш\p{L}*)(?![\p{L}])/iu;
+const VERB_UK = /^[А-ЯІЇЄҐ][\p{L}'ʼ’-]*(ти|тися|тись)(?![\p{L}])/u;
+const BAD_VERB_UK = /^(розуміти|знати|ознайомитися|ознайомитись|мати уявлення)/iu;
 
 /** Детерміновані вимоги ТЗ до формулювань; повертає список помилок для коригувального повтору. */
-function validateDraft(slotKey, item) {
+function validateDraft(slotKey, item, language = 'en') {
+  const uk = language === 'uk';
   const errors = [];
   const text = String(item.text || '').trim();
   if (!text) return [`${slotKey}: empty text`];
   if (slotKey === 'course.description') {
     const n = sentenceCount(text);
     if (n < 3 || n > 5) errors.push(`${slotKey}: must be 3 to 5 sentences, got ${n}`);
-    if (!/\byou(r|rs|rself)?\b/i.test(text)) errors.push(`${slotKey}: must address the reader as "you"`);
+    if (uk ? !YOU_UK.test(text) : !/\byou(r|rs|rself)?\b/i.test(text)) errors.push(`${slotKey}: must address the reader as "${uk ? 'ви' : 'you'}"`);
   }
   if (slotKey === 'course.outcomes') {
     const lines = splitLines(text);
-    const bad = lines.filter((l) => BAD_VERB_START.test(l) || !/^[A-Z][a-z]+/.test(l));
+    const bad = lines.filter((l) => (uk ? BAD_VERB_UK.test(l) || !VERB_UK.test(l) : BAD_VERB_START.test(l) || !/^[A-Z][a-z]+/.test(l)));
     if (bad.length) errors.push(`${slotKey}: every outcome must start with an action verb; fix: ${bad.map((l) => `"${l.slice(0, 40)}"`).join(', ')}`);
   }
   if (slotKey === 'course.objectives' && !splitLines(text).length) errors.push(`${slotKey}: at least one objective`);
@@ -124,8 +129,9 @@ async function draftFromNarrative({ state, refs, narrative, slotKeys, transcript
         ...wanted.filter((k) => !seen.includes(k)).map((k) => `${k}: missing draft`),
         ...(new Set(seen).size === seen.length ? [] : ['each slot must have exactly one draft']),
         ...out.drafts.flatMap((d) => [
-          ...validateDraft(d.slotKey, d),
-          ...(d.slotKey === 'course.capstone' && !d.criteriaKeys.length ? ['course.capstone: name at least one Capstone criterion'] : []),
+          ...validateDraft(d.slotKey, d, state?.language),
+          // Критерії Capstone — лише якщо вони є в довіднику набору (у MMM26 їх ще немає, B-8.10)
+          ...(d.slotKey === 'course.capstone' && (refs?.capstone?.criteria || []).length && !d.criteriaKeys.length ? ['course.capstone: name at least one Capstone criterion'] : []),
         ]),
       ];
     },
@@ -195,7 +201,7 @@ async function reword({ suggestion, feedback, state, refs, transcript = [] } = {
   ].filter(Boolean).join('\n\n');
 
   const parsed = await requestJSON('formulator_reword', schema, system, document, {
-    validate: (out) => validateDraft(slotKey, out),
+    validate: (out) => validateDraft(slotKey, out, state?.language),
   });
   const text = isList ? splitLines(parsed.text).join('\n') : parsed.text.trim();
   return {
