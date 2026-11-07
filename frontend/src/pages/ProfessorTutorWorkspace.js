@@ -113,7 +113,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
 
   // Readiness, Download .docx і відкриті перевірки — у верхній панелі
   const { setChrome } = useWorkspaceChrome();
-  const grouped = useMemo(() => computeGroupedReadiness(ws.readiness, ws.state), [ws.readiness, ws.state]);
+  const grouped = useMemo(() => computeGroupedReadiness(ws.readiness, ws.state, ws.sections), [ws.readiness, ws.state, ws.sections]);
   const openChecks = (ws.checks || []).filter((c) => c.passed === false).length;
   const hasDocument = Boolean(ws.state);
   const { downloadDocx, downloading } = ws;
@@ -265,6 +265,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
     readiness: ws.readiness,
     policyLibrary: ws.policyLibrary,
     statePolicies: ws.state?.policies || [],
+    language: ws.state?.language || 'en',
     documentSections: ws.document.sections || [],
     onSelectSuggestion: scrollToSuggestion,
   };
@@ -296,6 +297,14 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
       onApproveSection={handleApproveFromDoc}
       onUnapproveSection={handleUnapproveFromDoc}
       onDiscussSection={handleDiscussInChat}
+      language={ws.state?.language || null}
+      policyLibrary={ws.policyLibrary}
+      programBlocks={ws.programBlocks}
+      programBlock={ws.state?.header?.programBlock || null}
+      statePolicies={ws.state?.policies || []}
+      actions={ws.actions}
+      busy={ws.busy}
+      onChangeLanguage={(language) => ws.actions.setLanguage(language)}
       readOnly={ws.readOnly || isReadOnlyAdmin || !ready}
     />
   );

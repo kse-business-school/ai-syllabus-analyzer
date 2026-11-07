@@ -28,6 +28,10 @@ const QuestionMessage = ({ payload, active = false, busy, readOnly, onSkip, onQu
 
   return (
     <Bubble role="ai" sx={{ borderColor: active ? 'primary.main' : 'divider' }}>
+      {/* B-4.3: асистент називає розділ, до якого переходить */}
+      {payload.nextSection && (
+        <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.6 }}>{payload.nextSection}</Typography>
+      )}
       <MarkdownText>{payload.question}</MarkdownText>
       {payload.why && (
         <Box sx={{ mt: 1, p: 1, borderRadius: 0, bgcolor: 'action.hover' }}>

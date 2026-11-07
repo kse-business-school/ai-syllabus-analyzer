@@ -17,6 +17,7 @@ const normalizeView = (data) => ({
   revision: data?.revision ?? null,
   sections: [...(data?.sections || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   readiness: data?.readiness || null,
+  programBlocks: data?.programBlocks || [],
   checks: data?.checks || [],
   suggestions: (data?.suggestions || []).map((s) => ({ ...s, id: s.id || s._id })),
   conversation: data?.conversation || null,
@@ -268,8 +269,11 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
     refine: (sid, body = {}) => mutate((id) => client.chat.refine(id, sid, body)),
     answer: (sid, answer) => mutate((id) => client.chat.answer(id, sid, answer)),
     reopen: (sid) => mutate((id) => client.chat.reopen(id, sid)),
-    approveSection: (key) => mutate((id) => client.chat.approveSection(id, key)),
-    unapproveSection: (key) => mutate((id) => client.chat.unapproveSection(id, key)),
+    // B-5.1: відмова Approve (наприклад, SECTION_INCOMPLETE з прогалинами) показується в банері, а не мовчить
+    approveSection: async (key) => reportFailure(await mutate((id) => client.chat.approveSection(id, key))),
+    unapproveSection: async (key) => reportFailure(await mutate((id) => client.chat.unapproveSection(id, key))),
+    setLanguage: async (language) => reportFailure(await mutate((id) => client.chat.setLanguage(id, language))),
+    setProgramBlock: async (programBlock) => reportFailure(await mutate((id) => client.chat.setProgramBlock(id, programBlock))),
     // { ok, data: { approved, skipped, ...View } }. keys — розділи з картки (без них — усі); ревізія — на момент натискання.
     approveAll: (keys) => {
       const expectedRevision = viewRef.current?.revision;
@@ -282,7 +286,7 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
     keepPolicyText: (key) => mutate((id) => client.chat.choosePolicy(id, key, { keepText: true })),
     writeOwnPolicy: (key) => mutate((id) => client.chat.choosePolicy(id, key, { writeOwn: true })),
     skip: (slotKey) => mutate((id) => client.chat.skip(id, slotKey)),
-  }), [mutate, client, setView]);
+  }), [mutate, client, setView, reportFailure]);
 
   // Вільне повідомлення: показуємо його одразу, відповідь (хід оркестратора) приходить у View.
   // Stop обриває очікування відповіді на клієнті. Сервер міг уже обробити повідомлення,
@@ -362,6 +366,7 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
     revision: view?.revision ?? null,
     sections: view?.sections || [],
     readiness: view?.readiness || null,
+    programBlocks: view?.programBlocks || [],
     checks: view?.checks || [],
     suggestions: view?.suggestions || [],
     conversation: view?.conversation || null,

@@ -163,9 +163,9 @@ test('migrate-v5-references: dry-run, programCode для старих силаб
 
   const real = await migrate({ defaultEdition: 'mba28' });
   expect(real).toMatchObject({ editionsAdded: 2, syllabiProgramCodeSet: 1 });
-  expect(await ProgramOutcome.countDocuments()).toBe(37);
+  expect(await ProgramOutcome.countDocuments()).toBe(45); // MBA27/MBA28 (37) + MMM26 (8)
   expect((await Syllabus.collection.findOne({ title: 'old' })).programCode).toBe('MBA28');
 
   expect(await migrate()).toMatchObject({ editionsAdded: 0, syllabiProgramCodeSet: 0, syllabiTrackSet: 0 });
-  expect(await ProgramOutcome.countDocuments()).toBe(37);
+  expect(await ProgramOutcome.countDocuments()).toBe(45); // MBA27/MBA28 (37) + MMM26 (8)
 });

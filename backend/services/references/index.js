@@ -40,14 +40,29 @@ async function assertKnownProgramCode(programCode) {
   return code;
 }
 
+/** Програма набору (edition) або сама програма без наборів — для профілю розділів і списку блоків. */
+async function programOf(code) {
+  return cached(`program:${code}`, async () => Program.findOne({ $or: [{ 'editions.code': code }, { code }] })
+    .select('code blocks defaultLanguage passingScore').lean());
+}
+
+/**
+ * Розділи шаблону набору (B-6.1): спільні (programCode null) ← профіль програми (код програми) ← записи набору.
+ * Запис із disabled: true прибирає розділ. Нова когорта успадковує профіль програми без копіювання.
+ */
 async function getTemplate(programCode) {
   const code = norm(programCode);
   return cached(`template:${code}`, async () => {
-    const rows = await TemplateSection.find({ programCode: { $in: [null, code] } }).lean();
+    const program = await programOf(code);
+    const layers = [null, program && program.code !== code ? program.code : null, code].filter((c, i) => i === 0 || c);
+    const rows = await TemplateSection.find({ programCode: { $in: layers } }).lean();
     const byKey = new Map();
-    // Спочатку спільні (null), потім записи програми перекривають їх за key
-    for (const r of rows.filter((x) => x.programCode == null)) byKey.set(r.key, lean(r));
-    for (const r of rows.filter((x) => x.programCode === code)) byKey.set(r.key, lean(r));
+    for (const layer of layers) {
+      for (const r of rows.filter((x) => (x.programCode ?? null) === layer)) {
+        if (r.disabled) byKey.delete(r.key);
+        else byKey.set(r.key, lean(r));
+      }
+    }
     return [...byKey.values()].sort((a, b) => a.order - b.order);
   });
 }
@@ -83,8 +98,8 @@ async function getOfferingTypes(programCode) {
 
 async function getRefs(programCode) {
   const code = norm(programCode);
-  const [template, outcomes, courses, capstone, policyLibrary, offeringTypes] = await Promise.all([
-    getTemplate(code), getOutcomes(code), getCourses(code), getCapstone(code), getPolicyLibrary(), getOfferingTypes(code),
+  const [template, outcomes, courses, capstone, policyLibrary, offeringTypes, program] = await Promise.all([
+    getTemplate(code), getOutcomes(code), getCourses(code), getCapstone(code), getPolicyLibrary(), getOfferingTypes(code), programOf(code),
   ]);
   const { projectTypes, structure, criteria, deliverables, plagiarismThreshold } = capstone || {};
   return {
@@ -95,6 +110,9 @@ async function getRefs(programCode) {
     capstone: { projectTypes, structure, criteria, deliverables, plagiarismThreshold },
     policyLibrary,
     offeringTypes,
+    // Закритий список «Корпус і блок програми» (B-8.6); порожній — поле не показується
+    passingScore: Number.isFinite(program?.passingScore) ? program.passingScore : null,
+    programBlocks: (program?.blocks || []).map(({ code: c, label, group }) => ({ code: c, label, group: group || '' })),
   };
 }
 

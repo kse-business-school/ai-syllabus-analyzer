@@ -4,7 +4,8 @@ const { requestJSON } = require('../review/common');
 const { normalizePloCode } = require('../../references');
 const { untrusted } = require('../prompts/preamble');
 
-const PROMPT_VERSION = 'parse-v5-2';
+const PROMPT_VERSION = 'parse-v5-3';
+const GUEST_STATUSES = ['confirmed', 'in_progress', 'tbd'];
 const DELIVERY_FORMATS = ['offline', 'online', 'hybrid'];
 const SESSION_TYPES = ['lecture', 'practice', 'workshop'];
 // Ліміт тексту документа в промпті; решта блоків відсікається з попередженням
@@ -21,10 +22,16 @@ const obj = (properties) => ({ type: 'object', properties, required: Object.keys
 
 // Anthropic допускає не більше 16 union-полів на запит. Повний витяг має 38.
 // CLO витягаються до оцінювання, щоб зберегти зв'язки assessment.outcomeIds.
+// Нові поля MMM (B-8.8) — переважно рядки ('' = немає), щоб не перевищити ліміт union-полів у групах.
+// Живий прогін на силабусі MMM (07.11): три групи давали «compiled grammar is too large» — тому шість менших.
+// CLO (група 2) витягаються до оцінювання (група 6); модулі — разом із сесіями.
 const ANTHROPIC_GROUPS = [
-  ['header', 'prerequisites', 'shortDescription', 'objectives', 'outcomes', 'capstone'],
-  ['declared', 'instructors', 'materials', 'policySegments'],
-  ['sessions', 'individualWork', 'assessments'],
+  ['header', 'prerequisites', 'shortDescription', 'objectives', 'capstone', 'practicalApplication'],
+  ['outcomes', 'programmeOutcomes'],
+  ['declared', 'instructors', 'guests'],
+  ['materials', 'policySegments'],
+  ['modules', 'sessions', 'individualWork'],
+  ['assessments'],
 ];
 
 function emptyExtraction(schema) {
@@ -41,7 +48,9 @@ function buildSchema(ploCodes = []) {
   return obj({
     header: obj({
       title: nstr, code: nstr, department: nstr, ects: nnum, totalHours: nnum, language: nstr, studyMode: nstr,
-      deliveryFormat: nenum(DELIVERY_FORMATS), termText: nstr, termStart: nstr, termEnd: nstr, blockIds: ids,
+      deliveryFormat: nenum(DELIVERY_FORMATS), termText: nstr, termStart: nstr, termEnd: nstr,
+      programBlock: str, // корпус і блок програми як у файлі ('' — немає)
+      blockIds: ids,
     }),
     // Значення таблиці At a Glance «як у файлі»; якщо таблиці немає — усе null
     declared: obj({
@@ -53,20 +62,32 @@ function buildSchema(ploCodes = []) {
     objectives: arr(obj({ text: str, blockIds: ids })),
     outcomes: arr(obj({ id: str, text: str, ploCodes: arr(ploCode), blockIds: ids })),
     capstone: textItem,
+    practicalApplication: textItem,
+    // Розділ «Зв'язок з результатами програми»: ПРН, які курс підсилює, і як (без прив'язки до окремих CLO)
+    programmeOutcomes: arr(obj({ ploCode, text: str, blockIds: ids })),
     instructors: arr(obj({
       name: nstr, position: nstr, email: nstr, officeHours: nstr,
       expertise: arr(str), education: arr(str), experience: arr(str), blockIds: ids,
     })),
+    modules: arr(obj({ id: str, title: str, blockIds: ids })),
     sessions: arr(obj({
       topic: nstr, type: nenum(SESSION_TYPES), hours: nnum, format: nenum(DELIVERY_FORMATS),
-      guest: nstr, additional: nstr, date: nstr, time: nstr, blockIds: ids,
+      guest: nstr, additional: nstr, date: nstr, time: nstr,
+      moduleId: str, prep: str, deadline: str, // '' — немає
+      blockIds: ids,
     })),
+    guests: arr(obj({ name: str, company: str, topic: str, status: nenum(GUEST_STATUSES), blockIds: ids })),
     individualWork: arr(obj({ title: str, hours: nnum, blockIds: ids })),
     assessments: arr(obj({
       id: str, name: str, weight: nnum, criteria: nstr, deadline: nstr,
-      isParticipation: bool, isControl: bool, outcomeIds: arr(str), blockIds: ids,
+      isParticipation: bool, isControl: bool, outcomeIds: arr(str),
+      maxPoints: nnum, unitCount: nnum, rubric: arr(obj({ points: { type: 'number' }, descriptor: str })),
+      blockIds: ids,
     })),
-    materials: obj({ required: arr(material), recommended: arr(material) }),
+    materials: obj({
+      required: arr(material), recommended: arr(material),
+      bySession: arr(obj({ session: str, citation: str, url: nstr, blockIds: ids })),
+    }),
     policySegments: arr(obj({ text: str, blockIds: ids, topicHint: str })),
   });
 }
@@ -90,7 +111,18 @@ Rules:
 - assessments: one entry per assessed component (name, weight in percent, performance criteria, deadline as written). Give every component a local id (as1, as2, ...). isParticipation = true only for in-class participation / activity. isControl = true for a graded control assessment (exam, test, quiz, final project or paper, presentation); false otherwise. outcomeIds = local outcome ids the file explicitly links to the component.
 - materials: required and recommended readings; citation as written, url only if written.
 - policySegments: the course-policy text (attendance, participation, late submissions, absence, passing score, grading, academic integrity, use of AI, appeals, contact, group work, anything not covered). One segment per topic, text verbatim, topicHint = a short English label of the topic. Do not include other sections here.
-- Do not put the same text in two slots unless the file itself repeats it.`;
+- Do not put the same text in two slots unless the file itself repeats it.
+
+Ukrainian-language syllabi (for example the MMM template, sections 0–9) use the same slots:
+- «Дані про курс» table → header (Назва курсу → title, Кількість кредитів → ects, Формат → deliveryFormat, Мова викладання → language, Передумови → prerequisites, Лектор(и) → declared.instructor); «Корпус і блок програми» → header.programBlock verbatim; «Короткий опис курсу» → shortDescription.
+- «Зв'язок з результатами програми» → programmeOutcomes: one entry per programme outcome the course says it strengthens, with its code from the list below (match the wording if the file gives no code) and the explanation as text. Do not copy these links into outcomes[].ploCodes unless the file links a specific course outcome.
+- «Результати навчання курсу» → outcomes; «Практичне застосування» → practicalApplication; «Зв'язок із Capstone Project» → capstone.
+- «Структура курсу та розклад занять»: sessions; a «Модуль» / thematic block heading → modules (local ids mod1, mod2, ...; title verbatim) and each session's moduleId; «Підготовка до заняття» → prep; «Дедлайн» → deadline; «Зміст і формат» → additional.
+- «Гостьові спікери» table → guests (name, company/position, topic and format, status: Підтверджено → confirmed, у процесі → in_progress, не визначено → tbd).
+- «Оцінювання»: weight in percent if written; if the component is graded in points, maxPoints (and unitCount, e.g. «7 лекцій × 2 бали» → unitCount 7) and rubric levels (points and descriptor) exactly as written.
+- «Матеріали до занять (по сесіях)» / «Перед сесією N» → materials.bySession with session = the session number as written («1», «2.1»).
+- «Педагогічний підхід» is a standard text of the programme: do not extract it anywhere. Ignore grey hint boxes («Порада для лектора») and the appendix about the programme structure.
+- New string fields use an empty string when absent.`;
 
 // Подання блоків для промпту: id, позиція в таблиці, текст
 function renderBlocks(blocks, meta = {}) {
@@ -113,7 +145,7 @@ const norm = (s) => String(s ?? '').toLowerCase().replace(/[\s ]+/g, ' ')
   .replace(/[“”«»„]/g, '"').replace(/[’ʼ`]/g, "'").replace(/[–—]/g, '-').trim();
 const numbersIn = (text) => new Set((String(text).match(/\d+(?:[.,]\d+)?/g) || []).map((n) => String(Number(n.replace(',', '.')))));
 
-const SINGLETONS = ['prerequisites', 'shortDescription', 'capstone'];
+const SINGLETONS = ['prerequisites', 'shortDescription', 'capstone', 'practicalApplication'];
 
 /** Семантична перевірка відповіді (повертає помилки для коригувального повтору requestJSON). */
 function validateExtraction(x, blocks, refs) {
@@ -138,6 +170,12 @@ function validateExtraction(x, blocks, refs) {
   list('materials.required', x.materials.required);
   list('materials.recommended', x.materials.recommended);
   list('policySegments', x.policySegments);
+  list('programmeOutcomes', x.programmeOutcomes || []);
+  list('modules', x.modules || []);
+  list('guests', x.guests || []);
+  list('materials.bySession', x.materials.bySession || []);
+  const moduleIds = new Set((x.modules || []).map((m) => m.id));
+  x.sessions.forEach((s, i) => { if (s.moduleId && !moduleIds.has(s.moduleId)) errors.push(`sessions[${i}]: unknown moduleId ${s.moduleId}`); });
 
   // Політики не можуть містити новий текст моделі: лише дослівний фрагмент доказів.
   const byId = new Map(blocks.map((b) => [b.id, b.text]));
@@ -164,6 +202,7 @@ function validateExtraction(x, blocks, refs) {
   x.outcomes.forEach((o, i) => {
     for (const code of o.ploCodes) if (!programCodes.has(normalizePloCode(code))) errors.push(`outcomes[${i}]: unknown PLO code ${code}`);
   });
+  (x.programmeOutcomes || []).forEach((p, i) => { if (!programCodes.has(normalizePloCode(p.ploCode))) errors.push(`programmeOutcomes[${i}]: unknown PLO code ${p.ploCode}`); });
   const nonNegative = (label, v) => { if (v !== null && !(v >= 0)) errors.push(`${label}: must not be negative`); };
   nonNegative('header.ects', x.header.ects);
   nonNegative('header.totalHours', x.header.totalHours);
@@ -214,6 +253,16 @@ function sanitize(x, blocks) {
   slots.sessions.forEach((s, i) => guardNumber(s, 'hours', `sessions[${i}].hours`));
   slots.individualWork.forEach((w, i) => guardNumber(w, 'hours', `individualWork[${i}].hours`));
   slots.assessments.forEach((a, i) => guardNumber(a, 'weight', `assessments[${i}].weight`));
+  slots.assessments.forEach((a, i) => { guardNumber(a, 'maxPoints', `assessments[${i}].maxPoints`); guardNumber(a, 'unitCount', `assessments[${i}].unitCount`); });
+  // Рівні рубрики (B01) — лише дослівно з цитованих блоків: і бали, і опис (з усім, що в ньому, зокрема URL)
+  slots.assessments.forEach((a, i) => {
+    const near = numbersNear(a.blockIds);
+    const source = norm(a.blockIds.map((id) => byId.get(id) || '').join(' '));
+    const kept = (a.rubric || []).filter((r) => near.has(String(r.points)) && source.includes(norm(r.descriptor)));
+    if (kept.length !== (a.rubric || []).length) warnings.push(`assessments[${i}].rubric: levels that are not written verbatim in the cited blocks were dropped`);
+    a.rubric = kept;
+  });
+  slots.programmeOutcomes = (slots.programmeOutcomes || []).map((p) => ({ ...p, ploCode: normalizePloCode(p.ploCode) }));
 
   for (const key of SINGLETONS) verbatim(slots[key].text, slots[key].blockIds, key);
   slots.objectives.forEach((o, i) => verbatim(o.text, o.blockIds, `objectives[${i}]`));

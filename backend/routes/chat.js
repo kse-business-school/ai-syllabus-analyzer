@@ -156,6 +156,22 @@ router.delete('/:syllabusId/sections/:key/approve', auth, gateMutate,
     await workspaceService.unapproveSection(req.params.syllabusId, req.params.key, { userId: req.user.userId });
   }));
 
+// Мова документа (B-1.2): лише власник; написаний текст не перекладається
+router.put('/:syllabusId/language', auth, gateMutate, [
+  body('language').isIn(['en', 'uk']).withMessage('language must be "en" or "uk"'),
+  expectedRevision,
+], mutation((req) => workspaceService.setDocumentLanguage(req.params.syllabusId, req.body.language, {
+  userId: req.user.userId, expectedRevision: revisionOf(req),
+})));
+
+// Корпус і блок програми (B-8.6): лише власник, значення із закритого списку програми
+router.put('/:syllabusId/program-block', auth, gateMutate, [
+  body('programBlock').optional({ nullable: true }).isString().isLength({ max: 200 }),
+  expectedRevision,
+], mutation((req) => workspaceService.setProgramBlock(req.params.syllabusId, req.body.programBlock ?? null, {
+  userId: req.user.userId, expectedRevision: revisionOf(req),
+})));
+
 // ---------- політики ----------
 
 router.post('/:syllabusId/policies/:key/choose', auth, gateMutate, [

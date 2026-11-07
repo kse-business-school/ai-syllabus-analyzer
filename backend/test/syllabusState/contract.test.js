@@ -6,8 +6,11 @@ const { sectionGaps, getSlot, isFullSentence, policyDecided } = require('../../s
 const REF = path.join(__dirname, '../../fixtures/reference');
 const read = (f) => JSON.parse(fs.readFileSync(path.join(REF, f), 'utf8'));
 
-test('ключі розділів збігаються з template.sections.json', () => {
-  expect(read('template.sections.json').sections.map((s) => s.key)).toEqual(SECTION_KEYS);
+test('ключі розділів спільного шаблону й профілів програм — серед SECTION_KEYS схеми', () => {
+  const common = read('template.sections.json').sections.map((s) => s.key);
+  expect(SECTION_KEYS.filter((k) => common.includes(k))).toEqual(common); // той самий порядок
+  const { readTemplateFixtures } = require('../../services/references/fixtureRefs');
+  for (const s of readTemplateFixtures()) expect(SECTION_KEYS).toContain(s.key);
 });
 
 test('довідник політик: 13 блоків, 3 locked, library без дефолту', () => {

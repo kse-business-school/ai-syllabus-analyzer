@@ -28,9 +28,9 @@ async function choosePolicy(syllabusId, rawKey, { optionKey, writeOwn, keepText,
 
   const blockOf = (st) => st.policies.find((p) => p.key === key);
   const args = keepText ? { text: blockOf(ctx.state).text } : { optionKey };
-  const patch = policyPatch(blockOf(ctx.state), args, ctx.refs);
+  const patch = policyPatch(blockOf(ctx.state), args, ctx.refs, ctx.state.language);
   const result = await store.mutate(syllabusId, expectedRevision ?? ctx.revision,
-    (st) => setPolicy(st, key, policyPatch(blockOf(st), args, ctx.refs)),
+    (st) => setPolicy(st, key, policyPatch(blockOf(st), args, ctx.refs, st.language)),
     { by: userId, source: patch.source, refs: ctx.refs });
   await markStale(syllabusId, [`policies{${key}}`, ...result.changes.map((c) => c.path)]);
   if (conversation.currentSlotKey === key) await Conversation.updateOne({ _id: conversation._id }, { $set: { currentSlotKey: null, writeOwnPolicyKey: null } });

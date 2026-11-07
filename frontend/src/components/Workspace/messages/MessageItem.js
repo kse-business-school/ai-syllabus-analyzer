@@ -49,7 +49,7 @@ const MessageItem = ({
   cardState = 'active', // 'active' | 'queued'
   ctx,
 }) => {
-  const { actions, busy, readOnly, highlightedId, sectionsByKey, policyLibrary, statePolicies, readiness, sections, documentSections, onSelectSuggestion } = ctx;
+  const { actions, busy, readOnly, highlightedId, sectionsByKey, policyLibrary, statePolicies, readiness, sections, documentSections, onSelectSuggestion, language } = ctx;
   const payload = payloadOf(message);
   switch (message.kind) {
     case 'text':
@@ -81,6 +81,7 @@ const MessageItem = ({
           busy={busy}
           readOnly={readOnly}
           highlighted={highlightedId === `policy:${key}`}
+          language={language}
         />
       );
     }

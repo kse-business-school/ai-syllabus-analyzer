@@ -1,6 +1,7 @@
 // Читання і запис значення слота за target.path: єдине місце, де чернетка (draft.value) стає значенням стану.
 // Сам запис у БД робить лише syllabusState/store.mutate; тут — чисті функції над копією стану.
 
+const { optionText } = require('../references/policyText');
 const { httpError } = require('../../utils/httpError');
 const { getPath, setPath, slotOfPath } = require('../syllabusState/paths');
 
@@ -61,6 +62,10 @@ function writeSlot(state, path, value, { source }) {
   if (typeof value === 'string' && isObject(current) && 'text' in current) {
     return setPath(state, path, { ...current, text: value, source, evidenceBlockIds: [] });
   }
+  // B08: текстовий слот-об'єкт, якого ще немає в старому стані (необов'язковий ключ схеми) — створюється як об'єкт
+  if (typeof value === 'string' && current === undefined && textObjectPaths().has(path)) {
+    return setPath(state, path, { text: value, source, evidenceBlockIds: [] });
+  }
   // Текст із супутніми полями чернетки (Capstone: { text, criteriaKeys }): решта полів слота зберігається
   if (isObject(value) && typeof value.text === 'string' && isObject(current) && 'text' in current) {
     const known = Object.fromEntries(Object.entries(value).filter(([k]) => k in current && !['source', 'evidenceBlockIds'].includes(k)));
@@ -70,6 +75,16 @@ function writeSlot(state, path, value, { source }) {
     return setPath(state, path, toEntities(path, value, current, source));
   }
   return setPath(state, path, value);
+}
+
+/** Шляхи текстових слотів-об'єктів { text, … } (реєстр чернеток DRAFTABLE, без полів сутностей). */
+let textPaths = null;
+function textObjectPaths() {
+  if (!textPaths) {
+    const { DRAFTABLE } = require('../ai/slotDrafts');
+    textPaths = new Set(Object.values(DRAFTABLE).filter((d) => d.mode === 'text' && !d.entity).map((d) => d.path));
+  }
+  return textPaths;
 }
 
 /** Текст варіанта політики з довідника. */
@@ -83,12 +98,12 @@ function libraryOption(refs, policyKey, optionKey) {
  * - варіант довідника: optionKey + текст варіанта, source fixture, modified false;
  * - власний/змінений текст: source fixture_edited (якщо варіант уже було обрано) або instructor_directed, modified true.
  */
-function policyPatch(block, { optionKey, text }, refs) {
+function policyPatch(block, { optionKey, text }, refs, language = 'en') {
   if (optionKey) {
     const option = libraryOption(refs, block.key, optionKey);
     if (!option) throw httpError(400, `Unknown option for ${block.key}: ${optionKey}`, { code: 'UNKNOWN_OPTION' });
     return {
-      ...block, optionKey, text: option.text, modified: false, source: 'fixture',
+      ...block, optionKey, text: optionText(option, language), modified: false, source: 'fixture',
       fixtureRef: { key: block.key, version: refs.policyLibrary.version ?? null }, evidenceBlockIds: [],
     };
   }

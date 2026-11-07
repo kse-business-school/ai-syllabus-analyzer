@@ -139,7 +139,9 @@ describe('approveSection / approveAll', () => {
   test('approveAll: лише complete без блокерів, решта з причиною', async () => {
     const { id } = await seeded();
     const blockersFor = async (key) => (key === 'assessment' ? 'Resolve 1 open issue first' : null);
-    const res = await store.approveAll(id, { blockersFor });
+    // Розділи профілю набору (дані): без keys store обходить усі ключі схеми, зокрема профілю MMM
+    const keys = require('../../services/references/fixtureRefs').fixtureTemplate('MBA28').map((t) => t.key);
+    const res = await store.approveAll(id, { blockersFor, keys });
     expect(res.skipped).toEqual([
       { key: 'assessment', reason: 'Resolve 1 open issue first' },
       { key: 'policies', reason: expect.stringMatching(/^Incomplete: policy\.attendance: choose an option/) },
@@ -149,7 +151,7 @@ describe('approveSection / approveAll', () => {
     const doc = await Syllabus.findById(id).lean();
     expect(Object.keys(doc.state.sections)).toHaveLength(9);
     // Повторний виклик нічого не затверджує і не пише
-    const again = await store.approveAll(id, { blockersFor });
+    const again = await store.approveAll(id, { blockersFor, keys });
     expect(again.approved).toEqual([]);
     expect(again.revision).toBe(res.revision);
   });

@@ -20,6 +20,15 @@ const sameNumber = (a, b) => Math.abs(a - b) < 0.01;
 const fmt = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
 const plural = (n, word) => `${fmt(n)} ${word}${n === 1 ? '' : 's'}`;
 
+/** Повідомлення перевірки мовою документа (B-1.3): uk — українською, інакше англійською. */
+const tr = (state, en, uk) => (state?.language === 'uk' ? uk : en);
+/** Множина для української: 1 компонент, 2 компоненти, 5 компонентів. */
+function pluralUk(n, [one, few, many]) {
+  const k = Math.abs(n) % 100; const d = k % 10;
+  const word = k > 10 && k < 20 ? many : d === 1 ? one : d >= 2 && d <= 4 ? few : many;
+  return `${fmt(n)} ${word}`;
+}
+
 const policyOf = (state, key) => (state.policies || []).find((p) => p.key === key) || null;
 
 // Сума, лише якщо всі значення відомі (інакше null: частковий підсумок вводить в оману)
@@ -127,6 +136,7 @@ function findPhrase(text, phrase) {
 }
 
 module.exports = {
+  tr, pluralUk,
   SEVERITIES, makeCheck, isNum, filled, sameNumber, fmt, plural, policyOf, totals, courseTerm,
   parseDate, isoDay, textSources, sentences, excerpt, findPhrase, normName,
 };

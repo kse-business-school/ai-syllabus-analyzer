@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Box, Typography, IconButton, Avatar, Menu, MenuItem, Divider, ToggleButtonGroup, ToggleButton, Alert } from '@mui/material';
+import { Box, Typography, IconButton, Avatar, Menu, MenuItem, Divider, ToggleButtonGroup, ToggleButton, Alert, Button, CircularProgress } from '@mui/material';
 import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined';
 import LightModeOutlined from '@mui/icons-material/LightModeOutlined';
 import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
@@ -29,7 +29,8 @@ const Header = () => {
       </Box>
       <Box className="raster" aria-hidden="true" sx={{ width: 72, height: 25, opacity: .7, display: { xs: 'none', lg: 'block' }, maskImage: 'linear-gradient(90deg, transparent, black 55%, transparent)' }} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0 }}>
-        {workspace && chrome && <IconButton aria-label="Download .docx" title="Download .docx" disabled={!chrome.canDownload || chrome.downloading} onClick={chrome.onDownload} sx={{ display: { xs: 'inline-flex', xl: 'none' }, width: 34, height: 34, border: '1px solid', borderColor: 'divider' }}><FileDownloadOutlined sx={{ fontSize: 18 }} /></IconButton>}
+        {/* B-9.5: єдиний контрол завантаження — у шапці */}
+        {workspace && chrome && <Button variant="contained" size="small" aria-label="Download Syllabus" title="Download Syllabus" disabled={!chrome.canDownload || chrome.downloading} onClick={chrome.onDownload} startIcon={chrome.downloading ? <CircularProgress size={14} color="inherit" /> : <FileDownloadOutlined sx={{ fontSize: 18 }} />} sx={{ whiteSpace: 'nowrap', minWidth: 0, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 } } }}><Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{chrome.downloading ? 'Preparing…' : 'Download Syllabus'}</Box></Button>}
         <Typography sx={{ display: { xs: 'none', lg: 'block' }, color: 'text.secondary', fontSize: 13 }}>Professor’s Tutor</Typography>
         <IconButton onClick={event => setAnchor(event.currentTarget)} aria-label="Account menu" aria-controls={anchor ? 'account-menu' : undefined} aria-haspopup="true" aria-expanded={Boolean(anchor)} sx={{ p: 0 }}>
           <Avatar src={user?.avatarUrl} sx={{ width: 34, height: 34, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: 12, fontWeight: 700 }}>{initials}</Avatar>

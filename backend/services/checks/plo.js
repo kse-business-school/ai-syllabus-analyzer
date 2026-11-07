@@ -1,6 +1,6 @@
 // Покриття програмних результатів навчання (PLO/ПРН). Тип курсу — лише header.courseKind
 // (визначений за ProgramCourse свого programCode), ніколи за назвою курсу.
-const { makeCheck, fmt, plural } = require('./common');
+const { tr, pluralUk, makeCheck, fmt, plural } = require('./common');
 
 const SECTION = 'learning_outcomes';
 const COVERAGE_WEIGHT = { full: 1, partial: 0.5 };
@@ -29,37 +29,40 @@ function run(state, refs) {
   }
   const out = [...unknown].map(([code, outcomeIds]) => makeCheck({
     rule: 'plo.unknown_code', entityId: code, severity: 'warning', section: SECTION, path: 'outcomes[].plo',
-    message: `"${code}" is not among the programme learning outcomes of ${state.programCode || 'this programme'}. Which programme outcome did you mean?`,
+    message: tr(state, `"${code}" is not among the programme learning outcomes of ${state.programCode || 'this programme'}. Which programme outcome did you mean?`,
+      `«${code}» немає серед програмних результатів навчання ${state.programCode || 'цієї програми'}. Який ПРН ви мали на увазі?`),
     details: { code, outcomeIds, programCode: state.programCode || null },
   }));
 
   const score = [...coverage.values()].reduce((a, b) => a + b, 0);
   const covered = [...coverage.keys()];
   const details = { courseKind: state.header?.courseKind || null, programCode: state.programCode || null, score, covered, unconfirmedOutcomeIds: [...unconfirmed] };
-  const pendingNote = unconfirmed.size ? ` ${plural(unconfirmed.size, 'learning outcome')} still ${unconfirmed.size === 1 ? 'has' : 'have'} programme outcome links waiting for your confirmation; they count once confirmed.` : '';
+  const pendingNote = unconfirmed.size ? tr(state, ` ${plural(unconfirmed.size, 'learning outcome')} still ${unconfirmed.size === 1 ? 'has' : 'have'} programme outcome links waiting for your confirmation; they count once confirmed.`,
+    ` Зв'язки з ПРН ще чекають вашого підтвердження: ${pluralUk(unconfirmed.size, ['результат навчання', 'результати навчання', 'результатів навчання'])}; їх буде зараховано після підтвердження.`) : '';
   const kind = state.header?.courseKind;
   if (kind === 'core' && score < 1) {
     out.push(makeCheck({
       rule: 'plo.coverage', severity: 'high', section: SECTION, path: 'outcomes[].plo',
-      message: `${state.header?.courseTitle || 'This course'} is a core course in ${state.programCode}, so it should fully cover at least one programme learning outcome (partial coverage counts as half). ${covered.length ? `Right now the confirmed coverage adds up to ${fmt(score)}.` : 'No confirmed programme outcome links yet.'}${pendingNote} Which programme outcomes do the course outcomes contribute to?`,
+      message: tr(state, `${state.header?.courseTitle || 'This course'} is a core course in ${state.programCode}, so it should fully cover at least one programme learning outcome (partial coverage counts as half). ${covered.length ? `Right now the confirmed coverage adds up to ${fmt(score)}.` : 'No confirmed programme outcome links yet.'}${pendingNote} Which programme outcomes do the course outcomes contribute to?`,
+        `${state.header?.courseTitle || 'Цей курс'} — нормативний курс ${state.programCode}, тож має повністю покривати принаймні один ПРН (часткове покриття рахується як половина). ${covered.length ? `Зараз підтверджене покриття — ${fmt(score)}.` : 'Підтверджених зв\'язків з ПРН ще немає.'}${pendingNote} Яким ПРН сприяють результати навчання курсу?`),
       details: { ...details, required: 1 },
     }));
   } else if (kind === 'core') {
     out.push(makeCheck({
       rule: 'plo.coverage', severity: 'info', section: SECTION, path: 'outcomes[].plo', passed: true,
-      message: `${plural(covered.length, 'programme learning outcome')} covered.${pendingNote}`,
+      message: tr(state, `${plural(covered.length, 'programme learning outcome')} covered.${pendingNote}`, `Покрито ${pluralUk(covered.length, ['ПРН', 'ПРН', 'ПРН'])}.${pendingNote}`),
       details,
     }));
   } else if (kind === 'elective') {
     out.push(makeCheck({
       rule: 'plo.coverage', severity: 'info', section: SECTION, path: 'outcomes[].plo', passed: true,
-      message: `Elective course: ${plural(covered.length, 'programme learning outcome')} covered.${pendingNote}`,
+      message: tr(state, `Elective course: ${plural(covered.length, 'programme learning outcome')} covered.${pendingNote}`, `Вибірковий курс: покрито ${pluralUk(covered.length, ['ПРН', 'ПРН', 'ПРН'])}.${pendingNote}`),
       details,
     }));
   } else {
     out.push(makeCheck({
       rule: 'plo.coverage', severity: 'info', section: SECTION, path: 'header.courseKind',
-      message: 'The course type (core or elective) is not determined yet, so programme outcome coverage is not checked.',
+      message: tr(state, 'The course type (core or elective) is not determined yet, so programme outcome coverage is not checked.', 'Тип курсу (нормативний чи вибірковий) ще не визначено, тому покриття ПРН не перевіряється.'),
       details,
     }));
   }

@@ -19,7 +19,21 @@ const textItem = (text, blockIds) => ({ text, blockIds });
 const nullItem = () => ({ text: null, blockIds: [] });
 
 // Відповідь моделі для parse-syllabus.docx (id блоків: див. generateParse.js)
+// Поля MMM (B-8.8) у відповіді моделі для MBA-файлу — порожні
+const MMM_EMPTY = { practicalApplication: { text: null, blockIds: [] }, programmeOutcomes: [], modules: [], guests: [] };
+const sessionExtra = { moduleId: '', prep: '', deadline: '' };
+const assessmentExtra = { maxPoints: null, unitCount: null, rubric: [] };
+
 function slots(overrides = {}) {
+  const base = baseSlots();
+  base.header.programBlock = '';
+  base.sessions = base.sessions.map((x) => ({ ...x, ...sessionExtra }));
+  base.assessments = base.assessments.map((x) => ({ ...x, ...assessmentExtra }));
+  base.materials.bySession = [];
+  return { ...base, ...MMM_EMPTY, ...overrides };
+}
+
+function baseSlots() {
   return {
     header: {
       title: 'Negotiation and Influence', code: null, department: null, ects: null, totalHours: null, language: null, studyMode: null,
@@ -61,7 +75,6 @@ function slots(overrides = {}) {
       { text: 'Work submitted late is accepted until the next class, with a lower maximum score.', blockIds: ['b0062'], topicHint: 'late submissions' },
       { text: 'To pass the course a student must earn at least 60 points out of 100.', blockIds: ['b0063'], topicHint: 'passing score' },
     ],
-    ...overrides,
   };
 }
 

@@ -1,5 +1,6 @@
 // Трек 2, крок 3: витяг слотів → Syllabus.state. Детерміновано, без LLM: createEmptyState + витягнуте,
 // source 'parsed', evidenceBlockIds з витягу, E-поля перераховує recompute.
+const { sessionNumbers } = require('../../document/labels');
 const { createEmptyState } = require('../../syllabusState/empty');
 const { recompute } = require('../../syllabusState/computed');
 const { validateState } = require('../../syllabusState/schema');
@@ -39,7 +40,7 @@ function toState({ slots, policies, programCode, refs, courseMatch, courseCode }
   // courseKind і ECTS нормативного курсу — лише за кодом (createEmptyState + recompute); назва — тільки підказка.
   // courseCode (parse/index.courseCodeOf) — код із призначення або форми, якщо у файлі його немає
   const code = courseCode !== undefined ? clean(courseCode) : clean(h.code);
-  const state = createEmptyState({ programCode, track: 'upload', refs, course: { code } });
+  const state = createEmptyState({ programCode, track: 'upload', refs, course: { code }, language: detectLanguage(slots) });
 
   const headerHas = [h.title, h.code, h.department, h.ects, h.totalHours, h.language, h.studyMode, h.deliveryFormat, h.termText, h.termStart, h.termEnd].some(filled);
   const d = slots.declared;
@@ -71,7 +72,15 @@ function toState({ slots, policies, programCode, refs, courseMatch, courseCode }
     objectives: slots.objectives.filter((o) => filled(o.text))
       .map((o, i) => ({ id: `obj${i + 1}`, text: clean(o.text), ...prov(true, o.blockIds) })),
     capstone: { criteriaKeys: [], projectTypes: [], text: clean(slots.capstone.text), ...textProv(slots.capstone.text, slots.capstone.blockIds) },
+    practicalApplication: { text: clean(slots.practicalApplication?.text), ...textProv(slots.practicalApplication?.text, slots.practicalApplication?.blockIds || []) },
   };
+  // Корпус і блок програми (B-8.6): лише значення із закритого списку програми (за кодом «2.2» або назвою)
+  const blockText = clean(h.programBlock);
+  if (blockText) {
+    const n = (v) => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const block = (refs?.programBlocks || []).find((b) => n(blockText).includes(n(b.label)) || new RegExp(`(^|\\D)${b.code.replace('.', '\\.')}(\\D|$)`).test(blockText));
+    state.header.programBlock = block ? block.label : null;
+  }
 
   // Локальні id моделі (clo1, as1 …) переназначаються за порядком; зв'язки переносяться
   const outcomeId = new Map(slots.outcomes.map((o, i) => [o.id, `clo${i + 1}`]));
@@ -79,7 +88,10 @@ function toState({ slots, policies, programCode, refs, courseMatch, courseCode }
   const assessments = slots.assessments.map((a, i) => ({
     id: assessmentId.get(a.id), name: clean(a.name), fixtureRef: null, weight: a.weight ?? null, criteria: clean(a.criteria),
     deadline: clean(a.deadline), isParticipation: Boolean(a.isParticipation), isControl: Boolean(a.isControl),
-    outcomeIds: [...new Set(a.outcomeIds.map((id) => outcomeId.get(id)).filter(Boolean))], ...prov(true, a.blockIds),
+    outcomeIds: [...new Set(a.outcomeIds.map((id) => outcomeId.get(id)).filter(Boolean))],
+    maxPoints: a.maxPoints ?? null, unitCount: a.unitCount ?? null,
+    rubric: (a.rubric || []).filter((r) => filled(r.descriptor)).map((r) => ({ points: r.points, descriptor: clean(r.descriptor) })),
+    ...prov(true, a.blockIds),
   }));
   state.assessments = assessments;
   state.outcomes = slots.outcomes.map((o) => ({
@@ -96,9 +108,21 @@ function toState({ slots, policies, programCode, refs, courseMatch, courseCode }
     expertise: p.expertise.filter(filled), education: p.education.filter(filled), experience: p.experience.filter(filled),
     ...prov(true, p.blockIds),
   }));
+  // Модулі (B-6.2) і гості (B-8.2); сесія посилається на модуль за локальним id моделі, на гостя — за ім'ям
+  const moduleId = new Map((slots.modules || []).map((m, i) => [m.id, `mod${i + 1}`]));
+  state.modules = (slots.modules || []).map((m, i) => ({ id: `mod${i + 1}`, n: i + 1, title: clean(m.title), ...prov(true, m.blockIds) }));
+  state.guests = (slots.guests || []).filter((g) => filled(g.name)).map((g, i) => ({
+    id: `g${i + 1}`, name: clean(g.name), company: clean(g.company), topic: clean(g.topic), format: null, status: g.status ?? null, ...prov(true, g.blockIds),
+  }));
+  const guestOf = (name) => {
+    const n = String(name || '').toLowerCase().trim();
+    return n ? state.guests.find((g) => n.includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(n)) : null;
+  };
   state.sessions = slots.sessions.map((s, i) => ({
     id: `s${i + 1}`, n: i + 1, topic: clean(s.topic), type: s.type ?? null, hours: s.hours ?? null, format: s.format ?? null,
-    guest: clean(s.guest), additional: clean(s.additional), date: sessionDate(s.date), time: clean(s.time), ...prov(true, s.blockIds),
+    guest: clean(s.guest), additional: clean(s.additional), date: sessionDate(s.date), time: clean(s.time),
+    moduleId: moduleId.get(s.moduleId) || null, prep: clean(s.prep), deadline: clean(s.deadline), guestId: guestOf(s.guest)?.id || null,
+    ...prov(true, s.blockIds),
   }));
   state.individualWork = slots.individualWork.map((w, i) => ({
     id: `iw${i + 1}`, title: clean(w.title), hours: w.hours ?? null, ...prov(true, w.blockIds),
@@ -106,7 +130,13 @@ function toState({ slots, policies, programCode, refs, courseMatch, courseCode }
 
   let m = 0;
   const material = (x) => ({ id: `m${++m}`, citation: clean(x.citation), url: clean(x.url), verified: false, ...prov(true, x.blockIds) });
-  state.materials = { required: slots.materials.required.map(material), recommended: slots.materials.recommended.map(material) };
+  // Матеріали до занять (B-8.4): сесія — за номером як у файлі («2», «2.1»)
+  const sessionByLabel = new Map(sessionNumbers(state).map(({ session, label }) => [label, session.id]));
+  const bySession = (slots.materials.bySession || []).map((x) => {
+    const label = String(x.session || '').match(/\d+(?:\.\d+)?/)?.[0];
+    return { id: `ms${++m}`, sessionId: sessionByLabel.get(label) || null, citation: clean(x.citation), url: clean(x.url), verified: false, ...prov(true, x.blockIds) };
+  });
+  state.materials = { required: slots.materials.required.map(material), recommended: slots.materials.recommended.map(material), bySession };
 
   if (policies) state.policies = policies;
 

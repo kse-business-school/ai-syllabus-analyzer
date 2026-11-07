@@ -1,0 +1,348 @@
+{
+  "version": "1.0",
+  "programCode": "MMM",
+  "source": "2026 KSE_GBS_MMM_Шаблон силабусу.docx (06.11.2026): розділи 0–9; підказки — дослівно з рамок «Порада для лектора»",
+  "note": "Профіль розділів програми MMM (B-6.1): перекриває спільний шаблон за key для всіх наборів MMM. disabled: true прибирає спільний розділ. Педагогічний підхід — текст рівня програми (fixedText), у силабусі не редагується. Додаток шаблону (структура програми) у .docx не виводиться.",
+  "sections": [
+    {
+      "key": "at_a_glance",
+      "order": 1,
+      "docNumber": 0,
+      "docTitle": "Course Data",
+      "docTitleUk": "Дані про курс",
+      "title": "Course Data",
+      "titleUk": "Дані про курс",
+      "required": true,
+      "question": null,
+      "questionUk": null,
+      "hint": null,
+      "nature": "fixed",
+      "slotTypes": [
+        "A",
+        "B",
+        "E"
+      ]
+    },
+    {
+      "key": "course_info",
+      "order": 2,
+      "docNumber": 0,
+      "docTitle": "Course Data",
+      "docTitleUk": "Дані про курс",
+      "title": "Course Title & Prerequisites",
+      "titleUk": "Назва курсу й передумови",
+      "required": true,
+      "question": "Does the course have prerequisites?",
+      "questionUk": "Чи має курс передумови: що студент має знати чи вміти до початку?",
+      "hint": null,
+      "nature": "fixed",
+      "slotTypes": [
+        "A",
+        "B",
+        "C"
+      ],
+      "fixtureRef": "prerequisites"
+    },
+    {
+      "key": "short_description",
+      "order": 3,
+      "docNumber": 0,
+      "docTitle": "Course Data",
+      "docTitleUk": "Дані про курс",
+      "title": "Short Course Description",
+      "titleUk": "Короткий опис курсу",
+      "required": true,
+      "question": "Tell me about the course: what management problem does it solve and what idea holds it together?",
+      "questionUk": "Розкажіть про курс: яку управлінську проблему він вирішує і яка наскрізна ідея його тримає?",
+      "hint": {
+        "en": null,
+        "uk": "3–5 речень практичною мовою: яку управлінську/практичну проблему курс вирішує, чому вона важлива для маркетингового директора чи власника бізнесу, і яка «наскрізна ідея» тримає курс разом (як у прикладі: одна модель на весь курс, а не набір непов'язаних інструментів)."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "D"
+      ]
+    },
+    {
+      "key": "course_objectives",
+      "disabled": true,
+      "order": 99,
+      "title": "Course Objectives"
+    },
+    {
+      "key": "programme_outcomes",
+      "order": 4,
+      "docNumber": 1,
+      "docTitle": "Link to MMM Programme Outcomes",
+      "docTitleUk": "Зв'язок з результатами програми MMM",
+      "title": "Link to Programme Outcomes",
+      "titleUk": "Зв'язок з результатами програми",
+      "required": true,
+      "question": "Which 2–4 programme outcomes does your course strengthen most, and how?",
+      "questionUk": "Які 2–4 результати програми ваш курс підсилює найбільше і як саме?",
+      "hint": {
+        "en": null,
+        "uk": "Позначте 2–4 результати програми, які ваш курс підсилює найбільше. Не обов'язково закривати всі вісім — краще зробити свій внесок у 2–3 глибоко, ніж дотично зачепити всі."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "D"
+      ],
+      "fixtureRef": "learning-outcomes"
+    },
+    {
+      "key": "instructor",
+      "order": 5,
+      "docNumber": 2,
+      "docTitle": "Lecturer",
+      "docTitleUk": "Лектор",
+      "title": "Lecturer",
+      "titleUk": "Лектор",
+      "required": true,
+      "question": "Here is your profile. Is it up to date?",
+      "questionUk": "Ось ваш профіль. Чи він актуальний?",
+      "hint": null,
+      "nature": "fixed",
+      "slotTypes": [
+        "A"
+      ]
+    },
+    {
+      "key": "learning_outcomes",
+      "order": 6,
+      "docNumber": 3,
+      "docTitle": "Course Learning Outcomes",
+      "docTitleUk": "Результати навчання курсу",
+      "title": "Learning Outcomes",
+      "titleUk": "Результати навчання",
+      "required": true,
+      "question": "What will a participant be able to do after the course?",
+      "questionUk": "Що учасник умітиме після курсу? Назвіть 4–6 перевірних умінь.",
+      "hint": {
+        "en": null,
+        "uk": "4–6 результатів, кожен — окреме, перевірне вміння («Після курсу учасник зможе...» + дієслово дії: побудувати, розробити, оцінити, впровадити тощо), не переказ теорії. Кожен результат курсу має вести до практичного артефакту (документ, план, розрахунок), який студент реально виносить із заняття — а не «розуміти концепцію Х»."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "D"
+      ]
+    },
+    {
+      "key": "practical_application",
+      "order": 7,
+      "docNumber": 3,
+      "docTitle": "Course Learning Outcomes",
+      "docTitleUk": "Результати навчання курсу",
+      "title": "Practical Application",
+      "titleUk": "Практичне застосування",
+      "required": true,
+      "question": "What practical assignments do the learning outcomes turn into?",
+      "questionUk": "У які практичні завдання перетворюються результати навчання: індивідуальне завдання, кейс на реальній компанії, груповий проєкт?",
+      "hint": {
+        "en": null,
+        "uk": "Опишіть, у що перетворюється кожен результат навчання: індивідуальне завдання, кейс на реальній компанії (бажано — власному бізнесі учасника), груповий проєкт. Використання реальної компанії — очікуваний стандарт програми; суто теоретичні роботи оцінюються нижче."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "D"
+      ]
+    },
+    {
+      "key": "connection_to_capstone",
+      "order": 8,
+      "docNumber": 3,
+      "docTitle": "Course Learning Outcomes",
+      "docTitleUk": "Результати навчання курсу",
+      "title": "Connection to the Capstone Project",
+      "titleUk": "Зв'язок із Capstone Project",
+      "required": true,
+      "question": null,
+      "questionUk": null,
+      "hint": {
+        "en": null,
+        "uk": "Одним-двома реченнями поясніть, як напрацювання курсу можуть увійти до фінального Capstone-проєкту студента (розділ стратегії, аналіз, план впровадження тощо)."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "D"
+      ],
+      "fixtureRef": "capstone"
+    },
+    {
+      "key": "schedule",
+      "order": 9,
+      "docNumber": 4,
+      "docTitle": "Course Structure and Schedule",
+      "docTitleUk": "Структура курсу та розклад занять",
+      "title": "Course Structure and Schedule",
+      "titleUk": "Структура курсу та розклад занять",
+      "required": true,
+      "question": "Let's plan the sessions: topic, content and format, pre-class preparation, deadline.",
+      "questionUk": "Сплануймо сесії: тема, зміст і формат, підготовка до заняття, дедлайн (якщо є).",
+      "hint": {
+        "en": null,
+        "uk": "Перед тим як заповнювати розклад, звірте теми з іншими лекторами програми — лекційна частина не повинна перетинатися між курсами. Якщо тема вже закрита іншим курсом (наприклад, CEP розглядаються в блоці Mental Availability), у вашому курсі давайте на неї лише посилання, а не повторну лекцію. Кожна сесія — це історія, що будується на попередній, а не окремий «набір інструментів». Вкажіть, яку одну наскрізну ідею курсу підтверджує кожна сесія. Плануйте перевернутий клас: теорія — у 10–20-хвилинних матеріалах до заняття; аудиторний час — на застосування, воркшопи, дискусію за сократівським методом (питання, що ведуть студентів до висновку, а не лекція-монолог). Орієнтовний розподіл аудиторного часу за стандартом KSE GBS: третина — теорія, третина — практика, третина — peer-взаємодія/дискусія."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "C"
+      ]
+    },
+    {
+      "key": "guest_speakers",
+      "order": 10,
+      "docNumber": 5,
+      "docTitle": "Guest Speakers",
+      "docTitleUk": "Гостьові спікери",
+      "title": "Guest Speakers",
+      "titleUk": "Гостьові спікери",
+      "required": false,
+      "question": "Will practitioners join as guest speakers? Name, company, topic and status.",
+      "questionUk": "Чи будуть гостьові спікери-практики? Ім'я, компанія, тема і статус.",
+      "hint": {
+        "en": null,
+        "uk": "Заохочується залучення практиків, які розширюють горизонт бачення студентів — власники, CMO, CEO реальних (бажано українських) брендів. Формат: Q&A або кейс від першої особи, 45–60 хв. Якщо гість ще не підтверджений — позначте статус."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "C"
+      ]
+    },
+    {
+      "key": "assessment",
+      "order": 11,
+      "docNumber": 6,
+      "docTitle": "Assessment",
+      "docTitleUk": "Оцінювання",
+      "title": "Assessment",
+      "titleUk": "Оцінювання",
+      "required": true,
+      "question": "How do you assess participants? Components, weights or points, criteria, deadlines.",
+      "questionUk": "Як ви оцінюєте учасників? Компоненти, ваги чи бали, критерії, дедлайни.",
+      "hint": {
+        "en": null,
+        "uk": "Мінімальний прохідний бал — 60 зі 100 (стандарт KSE). Рекомендована модель: активна участь + індивідуальне завдання + групова/фінальна робота на реальній компанії. Уникайте оцінювання «математичної точності» там, де точні дані складно отримати в українських реаліях — оцінюйте застосовність і якість рішення."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "B",
+        "C",
+        "D"
+      ]
+    },
+    {
+      "key": "materials",
+      "order": 12,
+      "docNumber": 7,
+      "docTitle": "Course Materials",
+      "docTitleUk": "Матеріали курсу",
+      "title": "Course Materials",
+      "titleUk": "Матеріали курсу",
+      "required": true,
+      "question": "Which materials are mandatory, and what should participants prepare before each session?",
+      "questionUk": "Які матеріали обов'язкові і що учасникам опрацювати перед кожною сесією?",
+      "hint": {
+        "en": null,
+        "uk": "Короткі формати (1-сторінкові брифи, 5–10-хвилинні відео/міні-лекції) — вагоме пре-класове навантаження шкодить перевернутому класу. Матеріали до занять: зведіть усе необхідне перед кожною сесією в одному місці, щоб студенту не довелося нічого шукати окремо."
+      },
+      "nature": "free",
+      "slotTypes": [
+        "C",
+        "D"
+      ]
+    },
+    {
+      "key": "pedagogical_approach",
+      "order": 13,
+      "docNumber": 8,
+      "docTitle": "Pedagogical Approach",
+      "docTitleUk": "Педагогічний підхід",
+      "title": "Pedagogical Approach",
+      "titleUk": "Педагогічний підхід",
+      "required": false,
+      "question": null,
+      "questionUk": null,
+      "hint": {
+        "en": null,
+        "uk": "Цей розділ — стандарт програми MMM. Адаптуйте формулювання під специфіку вашого курсу, але не відходьте від принципів нижче."
+      },
+      "nature": "locked",
+      "slotTypes": [],
+      "fixedText": {
+        "uk": [
+          {
+            "title": "Доказовий маркетинг, а не тренди",
+            "text": "Курс спирається на перевірені дані (Ehrenberg-Bass Institute, IPA Databank, Kantar тощо), а не на модні, але непідтверджені підходи. Поширені маркетингові інтуїції варто перевіряти на доказах."
+          },
+          {
+            "title": "Перевернутий клас і сократівський метод",
+            "text": "Теорія — у стислих матеріалах до заняття; аудиторний час — на застосування до власного бізнесу студента, з прямим фідбеком лектора. Дискусія будується через питання, що ведуть студента до власного висновку, а не через готові відповіді лектора."
+          },
+          {
+            "title": "Без перетинів між лекторами",
+            "text": "Лекційна частина вашого курсу не повинна дублювати лекційну частину інших курсів програми. Перед фіналізацією розкладу звірте теми з академічним директором і суміжними лекторами."
+          },
+          {
+            "title": "Практичні кейси й гості",
+            "text": "Кожен воркшоп завершується на прикладі реальної компанії — в ідеалі власного бізнесу учасника. Гостьові спікери-практики бажані там, де вони розширюють горизонт бачення студентів понад те, що може дати штатний лектор."
+          },
+          {
+            "title": "Український контекст",
+            "text": "Бажано, щоб кожна сесія містила хоча б один український приклад, актуальну статистику або дискусійний якір, повʼязаний з бізнесом учасників — включно з питаннями ведення маркетингу в умовах війни, відновлення й економічної невизначеності."
+          },
+          {
+            "title": "Курс, від якого «кайфанують»",
+            "text": "Мета — не просто передати матеріал, а зробити курс, який лектор веде із задоволенням, а студенти запам'ятовують надовго: жива дискусія, реальні кейси, чесні відповіді на незручні питання, мінімум «маркетингового» жаргону заради жаргону."
+          }
+        ],
+        "en": [
+          {
+            "title": "Evidence-based marketing, not trends",
+            "text": "The course relies on verified evidence (Ehrenberg-Bass Institute, IPA Databank, Kantar and others) rather than fashionable but unproven approaches. Common marketing intuitions are tested against evidence."
+          },
+          {
+            "title": "Flipped classroom and the Socratic method",
+            "text": "Theory comes in short pre-class materials; class time is for applying it to the student's own business, with direct feedback from the lecturer. Discussion is built on questions that lead students to their own conclusions rather than on ready-made answers."
+          },
+          {
+            "title": "No overlap between lecturers",
+            "text": "The lecture part of the course does not duplicate the lecture parts of other courses in the programme. Topics are agreed with the academic director and related lecturers before the schedule is finalised."
+          },
+          {
+            "title": "Practical cases and guests",
+            "text": "Every workshop ends with an example from a real company, ideally the participant's own business. Practitioner guest speakers are invited where they broaden students' perspective beyond what the course lecturer can offer."
+          },
+          {
+            "title": "Ukrainian context",
+            "text": "Each session should include at least one Ukrainian example, current statistics or a discussion anchor related to participants' businesses, including marketing during the war, recovery and economic uncertainty."
+          },
+          {
+            "title": "A course people enjoy",
+            "text": "The goal is not just to deliver material but to run a course the lecturer enjoys teaching and students remember: lively discussion, real cases, honest answers to uncomfortable questions and a minimum of jargon for its own sake."
+          }
+        ]
+      }
+    },
+    {
+      "key": "policies",
+      "order": 14,
+      "docNumber": 9,
+      "docTitle": "Course Policies",
+      "docTitleUk": "Політики курсу",
+      "title": "Course Policies",
+      "titleUk": "Політики курсу",
+      "required": true,
+      "question": null,
+      "questionUk": null,
+      "hint": {
+        "en": null,
+        "uk": "За стандартом KSE GBS: пропуск понад 40% занять вимагає повторного проходження курсу, якщо інше не узгоджено заздалегідь. Участь без відео (онлайн) прирівнюється до відсутності."
+      },
+      "nature": "library",
+      "slotTypes": [
+        "B"
+      ],
+      "fixtureRef": "policies.library"
+    }
+  ]
+}

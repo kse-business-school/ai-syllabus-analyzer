@@ -218,13 +218,14 @@ describe('ліміти strict-інструментів Anthropic', () => {
     const own = s.type === 'object' && s.properties ? Object.keys(s.properties).filter((k) => !(s.required || []).includes(k)).length : 0;
     return own + Object.entries(s).reduce((n, [k, v]) => n + (k === 'properties' ? Object.values(v).reduce((m, x) => m + optional(x), 0) : optional(v)), 0);
   };
-  test.each(['MMM26', 'MBA28'])('%s: union ≤ 16, необов\'язкових ≤ 24 серед strict', (code) => {
+  test.each(['MMM26', 'MBA28'])('%s: union ≤ 16, необов\'язкових ≤ 24 серед strict; propose_items — без strict', (code) => {
     const refs = loadFixtureRefs(code);
     const tools = buildTools(createEmptyState({ programCode: code, refs }), refs);
     const req = toAnthropicRequest({ model: 'claude-haiku-5-5', input: [{ role: 'user', content: 'x' }], tools }, cfg());
     const strict = req.tools.filter((t) => t.strict);
     expect(strict.reduce((n, t) => n + unions(t.input_schema), 0)).toBeLessThanOrEqual(16);
     expect(strict.reduce((n, t) => n + optional(t.input_schema), 0)).toBeLessThanOrEqual(24);
+    expect(req.tools.find((t) => t.name === 'propose_items').strict).toBeUndefined();
     expect(strict.map((t) => t.name)).toEqual(expect.arrayContaining(['set_slot', 'apply_edit', 'propose_draft']));
   });
 });

@@ -1,0 +1,102 @@
+{
+  "version": "1.0",
+  "source": "Освітня програма «Маркетинговий менеджмент», ред. 2026/27–3, розділ VI",
+  "note": "Визначає courseType силабуса MMM. Курс у цьому переліку — core, будь-який інший — elective.",
+  "programmes": {
+    "MMM26": {
+      "label": "MMM26 · cohort 2026-27",
+      "totalCredits": 67,
+      "programmeCredits": 90,
+      "languages": [
+        "uk",
+        "en"
+      ],
+      "core": [
+        {
+          "code": "НД.1",
+          "uk": "Стратегічне управління брендом",
+          "en": "Strategic Brand Management",
+          "ects": 3
+        },
+        {
+          "code": "НД.2",
+          "uk": "Поведінка споживачів та споживацькі тригери",
+          "en": "Consumer Behavior & Consumer Triggers",
+          "ects": 3
+        },
+        {
+          "code": "НД.3",
+          "uk": "Шлях клієнта та інсайти",
+          "en": "Customer Journey & Insights",
+          "ects": 3
+        },
+        {
+          "code": "НД.4",
+          "uk": "Маркетингова стратегія — Частина 1",
+          "en": "Marketing Strategy — Part 1",
+          "ects": 3
+        },
+        {
+          "code": "НД.5",
+          "uk": "Маркетингова стратегія — Частина 2",
+          "en": "Marketing Strategy — Part 2",
+          "ects": 3
+        },
+        {
+          "code": "НД.6",
+          "uk": "Рекламна та комунікаційна стратегія",
+          "en": "Advertising & Communication Strategy",
+          "ects": 3
+        },
+        {
+          "code": "НД.7",
+          "uk": "Цінова стратегія та управління доходами",
+          "en": "Pricing Strategy & Revenue Management",
+          "ects": 3
+        },
+        {
+          "code": "НД.8",
+          "uk": "Інтегровані маркетингові канали та продуктивність",
+          "en": "Integrated Marketing Channels & Performance",
+          "ects": 3
+        },
+        {
+          "code": "ПР.1",
+          "uk": "Виробнича практика",
+          "en": "Internship",
+          "ects": 9
+        },
+        {
+          "code": "НД.9",
+          "uk": "Стратегія та інструменти виходу на ринок",
+          "en": "Go-To-Market Strategy & Tools",
+          "ects": 3
+        },
+        {
+          "code": "НД.10",
+          "uk": "Кросфункціональне бізнес-планування",
+          "en": "Cross-Functional Business Planning",
+          "ects": 3
+        },
+        {
+          "code": "НД.11",
+          "uk": "Маркетинговий менеджмент та побудова команди",
+          "en": "Marketing Management & Team Building",
+          "ects": 3
+        },
+        {
+          "code": "ПР.2",
+          "uk": "Виробнича практика",
+          "en": "Internship",
+          "ects": 9
+        },
+        {
+          "code": "АТ.1",
+          "uk": "Кваліфікаційна магістерська робота",
+          "en": "Capstone Project",
+          "ects": 16
+        }
+      ]
+    }
+  }
+}

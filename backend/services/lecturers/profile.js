@@ -48,6 +48,22 @@ async function previousInstructor(userId, excludeSyllabusId) {
   return found ? { ...found.state.instructors[0], updatedAt: found.updatedAt } : null;
 }
 
+const words = (s) => String(s || '').toLowerCase().split(/\s+/).filter(Boolean);
+
+/**
+ * Ім'я викладача — повністю (B-10.3): порожнє або скорочене ім'я профілю (лише частина слів імені з облікового
+ * запису, наприклад «Olena») замінюється повним «firstName lastName». Інше ім'я профілю (з титулом, іншим
+ * написанням) лишається як є.
+ */
+function fullNameOf(profileName, user) {
+  const account = `${user.firstName || ''} ${user.lastName || ''}`.replace(/\s+/g, ' ').trim();
+  const name = String(profileName || '').trim();
+  if (!name) return account;
+  const have = words(name);
+  const full = words(account);
+  return have.length < full.length && have.every((w) => full.includes(w)) ? account : name;
+}
+
 async function resolveProfile(userId, { excludeSyllabusId = null } = {}) {
   const user = await User.findById(userId).select('email firstName lastName lecturerProfile avatarUrl').lean();
   if (!user) throw httpError(404, 'User not found', { code: 'NOT_FOUND' });
@@ -57,8 +73,10 @@ async function resolveProfile(userId, { excludeSyllabusId = null } = {}) {
   const carried = remote || saved ? null : await previousInstructor(userId, excludeSyllabusId);
   const local = saved || carried || user.lecturerProfile
     || { name: `${user.firstName} ${user.lastName}`.trim(), email: user.email };
+  const values = profileValues(remote || local);
   const profile = {
-    ...profileValues(remote || local),
+    ...values,
+    name: fullNameOf(values.name, user),
     photo: user.avatarUrl || null,
     updatedAt: (remote || local).updatedAt || null,
     crmId: (remote || local).crmId || null,
@@ -97,4 +115,4 @@ async function writeBackAccepted(userId, before, after) {
   return saveProfile(userId, profileValues(after), { crmId: user?.lecturerProfile?.crmId || after?.crmId || before?.crmId || null });
 }
 
-module.exports = { resolveProfile, updateProfile, toInstructor, hasInstructor, sameProfile, writeBackAccepted };
+module.exports = { fullNameOf, resolveProfile, updateProfile, toInstructor, hasInstructor, sameProfile, writeBackAccepted };

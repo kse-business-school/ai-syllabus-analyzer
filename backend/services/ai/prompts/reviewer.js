@@ -56,12 +56,12 @@ What to look for:
 - Performance criteria: say what is assessed and what a strong result looks like.
 
 Rules:
-- Keep the meaning and scope of the original. Write in English. Improve wording only.
+- Keep the meaning and scope of the original. Write in the syllabus language (see Language rules). Improve wording only.
 - NEVER invent facts: no new numbers, percentages, hours, dates, thresholds, names of cases, readings or tools. If the new wording cannot avoid a new fact, list it in proposedValues (label + value exactly as written in "after"); otherwise return an empty list.
-- "after" is the full replacement text for that item, ready to use. Write it in English.
+- "after" is the full replacement text for that item, ready to use. Write it in the syllabus language.
 - Return an item only when the original is genuinely weak or has an error. Skip good texts. At most one item per ref and at most ${MAX_SUGGESTIONS} items in total. An empty list is a valid answer.
 - severity: "medium" if the wording is vague enough to hurt assessment or clarity; otherwise "info".
-- "issue": one short English sentence saying what is weak, factual and calm (for example "Uses 'understand', which cannot be assessed").
+- "issue": one short sentence in the syllabus language saying what is weak, factual and calm (for example "Uses 'understand', which cannot be assessed").
 - Do not comment on policies, weights, hours, dates or any numbers; they are outside your scope.`;
 
 function promptDocument(state, targets, checks) {

@@ -262,3 +262,16 @@ describe('Confirm картки профілю і write-back', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 });
+
+describe('B-10.3 — ім\'я викладача повністю', () => {
+  const { fullNameOf } = require('../services/lecturers/profile');
+  const user = { firstName: 'Olena', lastName: 'Khomenko' };
+  test('порожнє або скорочене ім\'я профілю замінюється повним іменем облікового запису', () => {
+    expect(fullNameOf('', user)).toBe('Olena Khomenko');
+    expect(fullNameOf('Olena', user)).toBe('Olena Khomenko');
+  });
+  test('ім\'я з титулом чи по батькові лишається як є', () => {
+    expect(fullNameOf('Dr. Olena Khomenko', user)).toBe('Dr. Olena Khomenko');
+    expect(fullNameOf('Khomenko Olena Ivanivna', user)).toBe('Khomenko Olena Ivanivna');
+  });
+});

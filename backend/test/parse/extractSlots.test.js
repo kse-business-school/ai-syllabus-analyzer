@@ -70,11 +70,12 @@ test('Anthropic extraction stays within union limits and preserves assessment to
   const { slots: extracted, warnings } = await extractSlots({ blocks, refs: refs() }, { stats });
   expect(extracted).toEqual(good);
   expect(warnings).toEqual([]);
-  expect(createResponse).toHaveBeenCalledTimes(4);
-  expect(stats.llmCalls).toBe(4);
+  // Шість груп (ліміт розміру граматики Anthropic, живий прогін 07.11) + один коригувальний повтор оцінювання
+  expect(createResponse).toHaveBeenCalledTimes(7);
+  expect(stats.llmCalls).toBe(7);
   const names = createResponse.mock.calls.map(([request]) => request.text.format.name);
-  expect(names).toEqual(['parse_extract_slots_1', 'parse_extract_slots_2', 'parse_extract_slots_3', 'parse_extract_slots_3']);
-  expect(createResponse.mock.calls[3][0].input[1].content).toContain('unknown outcome link unknown-clo');
+  expect(names).toEqual([1, 2, 3, 4, 5, 6, 6].map((n) => `parse_extract_slots_${n}`));
+  expect(createResponse.mock.calls[6][0].input[1].content).toContain('unknown outcome link unknown-clo');
 });
 
 test('неіснуючі blockIds → коригувальний повтор з текстом помилки, далі успіх', async () => {
@@ -148,7 +149,7 @@ test('дуже довгий документ відсікається з поп�
   createResponse.mockResolvedValue(reply(slots({ header: { ...slots().header, blockIds: ['x0'] }, prerequisites: { text: null, blockIds: [] } })));
   const empty = slots({
     header: { ...slots().header, blockIds: ['x0'] }, shortDescription: { text: null, blockIds: [] }, prerequisites: { text: null, blockIds: [] }, capstone: { text: null, blockIds: [] },
-    objectives: [], outcomes: [], instructors: [], sessions: [], individualWork: [], assessments: [], materials: { required: [], recommended: [] }, policySegments: [],
+    objectives: [], outcomes: [], instructors: [], sessions: [], individualWork: [], assessments: [], materials: { required: [], recommended: [], bySession: [] }, policySegments: [],
   });
   createResponse.mockReset();
   createResponse.mockResolvedValue(reply(empty));

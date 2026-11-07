@@ -1,6 +1,7 @@
 // Потік розмови v5: створення з привітанням (трек 1 — питання, трек 2 — «Here's what I found…»),
 // «наступний крок» після кожного рішення (картка або питання інтерв'юера), skip, лічильник збоїв AI.
 
+const { sectionTitle, sectionQuestion, phrases } = require('../references/sectionText');
 const Conversation = require('../../models/Conversation');
 const Message = require('../../models/Message');
 const Suggestion = require('../../models/Suggestion');
@@ -96,12 +97,15 @@ function policyQuestion(ctx, skipped) {
 /** Запасне питання треку 2 (інтерв'юер лише для треку 1): TemplateSection першого порожнього, потім неповного розділу. */
 function fallbackQuestion(ctx, readiness, skipped) {
   const status = (t) => readiness.sections[t.key]?.status;
+  const language = ctx.state?.language;
+  const say = phrases(language);
   const ask = (t) => {
     if (t.key === 'policies') return policyQuestion(ctx, skipped);
+    const title = sectionTitle(t, language);
     return {
       slotKey: t.key,
-      question: t.question,
-      why: status(t) === 'empty' ? `The section "${t.title}" is still empty.` : `The section "${t.title}" is not complete yet.`,
+      question: sectionQuestion(t, language),
+      why: status(t) === 'empty' ? say.empty(title) : say.incomplete(title),
     };
   };
   const open = (t) => (t.question || t.key === 'policies') && !skipped.includes(t.key) && !readiness.sections[t.key]?.approved;
@@ -116,6 +120,35 @@ function fallbackQuestion(ctx, readiness, skipped) {
   return null;
 }
 
+const GLANCE_BLOCK = 'glance.block';
+
+/** «Next: <розділ>» мовою документа для питання за слотом. */
+function sectionLabelOf(ctx, slotKey) {
+  const slot = SLOTS.find((x) => x.key === slotKey);
+  const key = slot?.section || (slotKey === GLANCE_BLOCK ? 'at_a_glance' : slotKey.startsWith('policy.') ? 'policies' : null);
+  const section = key && (ctx.refs?.template || []).find((t) => t.key === key);
+  if (!section) return null;
+  const uk = ctx.state?.language === 'uk';
+  return `${uk ? 'Далі' : 'Next'}: ${sectionTitle(section, ctx.state?.language)}`;
+}
+
+/** Питання блоку At a Glance — лише поки його не відповіли й не пропустили і бракує формату чи кредитів. */
+function glanceQuestion(ctx, done) {
+  if (done.includes(GLANCE_BLOCK) || done.includes('at_a_glance')) return null;
+  if (!(ctx.refs?.template || []).some((t) => t.key === 'at_a_glance')) return null;
+  const h = ctx.state?.header || {};
+  if (h.deliveryFormat && h.ects != null) return null;
+  const uk = ctx.state?.language === 'uk';
+  const blocks = (ctx.refs?.programBlocks || []).length;
+  return {
+    slotKey: GLANCE_BLOCK,
+    question: uk
+      ? `Почнімо з основного: коли триває курс, формат (офлайн чи онлайн), кількість кредитів і годин, мова викладання${blocks ? ' і до якого блоку програми належить курс' : ''}?`
+      : 'Let\'s start with the basics: when does the course run, is it offline or online, how many credits and hours does it have, and in which language is it taught?',
+    why: uk ? 'Ці дані потрапляють у таблицю «Дані про курс». Можна відповісти одним повідомленням або пропустити.' : 'These go into the At a Glance table. Answer in one message, or skip for now.',
+  };
+}
+
 /**
  * Наступне питання. Трек 1: інтерв'юер (LLM обирає серед слотів, відібраних кодом; збій → шаблонне питання).
  * Трек 2: інтерв'юера немає — детерміновані питання TemplateSection (поведінка не змінена).
@@ -126,6 +159,9 @@ async function pickQuestion(conversation, ctx) {
     const { readiness } = await buildReadiness(ctx);
     return fallbackQuestion(ctx, readiness, skipped);
   }
+  // B-3.6: інтерв'ю починається з короткого блоку At a Glance (кілька полів одним питанням); пропуск дозволено
+  const glance = glanceQuestion(ctx, [...skipped, ...(conversation.answeredSlots || [])]);
+  if (glance) return glance;
   // Відповідь на розповідь про курс закриває всі її слоти: Cancel/Reject чернетки не запускає те саме інтерв'ю знову
   const input = { state: ctx.state, refs: ctx.refs, skipped: [...skipped, ...(conversation.answeredSlots || [])], preferredSection: conversation.preferredSection };
   const allowed = candidates(input);
@@ -138,7 +174,7 @@ async function pickQuestion(conversation, ctx) {
     console.error('interviewer failed, using the template question:', err.message);
   }
   // Слот обирає лише з дозволених кодом; усе інше (збій, чужий слот) — детермінований наступний слот
-  if (!q || !q.question || !allowed.some((s) => s.key === q.slotKey)) return templateQuestion(allowed[0], ctx.refs);
+  if (!q || !q.question || !allowed.some((s) => s.key === q.slotKey)) return templateQuestion(allowed[0], ctx.refs, ctx.state?.language);
   return q;
 }
 
@@ -224,8 +260,11 @@ async function postNextStep(conversation, { preferQuestion = false } = {}) {
   const kind = policyKey ? 'policy-choice' : 'question';
   const repeated = last && last.kind === kind && last.payload?.slotKey === q.slotKey;
   if (!repeated) {
+    // B-4.3: перехід до іншого розділу асистент називає («Next: Schedule» / «Далі: Розклад»)
+    const nextSection = sectionLabelOf(ctx, q.slotKey);
     await say(conversation, {
-      kind, content: q.question, payload: { slotKey: q.slotKey, ...(policyKey ? { policyKey } : {}), question: q.question, why: q.why || '' },
+      kind, content: q.question,
+      payload: { slotKey: q.slotKey, ...(policyKey ? { policyKey } : {}), question: q.question, why: q.why || '', ...(nextSection ? { nextSection } : {}) },
     });
   }
   // Питання-вибір політики не дозволяє моделі писати текст політики: це робить лише «Write my own» (writeOwnPolicyKey)
@@ -296,7 +335,7 @@ async function startConversation(syllabusId, userId) {
 /** Назва слота або розділу для повідомлень: слот → розділ шаблону, політика → блок довідника, інакше ключ. */
 function slotTitle(refs, slotKey) {
   const slot = SLOTS.find((x) => x.key === slotKey);
-  const section = (refs.template || []).find((t) => t.key === (slot?.section || slotKey));
+  const section = (refs.template || []).find((t) => t.key === (slot?.section || (slotKey === GLANCE_BLOCK ? 'at_a_glance' : slotKey)));
   if (section) return section.title;
   return (refs.policyLibrary?.blocks || []).find((b) => b.key === slotKey)?.title || slotKey;
 }

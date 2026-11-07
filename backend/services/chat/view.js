@@ -157,6 +157,8 @@ async function getConversationView(syllabusId, { userId, limit = MESSAGE_LIMIT }
     state,
     revision: syllabus.stateRevision || 0,
     sections: refs.template,
+    // Закритий список «Корпус і блок програми» (B-8.6); порожній — поля немає
+    programBlocks: refs.programBlocks || [],
     readiness: computeReadiness(state, { refs, checks, pendingSuggestions: pending }),
     checks,
     suggestions,
