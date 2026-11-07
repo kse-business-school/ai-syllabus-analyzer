@@ -44,6 +44,7 @@ const PASSING_PATTERNS = [
 // «minimum of N points» без «pass» у реченні — не про прохідний бал (напр., мінімум за активність)
 const MINIMUM_POINTS_RE = /\bminimum\s+of\s+(\d{1,3})\s+points?\b/i;
 const PASS_CONTEXT_RE = /\bpass|\bfinal\s+(?:grade|score)|\boverall\s+(?:grade|score)|зарах/i;
+// Прохідний бал школи (Положення 2.5.4(2)); програма може мати свій — Program.passingScore → refs.passingScore (B-9.3)
 const PASSING_SCORE = 60;
 
 // Тексти з назвами компонентів (назва теж може казати «Bonus quiz» чи «Optional essay»)
@@ -77,21 +78,22 @@ function alternativeTasks(state) {
 }
 
 // critical, 2.5.4(2): прохідний бал — 60
-function passingScore(state) {
+function passingScore(state, refs) {
+  const required = Number.isFinite(refs?.passingScore) ? refs.passingScore : PASSING_SCORE;
   const found = textSources(state).flatMap((src) => sentences(src.text).flatMap((s) => {
     const values = PASSING_PATTERNS.map((re) => s.match(re)).filter(Boolean).map((m) => Number(m[1]));
     const min = s.match(MINIMUM_POINTS_RE);
     if (min && PASS_CONTEXT_RE.test(s)) values.push(Number(min[1]));
-    return [...new Set(values)].filter((v) => v !== PASSING_SCORE)
+    return [...new Set(values)].filter((v) => v !== required)
       .map((value) => ({ value, path: src.path, section: src.section, sourceId: src.entityId || src.policyKey || null, sentence: s }));
   }));
   if (!found.length) return [];
   const values = [...new Set(found.map((f) => f.value))];
   return [makeCheck({
     rule: 'regulations.passing_score', severity: 'critical', section: found[0].section, path: found[0].path,
-    message: tr(state, `The syllabus sets a passing score of ${values.join(' / ')}. Under the Regulations (2.5.4(2)) a student passes with at least ${PASSING_SCORE} out of 100 points.`,
-      `Силабус встановлює прохідний бал ${values.join(' / ')}. За Положенням (п. 2.5.4(2)) курс зараховано від ${PASSING_SCORE} зі 100 балів.`),
-    details: { regulation: '2.5.4(2)', required: PASSING_SCORE, found: found.map((f) => ({ value: f.value, ...publicMention(f) })) },
+    message: tr(state, `The syllabus sets a passing score of ${values.join(' / ')}. Under the Regulations (2.5.4(2)) a student passes with at least ${required} out of 100 points.`,
+      `Силабус встановлює прохідний бал ${values.join(' / ')}. За Положенням (п. 2.5.4(2)) курс зараховано від ${required} зі 100 балів.`),
+    details: { regulation: '2.5.4(2)', required, found: found.map((f) => ({ value: f.value, ...publicMention(f) })) },
   })];
 }
 
@@ -230,7 +232,7 @@ function language(state) {
 }
 
 const run = (state, refs) => [
-  ...alternativeTasks(state), ...passingScore(state), ...aiProhibitions(state, refs), ...retake(state),
+  ...alternativeTasks(state), ...passingScore(state, refs), ...aiProhibitions(state, refs), ...retake(state),
   ...attendance(state), ...bonusPenalty(state), ...controlMandatory(state), ...aiRules(state), ...language(state),
 ];
 

@@ -68,6 +68,7 @@ function loadFixtureRefs(programCode) {
     coreCourses: pc ? pc.core : [],
     capstone: { projectTypes, structure, criteria, deliverables, plagiarismThreshold },
     policyLibrary: { version, blocks },
+    passingScore: null,
     programBlocks: ((readFixture('programs.json').programs.find((p) => p.code === String(programCode || '').toUpperCase()
       || (p.editions || []).some((e) => e.code === String(programCode || '').toUpperCase())) || {}).blocks || [])
       .map(({ code, label, group }) => ({ code, label, group: group || '' })),

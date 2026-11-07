@@ -80,6 +80,7 @@ router.put('/programs/:id', auth, admin, async (req, res) => {
     const update = {};
     if (name !== undefined) update.name = name;
     if (defaultLanguage !== undefined) update.defaultLanguage = defaultLanguage;
+    if (req.body.passingScore !== undefined) update.passingScore = req.body.passingScore === null || req.body.passingScore === '' ? null : Number(req.body.passingScore);
     if (academicDirectorEmail !== undefined) update.academicDirectorEmail = academicDirectorEmail;
     let program = await Program.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
     if (!program) return sendError(res, httpError(404, 'Programme not found', { code: 'PROGRAM_NOT_FOUND' }));

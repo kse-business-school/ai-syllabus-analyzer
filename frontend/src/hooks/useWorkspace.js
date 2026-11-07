@@ -17,6 +17,7 @@ const normalizeView = (data) => ({
   revision: data?.revision ?? null,
   sections: [...(data?.sections || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   readiness: data?.readiness || null,
+  programBlocks: data?.programBlocks || [],
   checks: data?.checks || [],
   suggestions: (data?.suggestions || []).map((s) => ({ ...s, id: s.id || s._id })),
   conversation: data?.conversation || null,
@@ -272,6 +273,7 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
     approveSection: async (key) => reportFailure(await mutate((id) => client.chat.approveSection(id, key))),
     unapproveSection: async (key) => reportFailure(await mutate((id) => client.chat.unapproveSection(id, key))),
     setLanguage: async (language) => reportFailure(await mutate((id) => client.chat.setLanguage(id, language))),
+    setProgramBlock: async (programBlock) => reportFailure(await mutate((id) => client.chat.setProgramBlock(id, programBlock))),
     // { ok, data: { approved, skipped, ...View } }. keys — розділи з картки (без них — усі); ревізія — на момент натискання.
     approveAll: (keys) => {
       const expectedRevision = viewRef.current?.revision;
@@ -364,6 +366,7 @@ export default function useWorkspace(syllabusId, { client = defaultClient, onNot
     revision: view?.revision ?? null,
     sections: view?.sections || [],
     readiness: view?.readiness || null,
+    programBlocks: view?.programBlocks || [],
     checks: view?.checks || [],
     suggestions: view?.suggestions || [],
     conversation: view?.conversation || null,

@@ -79,4 +79,16 @@ async function setDocumentLanguage(syllabusId, language, { userId, expectedRevis
   invalidateOutputs(syllabusId);
 }
 
-module.exports = { blockersBuilder, approvableSections, approveSection, unapproveSection, approveAll, setDocumentLanguage };
+/** Корпус і блок програми (B-8.6): лише значення із закритого списку програми; null — очистити. */
+async function setProgramBlock(syllabusId, value, { userId, expectedRevision } = {}) {
+  const ctx = await loadContext(syllabusId);
+  const blocks = ctx.refs.programBlocks || [];
+  const label = value == null || value === '' ? null : blocks.find((b) => b.label === value || b.code === value)?.label;
+  if (label === undefined) throw httpError(400, blocks.length ? 'Choose a programme block from the list' : 'This programme has no blocks', { code: 'VALIDATION_ERROR' });
+  await store.mutate(syllabusId, expectedRevision ?? ctx.revision, (st) => { st.header = { ...st.header, programBlock: label }; }, {
+    by: userId, source: 'instructor_directed', refs: ctx.refs,
+  });
+  invalidateOutputs(syllabusId);
+}
+
+module.exports = { blockersBuilder, approvableSections, approveSection, unapproveSection, approveAll, setDocumentLanguage, setProgramBlock };

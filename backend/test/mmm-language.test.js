@@ -113,3 +113,15 @@ describe('B-1.2 / B-1.3 — зміна мови й зміст мовою док�
     expect(templateQuestion({ key: 'schedule.sessions', section: 'schedule' }, refs, 'en').question).toMatch(/Let's plan/);
   });
 });
+
+describe('B-8.6 — корпус і блок програми', () => {
+  test('PUT /program-block: лише значення зі списку програми; у View — список блоків', async () => {
+    const res = await create(mmm, 'MMM26', 'Block');
+    const id = res.body.syllabus._id;
+    const ok = await request(app).put(`/api/chat/${id}/program-block`).set(auth).send({ programBlock: '2.2' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.programBlocks).toHaveLength(6);
+    expect((await store.getState(id)).state.header.programBlock).toBe('2.2 Підходи до агресивного зростання');
+    expect((await request(app).put(`/api/chat/${id}/program-block`).set(auth).send({ programBlock: 'Other' })).status).toBe(400);
+  });
+});

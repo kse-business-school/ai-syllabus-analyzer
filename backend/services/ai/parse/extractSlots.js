@@ -23,10 +23,15 @@ const obj = (properties) => ({ type: 'object', properties, required: Object.keys
 // Anthropic допускає не більше 16 union-полів на запит. Повний витяг має 38.
 // CLO витягаються до оцінювання, щоб зберегти зв'язки assessment.outcomeIds.
 // Нові поля MMM (B-8.8) — переважно рядки ('' = немає), щоб не перевищити ліміт union-полів у групах.
+// Живий прогін на силабусі MMM (07.11): три групи давали «compiled grammar is too large» — тому шість менших.
+// CLO (група 2) витягаються до оцінювання (група 6); модулі — разом із сесіями.
 const ANTHROPIC_GROUPS = [
-  ['header', 'prerequisites', 'shortDescription', 'objectives', 'outcomes', 'capstone', 'practicalApplication', 'programmeOutcomes'],
-  ['declared', 'instructors', 'materials', 'policySegments', 'guests'],
-  ['modules', 'sessions', 'individualWork', 'assessments'],
+  ['header', 'prerequisites', 'shortDescription', 'objectives', 'capstone', 'practicalApplication'],
+  ['outcomes', 'programmeOutcomes'],
+  ['declared', 'instructors', 'guests'],
+  ['materials', 'policySegments'],
+  ['modules', 'sessions', 'individualWork'],
+  ['assessments'],
 ];
 
 function emptyExtraction(schema) {

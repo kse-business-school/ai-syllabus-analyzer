@@ -164,6 +164,14 @@ router.put('/:syllabusId/language', auth, gateMutate, [
   userId: req.user.userId, expectedRevision: revisionOf(req),
 })));
 
+// Корпус і блок програми (B-8.6): лише власник, значення із закритого списку програми
+router.put('/:syllabusId/program-block', auth, gateMutate, [
+  body('programBlock').optional({ nullable: true }).isString().isLength({ max: 200 }),
+  expectedRevision,
+], mutation((req) => workspaceService.setProgramBlock(req.params.syllabusId, req.body.programBlock ?? null, {
+  userId: req.user.userId, expectedRevision: revisionOf(req),
+})));
+
 // ---------- політики ----------
 
 router.post('/:syllabusId/policies/:key/choose', auth, gateMutate, [

@@ -112,6 +112,8 @@ class ApiService {
     approveAll: (syllabusId, body = {}) => this.client.post(`/chat/${syllabusId}/sections/approve-all`, body),
     // Мова документа (B-1.2): { language: 'en' | 'uk' } → View
     setLanguage: (syllabusId, language) => this.client.put(`/chat/${syllabusId}/language`, { language }),
+    // Корпус і блок програми (B-8.6): { programBlock: label | null } → View
+    setProgramBlock: (syllabusId, programBlock) => this.client.put(`/chat/${syllabusId}/program-block`, { programBlock }),
     // body: { optionKey } або { writeOwn: true }
     choosePolicy: (syllabusId, key, body) =>
       this.client.post(`/chat/${syllabusId}/policies/${encodeURIComponent(key)}/choose`, body, LLM_REQUEST),

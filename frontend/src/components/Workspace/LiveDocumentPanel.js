@@ -25,6 +25,7 @@ import LockOpenOutlined from '@mui/icons-material/LockOpenOutlined';
 import DocumentBlocks from './document/DocumentBlocks';
 import { S } from '../../strings';
 import { sectionStatus } from '../../utils/sectionGroups';
+import PolicyChoiceCard from './suggestions/PolicyChoiceCard';
 
 const LiveDocumentPanel = ({
   instructors = [],
@@ -41,6 +42,12 @@ const LiveDocumentPanel = ({
   onDiscussSection,
   language = null,
   onChangeLanguage,
+  policyLibrary = {},
+  programBlocks = [],
+  programBlock = null,
+  statePolicies = [],
+  actions = null,
+  busy = false,
   readOnly = false,
 }) => {
   const scrollRef = useRef(null);
@@ -48,6 +55,10 @@ const LiveDocumentPanel = ({
   const titles = new Map(templateSections.map((s) => [s.key, s]));
   const [activeHighlight, setActiveHighlight] = useState(null);
   const [pendingLanguage, setPendingLanguage] = useState(null);
+  const [policyKey, setPolicyKey] = useState(null);
+  // B-3.2: library-політики без рішення — кнопка «Choose an option» у документі відкриває ті самі пресети, що й картка в чаті
+  const undecidedPolicies = statePolicies.filter((p) => p.mode !== 'locked' && !p.optionKey
+    && !['instructor_directed', 'fixture_edited'].includes(p.source) && policyLibrary[p.key]);
   const hasText = (sections || []).some((s) => s.blocks?.length);
   // B-1.2: на заповненому документі — окрема дія з попередженням; написаний текст не перекладається
   const requestLanguage = (value) => {
@@ -129,6 +140,26 @@ const LiveDocumentPanel = ({
           </TextField>
         )}
       </Box>
+      <Dialog open={Boolean(policyKey)} onClose={() => setPolicyKey(null)} maxWidth="md" fullWidth>
+        <DialogContent sx={{ p: 2 }}>
+          {policyKey && (
+            <PolicyChoiceCard
+              policyKey={policyKey}
+              policy={policyLibrary[policyKey]}
+              statePolicy={statePolicies.find((p) => p.key === policyKey)}
+              actions={{
+                ...actions,
+                choosePolicy: async (key, option) => { const r = await actions.choosePolicy(key, option); if (r?.ok) setPolicyKey(null); return r; },
+                writeOwnPolicy: async (key) => { const r = await actions.writeOwnPolicy(key); if (r?.ok) setPolicyKey(null); return r; },
+              }}
+              busy={busy}
+              readOnly={readOnly}
+              language={language}
+            />
+          )}
+        </DialogContent>
+        <DialogActions><Button onClick={() => setPolicyKey(null)}>Close</Button></DialogActions>
+      </Dialog>
       <Dialog open={Boolean(pendingLanguage)} onClose={() => setPendingLanguage(null)}>
         <DialogTitle>Change the document language?</DialogTitle>
         <DialogContent>
@@ -337,6 +368,27 @@ const LiveDocumentPanel = ({
                     <Typography variant="caption" component="p" sx={{ color: 'text.secondary', fontStyle: 'italic', mb: 1, whiteSpace: 'pre-line' }}>
                       {hint}
                     </Typography>
+                  )}
+
+                  {/* B-8.6: корпус і блок програми — закритий список програми */}
+                  {sec.key === 'at_a_glance' && programBlocks.length > 0 && actions?.setProgramBlock && (
+                    <TextField select size="small" fullWidth label={language === 'uk' ? 'Корпус і блок програми' : 'Programme block'}
+                      value={programBlock || ''} disabled={readOnly || busy} sx={{ mb: 1.5 }}
+                      onChange={(e) => actions.setProgramBlock(e.target.value || null)}>
+                      <MenuItem value=""><em>—</em></MenuItem>
+                      {programBlocks.map((b) => <MenuItem key={b.code} value={b.label}>{b.group ? `${b.label} · ${b.group}` : b.label}</MenuItem>)}
+                    </TextField>
+                  )}
+
+                  {sec.key === 'policies' && !readOnly && actions && undecidedPolicies.length > 0 && (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
+                      {undecidedPolicies.map((p) => (
+                        <Button key={p.key} size="small" variant="outlined" color="warning" onClick={() => setPolicyKey(p.key)}
+                          sx={{ fontSize: '0.6875rem', py: 0.2, textTransform: 'none' }}>
+                          {`Choose an option: ${policyLibrary[p.key]?.title || p.key}`}
+                        </Button>
+                      ))}
+                    </Box>
                   )}
 
                   {/* Позначки регуляторних перевірок */}

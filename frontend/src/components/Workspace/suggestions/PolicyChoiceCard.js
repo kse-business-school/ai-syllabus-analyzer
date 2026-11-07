@@ -17,7 +17,11 @@ const OWN_SOURCES = ['instructor_directed', 'fixture_edited'];
 // Повідомлення kind='policy-choice' { policyKey }: вибір варіанта довідника без дефолту + «Write my own».
 // «Write my own» не відкриває порожнє поле — сервер переводить розмову на слот (POST /policies/:key/choose { writeOwn }).
 // policy — запис довідника { key, title, rationale, options[{ key, label, text }] }; statePolicy — state.policies[i].
-const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readOnly, highlighted = false }) => {
+// language — мова документа: варіанти показуються тим текстом, який потрапить у силабус (labelUk / textUk для uk)
+const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readOnly, highlighted = false, language = 'en' }) => {
+  const uk = language === 'uk';
+  const labelOf = (o) => (uk && o?.labelUk) || o?.label;
+  const textOf = (o) => (uk && o?.textUk) || o?.text;
   const options = policy?.options || [];
   const decidedOption = statePolicy?.optionKey ? options.find((o) => o.key === statePolicy.optionKey) : null;
   const ownText = OWN_SOURCES.includes(statePolicy?.source) && !statePolicy?.optionKey;
@@ -40,7 +44,7 @@ const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readO
   const open = !decided || changing;
   const canAct = !readOnly && open;
   const parsedText = statePolicy?.source === 'parsed' ? statePolicy?.text : null;
-  const title = policy?.title || policy?.name || policyKey;
+  const title = (uk && policy?.titleUk) || policy?.title || policy?.name || policyKey;
 
   return (
     <Paper
@@ -73,7 +77,7 @@ const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readO
             )}
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-            {statePolicy?.text || decidedOption?.text}
+            {statePolicy?.text || textOf(decidedOption)}
           </Typography>
         </Stack>
       )}
@@ -115,10 +119,10 @@ const PolicyChoiceCard = ({ policyKey, policy, statePolicy, actions, busy, readO
                     />
                     <Box sx={{ minWidth: 0 }}>
                       <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                        <Typography variant="subtitle2">{option.label}</Typography>
+                        <Typography variant="subtitle2">{labelOf(option)}</Typography>
                         {closest && <Chip size="small" variant="outlined" color="warning" label={S.closestMatch} />}
                       </Stack>
-                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>{option.text}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>{textOf(option)}</Typography>
                     </Box>
                   </Stack>
                 </Box>

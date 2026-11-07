@@ -265,6 +265,7 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
     readiness: ws.readiness,
     policyLibrary: ws.policyLibrary,
     statePolicies: ws.state?.policies || [],
+    language: ws.state?.language || 'en',
     documentSections: ws.document.sections || [],
     onSelectSuggestion: scrollToSuggestion,
   };
@@ -297,6 +298,12 @@ const ProfessorTutorWorkspace = ({ client, mockId }) => {
       onUnapproveSection={handleUnapproveFromDoc}
       onDiscussSection={handleDiscussInChat}
       language={ws.state?.language || null}
+      policyLibrary={ws.policyLibrary}
+      programBlocks={ws.programBlocks}
+      programBlock={ws.state?.header?.programBlock || null}
+      statePolicies={ws.state?.policies || []}
+      actions={ws.actions}
+      busy={ws.busy}
       onChangeLanguage={(language) => ws.actions.setLanguage(language)}
       readOnly={ws.readOnly || isReadOnlyAdmin || !ready}
     />

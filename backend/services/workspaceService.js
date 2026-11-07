@@ -24,6 +24,7 @@ module.exports = {
   approveSection: sections.approveSection,
   unapproveSection: sections.unapproveSection,
   setDocumentLanguage: sections.setDocumentLanguage,
+  setProgramBlock: sections.setProgramBlock,
   approveAllSections: sections.approveAll,
   choosePolicy: policies.choosePolicy,
   freeChatMessage,

@@ -74,3 +74,13 @@ describe('B-6.3: перевірка балів', () => {
     expect(ids(comp(15))).toContain('assessment.points_consistency:as1');
   });
 });
+
+describe('B-9.3: прохідний бал програми', () => {
+  const regulations = require('../services/checks/regulations');
+  const state = { language: 'en', header: {}, sessions: [], assessments: [], outcomes: [], instructors: [], summary: {}, policies: [{ key: 'policy.passing', mode: 'locked', text: 'To pass the course a student must earn at least 50 points out of 100.' }] };
+  const ids = (refs) => regulations.run(state, refs).map((c) => c.id);
+  test('за замовчуванням — 60 школи; програма з порогом 50 вважає 50 правильним', () => {
+    expect(ids({})).toContain('regulations.passing_score');
+    expect(ids({ passingScore: 50 })).not.toContain('regulations.passing_score');
+  });
+});

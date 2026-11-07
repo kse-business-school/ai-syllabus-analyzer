@@ -105,6 +105,8 @@ async function draftFromNarrative({ state, refs, narrative, slotKeys, transcript
     'Task: the instructor described the course in their own words. Draft the requested syllabus slots from that description. Return exactly one draft per requested slot.',
     wanted.map((k) => `- ${k}: ${SLOT_RULES[k]}`).join('\n'),
     FACTS_RULE,
+    // B-4.1: короткий ввід — чернетка з того, що є, без вигаданих фактів; домисли — proposed_values
+    'If the description is short, still draft from what you have: keep the wording general where details are missing, never invent facts, and put anything you had to guess into proposed values so it is highlighted for confirmation.',
     'text holds the draft (for list slots one item per line). criteriaKeys is only for course.capstone, otherwise []. rationale: one short sentence on which part of the instructor\'s description the draft is based on.',
     capstoneBlock,
   ].filter(Boolean).join('\n\n');

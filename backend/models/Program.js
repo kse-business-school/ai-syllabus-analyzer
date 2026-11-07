@@ -31,6 +31,8 @@ const programSchema = new mongoose.Schema({
     type: [new mongoose.Schema({ code: { type: String, required: true, trim: true }, label: { type: String, required: true, trim: true }, group: { type: String, default: '', trim: true } }, { _id: false })],
     default: [],
   },
+  // Прохідний бал програми (B-9.3); null — бал школи за Положенням (60 зі 100)
+  passingScore: { type: Number, min: 0, max: 100, default: null },
   // Мова документа за замовчуванням для нових силабусів програми (B-1.1): MBA — en, MMM — uk
   defaultLanguage: { type: String, enum: ['en', 'uk'], default: 'en' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

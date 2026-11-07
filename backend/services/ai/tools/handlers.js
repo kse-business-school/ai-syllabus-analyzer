@@ -47,10 +47,14 @@ function containsLiteral(utterance, value) {
 
 // Назви числових полів: число в репліці зараховується полю, лише якщо стоїть поруч із ними
 const NUMBER_FIELD_WORDS = {
-  'header.ects': /^(?:ects|credits?|кредит\p{L}*)$/u,
-  'header.totalHours': /^(?:hours?|hrs?|h|годин\p{L}*)$/u,
+  'header.ects': /^(?:ects|credits?|кредит\p{L}*|єктс)$/u,
+  'header.totalHours': /^(?:hours?|hrs?|h|годин\p{L}*|год)$/u,
 };
 const NUMBER_FIELD_DISTANCE = 3;
+// Формат курсу українською (B-3.6, MMM): викладач пише «офлайн», у стані — offline
+const DELIVERY_ALIASES = { 'офлайн': 'offline', 'очно': 'offline', 'онлайн': 'online', 'змішаний': 'hybrid', 'гібрид': 'hybrid', 'гібридний': 'hybrid' };
+// Псевдослот розмови: одне питання про кілька полів At a Glance на початку інтерв'ю
+const GLANCE_BLOCK = 'glance.block';
 const MAX_BARE_ANSWER_TOKENS = 3;
 
 /**
@@ -219,7 +223,10 @@ async function set_slot(tctx, { key, value }) {
     return fail('SLOT_NOT_WRITABLE', 'Only simple answer slots can be written directly; use propose_draft');
   }
   if (!isScalarPath(slot.path)) return fail('NOT_SCALAR', 'Only single-value slots can be set directly; use propose_draft');
-  if (tctx.wrote) return fail('ONE_WRITE_PER_TURN', 'Only one state change is allowed per turn');
+  // B-3.6: відповідь на блок At a Glance (glance.block) може назвати кілька полів — по одному set_slot на поле
+  const glanceBlock = tctx.conversationSlotKey === GLANCE_BLOCK && key.startsWith('glance.');
+  if (tctx.wrote && !glanceBlock) return fail('ONE_WRITE_PER_TURN', 'Only one state change is allowed per turn');
+  if (glanceBlock && (tctx.glanceWritten || []).includes(key)) return fail('ONE_WRITE_PER_TURN', 'This field was already written in this turn');
 
   const raw = typeof value === 'string' ? value.trim() : value;
   if (!filled(raw) || String(raw).length > MAX_VALUE_CHARS) return fail('INVALID_VALUE', 'Invalid value');
@@ -242,12 +249,13 @@ async function set_slot(tctx, { key, value }) {
     if (!block) return fail('INVALID_VALUE', blocks.length ? `Programme block must be one of: ${blocks.map((b) => b.label).join('; ')}` : 'This programme has no blocks');
     next = block.label;
   } else if (slot.path === 'header.deliveryFormat') {
-    next = norm(raw);
+    next = DELIVERY_ALIASES[norm(raw)] || norm(raw);
     if (!DELIVERY_FORMATS.includes(next)) return fail('USE_PROPOSE_DRAFT', `Delivery mode must be one of: ${DELIVERY_FORMATS.join(', ')}`);
   } else {
     next = String(raw);
   }
   tctx.wrote = true;
+  if (glanceBlock) tctx.glanceWritten = [...(tctx.glanceWritten || []), key];
   const result = await writeState(tctx, (draft) => setPath(draft, slot.path, next));
   tctx.currentSlotKey = key;
   return { ok: true, key, value: next, changed: Boolean(result.changes?.length), revision: result.revision };

@@ -43,7 +43,7 @@ async function assertKnownProgramCode(programCode) {
 /** Програма набору (edition) або сама програма без наборів — для профілю розділів і списку блоків. */
 async function programOf(code) {
   return cached(`program:${code}`, async () => Program.findOne({ $or: [{ 'editions.code': code }, { code }] })
-    .select('code blocks defaultLanguage').lean());
+    .select('code blocks defaultLanguage passingScore').lean());
 }
 
 /**
@@ -111,6 +111,7 @@ async function getRefs(programCode) {
     policyLibrary,
     offeringTypes,
     // Закритий список «Корпус і блок програми» (B-8.6); порожній — поле не показується
+    passingScore: Number.isFinite(program?.passingScore) ? program.passingScore : null,
     programBlocks: (program?.blocks || []).map(({ code: c, label, group }) => ({ code: c, label, group: group || '' })),
   };
 }
