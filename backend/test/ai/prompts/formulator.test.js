@@ -130,3 +130,12 @@ describe('reword', () => {
     expect(createResponse).not.toHaveBeenCalled();
   });
 });
+
+// Живий прогін 07.11: українські чернетки MMM відхилялися англомовною валідацією («you», англійські дієслова) → 503
+test('validateDraft: українські вимоги для силабуса uk', () => {
+  const { validateDraft } = require('../../../services/ai/prompts/formulator');
+  expect(validateDraft('course.outcomes', { text: 'Аналізувати бренд\nРозробити план аудиту' }, 'uk')).toEqual([]);
+  expect(validateDraft('course.outcomes', { text: 'Розуміти бренд' }, 'uk')[0]).toMatch(/action verb/);
+  expect(validateDraft('course.description', { text: 'Курс про бренди. Ви навчитеся будувати бренд. Ми працюємо з кейсами.' }, 'uk')).toEqual([]);
+  expect(validateDraft('course.description', { text: 'Курс про бренди. Студенти вчаться. Ми працюємо з кейсами.' }, 'uk')[0]).toMatch(/«?ви/);
+});

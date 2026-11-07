@@ -26,12 +26,12 @@ test('сід: 13 блоків, повторний запуск нічого не
   expect(await seedPolicyLibrary()).toEqual({ created: 0, updated: 0, skipped: 13, conflicts: [] });
   expect(await Policy.countDocuments({ type: 'syllabus-policy', isRequired: false })).toBe(13);
 
-  await Policy.updateOne({ key: 'policy.absence' }, { text: 'Admin text', libraryVersion: '1.2' });
+  await Policy.updateOne({ key: 'policy.absence' }, { text: 'Admin text', libraryVersion: '2.1' });
   await seedPolicyLibrary();
   expect((await Policy.findOne({ key: 'policy.absence' })).text).toBe('Admin text');
 
   // фікстура новішої версії оновлює лише блоки зі старішою libraryVersion
-  const bumped = { version: '1.3', blocks: fixture().blocks };
+  const bumped = { version: '2.2', blocks: fixture().blocks };
   expect(await seedPolicyLibrary(bumped)).toEqual({ created: 0, updated: 13, skipped: 0, conflicts: [] });
 });
 

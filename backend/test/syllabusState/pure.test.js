@@ -26,7 +26,7 @@ describe('createEmptyState', () => {
     for (const p of state.policies) {
       const block = refs28.policyLibrary.blocks.find((b) => b.key === p.key);
       if (p.mode === 'locked') {
-        expect(p).toMatchObject({ text: block.text, source: 'fixture', fixtureRef: { key: p.key, version: '1.1' } });
+        expect(p).toMatchObject({ text: block.text, source: 'fixture', fixtureRef: { key: p.key, version: refs28.policyLibrary.version } });
       } else {
         expect(p).toMatchObject({ optionKey: null, text: null, source: null });
       }

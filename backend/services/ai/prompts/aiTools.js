@@ -101,7 +101,7 @@ async function suggestAiTools({ state, refs, catalog } = {}) {
     buildPreamble({ refs, state }),
     `Task: propose concrete AI-based assignment formats for THIS course. Pick 1 to ${max} entries from the catalog below, choosing the ones that fit the course content, its learning outcomes and its assessment best. Prefer a mix of effort levels when several fit.`,
     'You may only pick catalog entries by their id. Never invent an entry, a school or a result, and never describe what a school did beyond the catalog line.',
-    'For each pick write two short sentences in English. fit: why this format suits this course, in terms of its topics or learning outcomes. adaptation: how the instructor could run it in this course. Do not state numbers, dates, durations, grades, weights, names or titles: the instructor decides those.',
+    'For each pick write two short sentences in the syllabus language. fit: why this format suits this course, in terms of its topics or learning outcomes. adaptation: how the instructor could run it in this course. Do not state numbers, dates, durations, grades, weights, names or titles: the instructor decides those.',
     'You only suggest. The instructor decides whether and where to use a format, so never claim a format is already part of the syllabus.',
   ].join('\n\n');
   const document = [

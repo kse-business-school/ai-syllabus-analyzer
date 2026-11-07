@@ -251,7 +251,15 @@ const SyllabiTab = ({ programs = [], isAdmin, user, filterMineOnly = false, prog
                     <TableCell sx={{ whiteSpace: 'nowrap', color: 'text.secondary' }}>{row.track === 'scratch' ? 'Built from scratch' : 'Uploaded file'}</TableCell>
 
                     <TableCell sx={{ py: 1.25 }}>
-                      <StatusChip status={row.status} />
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <StatusChip status={row.status} />
+                        {/* B-10.5: силабус старої версії (до ТЗ v2.1) — лише читання, перебудова через повторний аналіз */}
+                        {(row.legacy || row.needsRebuild) && (
+                          <Tooltip title="Created before v2.1. It opens read-only; run the analysis again to edit it.">
+                            <Chip label="Created before v2.1" size="small" variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />
+                          </Tooltip>
+                        )}
+                      </Stack>
                     </TableCell>
 
                     <TableCell sx={{ py: 1.25 }}>

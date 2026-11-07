@@ -1,8 +1,8 @@
 {
-  "version": "1.1",
+  "version": "2.0",
   "approved": "2026-10-22",
   "approvedBy": "Alina Samoilenko",
-  "note": "Довідник політик розділу Course Policies. mode=locked — текст однаковий у кожному силабусі. mode=library — обовʼязковий вибір без дефолту. Блоки 8 і 9 спираються на університетську Політику використання ШІ (Сенат, 21.03.2025): дозволені випадки — п.2.2, заборонені — розділ 3, форма декларації — п.4.2, доступ до промптів лише за згодою здобувача — п.1.3.2.",
+  "note": "Довідник політик розділу Course Policies. mode=locked — текст однаковий у кожному силабусі. mode=library — обовʼязковий вибір без дефолту. Блоки 8 і 9 спираються на університетську Політику використання ШІ (Сенат, 21.03.2025): дозволені випадки — п.2.2, заборонені — розділ 3, форма декларації — п.4.2, доступ до промптів лише за згодою здобувача — п.1.3.2. Версія 2.0 додає українські тексти. Поле status.uk='machine' означає машинний переклад, не затверджений людиною; 'approved' ставить відповідальна особа в Library. Англійські тексти затверджені 22.10.2026 і не змінювались.",
   "blocks": [
     {
       "key": "policy.attendance",
@@ -16,17 +16,32 @@
         {
           "key": "attendance_std",
           "label": "Mandatory, 40% rule",
-          "text": "Attendance is mandatory. Participation in an online class with the camera turned off is considered equivalent to absence. A student who misses more than 40% of classes must retake the course, unless explicitly agreed otherwise with the instructor."
+          "text": "Attendance is mandatory. Participation in an online class with the camera turned off is considered equivalent to absence. A student who misses more than 40% of classes must retake the course, unless explicitly agreed otherwise with the instructor.",
+          "labelUk": "Обовʼязкове, правило 40%",
+          "textUk": "Відвідування обовʼязкове. Участь в онлайн-занятті з вимкненою камерою прирівнюється до відсутності. Здобувач, який пропустив понад 40% занять, має пройти курс повторно, якщо інше прямо не погоджено з викладачем.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "attendance_strict",
           "label": "Mandatory, 25% rule",
-          "text": "Attendance is mandatory. Participation in an online class with the camera turned off is considered equivalent to absence. A student who misses more than 25% of classes must retake the course, unless explicitly agreed otherwise with the instructor."
+          "text": "Attendance is mandatory. Participation in an online class with the camera turned off is considered equivalent to absence. A student who misses more than 25% of classes must retake the course, unless explicitly agreed otherwise with the instructor.",
+          "labelUk": "Обовʼязкове, правило 25%",
+          "textUk": "Відвідування обовʼязкове. Участь в онлайн-занятті з вимкненою камерою прирівнюється до відсутності. Здобувач, який пропустив понад 25% занять, має пройти курс повторно, якщо інше прямо не погоджено з викладачем.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "attendance_recorded",
           "label": "Recorded, not graded",
-          "text": "Attendance is recorded but does not affect the grade. Students remain responsible for all material covered in class."
+          "text": "Attendance is recorded but does not affect the grade. Students remain responsible for all material covered in class.",
+          "labelUk": "Фіксується, не впливає на оцінку",
+          "textUk": "Відвідування фіксується, але не впливає на оцінку. Здобувач лишається відповідальним за весь матеріал, пройдений на заняттях.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -42,17 +57,32 @@
         {
           "key": "participation_active",
           "label": "Active contribution expected",
-          "text": "Attendance alone does not constitute participation. Active contribution is expected in discussions, group work, role plays, presentations and other learning activities."
+          "text": "Attendance alone does not constitute participation. Active contribution is expected in discussions, group work, role plays, presentations and other learning activities.",
+          "labelUk": "Очікується активний внесок",
+          "textUk": "Сама лише присутність не вважається участю. Очікується активний внесок у дискусії, групову роботу, рольові ігри, презентації та інші навчальні активності.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "participation_evidence",
           "label": "Credit for documented activity",
-          "text": "Participation credit is based on documented in-class submissions, not on attendance. The submissions that count are announced in class and the total is capped at the weight stated in Assessment and Grading."
+          "text": "Participation credit is based on documented in-class submissions, not on attendance. The submissions that count are announced in class and the total is capped at the weight stated in Assessment and Grading.",
+          "labelUk": "Зарахування за задокументованою роботою",
+          "textUk": "Активність зараховується за задокументованими роботами, зданими на занятті, а не за відвідуванням. Які саме роботи зараховуються, оголошується на занятті; сумарно вони не перевищують ваги, зазначеної в розділі «Оцінювання».",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "participation_none",
           "label": "No participation component",
-          "text": "This course has no separate participation component. All credit comes from the assessed work listed in Assessment and Grading."
+          "text": "This course has no separate participation component. All credit comes from the assessed work listed in Assessment and Grading.",
+          "labelUk": "Без окремого компонента активності",
+          "textUk": "У цьому курсі немає окремого компонента активності. Уся оцінка формується з робіт, перелічених у розділі «Оцінювання».",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -68,22 +98,42 @@
         {
           "key": "late_gbs",
           "label": "Reduced score, zero after 7 days",
-          "text": "The deadlines in Assessment and Grading are final. Late submissions reduce the maximum possible score. Unless stated otherwise, work submitted seven or more days after the deadline will not be accepted and will receive zero."
+          "text": "The deadlines in Assessment and Grading are final. Late submissions reduce the maximum possible score. Unless stated otherwise, work submitted seven or more days after the deadline will not be accepted and will receive zero.",
+          "labelUk": "Зниження балу, нуль після семи днів",
+          "textUk": "Дедлайни, зазначені в розділі «Оцінювання», є остаточними. Запізніла здача знижує максимально можливий бал. Якщо не зазначено інше, робота, здана через сім днів після дедлайну або пізніше, не приймається й отримує нуль.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "late_daily",
           "label": "10% per day, five days maximum",
-          "text": "Late submissions lose 10% of the maximum score for each calendar day after the deadline, up to five days. Work submitted more than five days late receives zero."
+          "text": "Late submissions lose 10% of the maximum score for each calendar day after the deadline, up to five days. Work submitted more than five days late receives zero.",
+          "labelUk": "Мінус 10% за день, максимум пʼять днів",
+          "textUk": "Запізніла здача втрачає 10% максимального балу за кожен календарний день після дедлайну, до пʼяти днів. Робота, здана пізніше ніж через пʼять днів, отримує нуль.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "late_grace",
           "label": "One 48-hour grace period",
-          "text": "Each student may submit one assignment up to 48 hours late without penalty and without explanation. All other late work receives zero."
+          "text": "Each student may submit one assignment up to 48 hours late without penalty and without explanation. All other late work receives zero.",
+          "labelUk": "Одна відстрочка на 48 годин",
+          "textUk": "Кожен здобувач може один раз здати завдання із запізненням до 48 годин без штрафу й без пояснень. Решта запізнілих робіт отримує нуль.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "late_never",
           "label": "No late work accepted",
-          "text": "The deadlines in Assessment and Grading are final. Work submitted after the deadline receives zero."
+          "text": "The deadlines in Assessment and Grading are final. Work submitted after the deadline receives zero.",
+          "labelUk": "Запізнілі роботи не приймаються",
+          "textUk": "Дедлайни, зазначені в розділі «Оцінювання», є остаточними. Робота, здана після дедлайну, отримує нуль.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -95,7 +145,11 @@
       "mode": "locked",
       "required": true,
       "rationale": "Однаково в кожному силабусі. Повний перелік причин живе в Положенні, дублювати його в силабусі немає потреби.",
-      "text": "A student who cannot attend for a valid reason notifies the programme coordinator as soon as possible. Valid reasons are limited to exceptional circumstances beyond the student's control, as set out in the Regulations on the Organization of the Educational Process at KSE. The student remains responsible for missed material and any alternative task."
+      "text": "A student who cannot attend for a valid reason notifies the programme coordinator as soon as possible. Valid reasons are limited to exceptional circumstances beyond the student's control, as set out in the Regulations on the Organization of the Educational Process at KSE. The student remains responsible for missed material and any alternative task.",
+      "textUk": "Здобувач, який не може бути присутнім із поважної причини, якнайшвидше повідомляє програмного координатора. Поважними вважаються лише виняткові обставини поза контролем здобувача, визначені Положенням про організацію освітнього процесу в KSE. Здобувач лишається відповідальним за пропущений матеріал і за альтернативне завдання, якщо таке передбачене.",
+      "status": {
+        "uk": "machine"
+      }
     },
     {
       "key": "policy.passing",
@@ -105,7 +159,13 @@
       "mode": "locked",
       "required": true,
       "rationale": "Шістдесят зі ста за шкалою ECTS. Так стоїть у всіх чотирьох силабусах, іншого варіанта в школі немає.",
-      "text": "To pass the course a student must earn at least 60 out of 100 points, in accordance with the ECTS assessment scale. A score below 60 is unsatisfactory."
+      "text": "To pass the course a student must earn at least 60 out of 100 points, in accordance with the ECTS assessment scale. A score below 60 is unsatisfactory.",
+      "textUk": "Щоб скласти курс, здобувач має набрати щонайменше 60 зі 100 балів відповідно до шкали оцінювання ECTS. Результат нижче 60 є незадовільним.",
+      "status": {
+        "uk": "machine"
+      },
+      "param": "passingScore",
+      "paramDefault": 60
     },
     {
       "key": "policy.grading",
@@ -119,17 +179,32 @@
         {
           "key": "grading_weights",
           "label": "Component weights only",
-          "text": "Assessment and Grading lists each assessed component with its weight and deadline."
+          "text": "Assessment and Grading lists each assessed component with its weight and deadline.",
+          "labelUk": "Лише ваги компонентів",
+          "textUk": "У розділі «Оцінювання» перелічено кожен оцінюваний компонент із його вагою та дедлайном.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "grading_scheme",
           "label": "Weights plus a marking scheme",
-          "text": "Assessment and Grading lists each component with its weight and deadline. Individual tasks are marked on a common scheme: full marks for a correct answer with reasoning shown; partial marks where the approach is right but the result or the reasoning is incomplete; zero where the answer is missing or incorrect."
+          "text": "Assessment and Grading lists each component with its weight and deadline. Individual tasks are marked on a common scheme: full marks for a correct answer with reasoning shown; partial marks where the approach is right but the result or the reasoning is incomplete; zero where the answer is missing or incorrect.",
+          "labelUk": "Ваги плюс схема нарахування балів",
+          "textUk": "У розділі «Оцінювання» перелічено кожен компонент із його вагою та дедлайном. Окремі завдання оцінюються за спільною схемою: повний бал за правильну відповідь із показаним ходом міркування; частковий бал, якщо підхід правильний, але результат або міркування неповні; нуль, якщо відповіді немає або вона неправильна.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "grading_rubric",
           "label": "Weights plus a rubric per component",
-          "text": "Assessment and Grading lists each component with its weight and deadline, and states a rubric for that component with sub-weights, so that a student can see how marks are distributed within it."
+          "text": "Assessment and Grading lists each component with its weight and deadline, and states a rubric for that component with sub-weights, so that a student can see how marks are distributed within it.",
+          "labelUk": "Ваги плюс рубрика на кожен компонент",
+          "textUk": "У розділі «Оцінювання» перелічено кожен компонент із його вагою та дедлайном, а також наведено рубрику цього компонента з підвагами, щоб здобувач бачив, як бали розподіляються всередині нього.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -145,17 +220,32 @@
         {
           "key": "integrity_std",
           "label": "Zero tolerance and the Code",
-          "text": "KSE has a zero-tolerance policy towards plagiarism, self-plagiarism, fabrication, falsification, cheating, deception and bribery. Penalties range from zero points for the assignment to expulsion. All rules are set out in the KSE Code of Academic Integrity, which students must read before enrolling in this course."
+          "text": "KSE has a zero-tolerance policy towards plagiarism, self-plagiarism, fabrication, falsification, cheating, deception and bribery. Penalties range from zero points for the assignment to expulsion. All rules are set out in the KSE Code of Academic Integrity, which students must read before enrolling in this course.",
+          "labelUk": "Нульова толерантність і Кодекс",
+          "textUk": "KSE дотримується політики нульової толерантності до плагіату, самоплагіату, фабрикації, фальсифікації, списування, обману та хабарництва. Санкції — від нуля балів за завдання до відрахування. Усі правила викладені в Кодексі академічної доброчесності KSE, з яким здобувач має ознайомитися до зарахування на курс.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "integrity_team",
           "label": "Zero tolerance, plus team contribution",
-          "text": "KSE has a zero-tolerance policy towards plagiarism, self-plagiarism, fabrication, falsification, cheating, deception and bribery. Penalties range from zero points for the assignment to expulsion. In team projects every member must contribute meaningfully and be able to explain the submitted work. All rules are set out in the KSE Code of Academic Integrity."
+          "text": "KSE has a zero-tolerance policy towards plagiarism, self-plagiarism, fabrication, falsification, cheating, deception and bribery. Penalties range from zero points for the assignment to expulsion. In team projects every member must contribute meaningfully and be able to explain the submitted work. All rules are set out in the KSE Code of Academic Integrity.",
+          "labelUk": "Нульова толерантність плюс внесок у команді",
+          "textUk": "KSE дотримується політики нульової толерантності до плагіату, самоплагіату, фабрикації, фальсифікації, списування, обману та хабарництва. Санкції — від нуля балів за завдання до відрахування. У командних проєктах кожен учасник має зробити змістовний внесок і вміти пояснити здану роботу. Усі правила викладені в Кодексі академічної доброчесності KSE.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "integrity_source",
           "label": "Zero tolerance, plus sources and licensing",
-          "text": "KSE has a zero-tolerance policy towards plagiarism, self-plagiarism, fabrication, falsification, cheating, deception and bribery. Penalties range from zero points for the assignment to expulsion. Students may draw on existing projects and open resources, but all submitted work must be original or clearly derivative from a referenced source, and any material used publicly must comply with licensing and copyright. All rules are set out in the KSE Code of Academic Integrity."
+          "text": "KSE has a zero-tolerance policy towards plagiarism, self-plagiarism, fabrication, falsification, cheating, deception and bribery. Penalties range from zero points for the assignment to expulsion. Students may draw on existing projects and open resources, but all submitted work must be original or clearly derivative from a referenced source, and any material used publicly must comply with licensing and copyright. All rules are set out in the KSE Code of Academic Integrity.",
+          "labelUk": "Нульова толерантність плюс джерела й ліцензії",
+          "textUk": "KSE дотримується політики нульової толерантності до плагіату, самоплагіату, фабрикації, фальсифікації, списування, обману та хабарництва. Санкції — від нуля балів за завдання до відрахування. Здобувачі можуть спиратися на наявні проєкти та відкриті ресурси, але здана робота має бути оригінальною або явно похідною від зазначеного джерела, а будь-який матеріал, використаний публічно, має відповідати умовам ліцензування та авторського права. Усі правила викладені в Кодексі академічної доброчесності KSE.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -171,27 +261,52 @@
         {
           "key": "ai_mode_refer",
           "label": "Review the KSE AI policy",
-          "text": "This course follows the KSE Artificial Intelligence Usage Policy. Students are expected to read it before submitting any assessed work."
+          "text": "This course follows the KSE Artificial Intelligence Usage Policy. Students are expected to read it before submitting any assessed work.",
+          "labelUk": "Ознайомитися з політикою ШІ KSE",
+          "textUk": "Цей курс дотримується Політики використання штучного інтелекту KSE. Здобувачі мають ознайомитися з нею до здачі будь-якої оцінюваної роботи.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "ai_mode_prohibited",
           "label": "Not permitted",
-          "text": "AI tools may not be used for assessed work in this course. Work produced with AI will not be evaluated and may be treated as a breach of academic integrity."
+          "text": "AI tools may not be used for assessed work in this course. Work produced with AI will not be evaluated and may be treated as a breach of academic integrity.",
+          "labelUk": "Не дозволено",
+          "textUk": "У цьому курсі інструменти ШІ не можна використовувати для оцінюваних робіт. Робота, створена за допомогою ШІ, не оцінюється й може розглядатися як порушення академічної доброчесності.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "ai_mode_disclosure",
           "label": "Permitted with disclosure",
-          "text": "AI tools may be used in preparing assignments only with a disclosure identifying the tool and what it was used for, in the form set out in the KSE AI Policy: \"This task was completed with the use of [AI model], specifically for [brief description, for example structuring the text or checking grammar].\" Students remain responsible for verifying accuracy and producing original analysis. The instructor may ask to see the prompts; access is arranged with the student’s agreement."
+          "text": "AI tools may be used in preparing assignments only with a disclosure identifying the tool and what it was used for, in the form set out in the KSE AI Policy: \"This task was completed with the use of [AI model], specifically for [brief description, for example structuring the text or checking grammar].\" Students remain responsible for verifying accuracy and producing original analysis. The instructor may ask to see the prompts; access is arranged with the student’s agreement.",
+          "labelUk": "Дозволено з розкриттям",
+          "textUk": "Інструменти ШІ можна використовувати під час підготовки завдань лише з розкриттям, яке зазначає інструмент і те, для чого його застосовано, у формі, встановленій Політикою ШІ KSE: «Це завдання виконано з використанням [модель ШІ], зокрема для [короткий опис, наприклад структурування тексту чи перевірка граматики]». Здобувач лишається відповідальним за перевірку точності та за власний аналіз. Викладач може попросити показати промпти; доступ надається за згодою здобувача.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "ai_mode_scoped",
           "label": "Permitted for specified uses",
-          "text": "Allowed (KSE AI Policy, 2.2): any activity that is not graded; graded work the student later defends and explains; selecting literature, provided the student reads it; large projects involving modelling or extended analysis; generating hypotheses the student then justifies; finding errors in AI output or better solutions than it proposed.\nProhibited (KSE AI Policy, 3): essays, research papers, term papers and literature reviews; answers to exams, quizzes and tests; calculation and analytical work where the reasoning must be the student’s own; debates and oral presentations; analysis of primary sources.\nConditions: the student states the tool and what it was used for. The instructor may ask to see the prompts; access is arranged with the student’s agreement.\nPenalties: undisclosed use is treated as a breach of academic integrity under the KSE Code."
+          "text": "Allowed (KSE AI Policy, 2.2): any activity that is not graded; graded work the student later defends and explains; selecting literature, provided the student reads it; large projects involving modelling or extended analysis; generating hypotheses the student then justifies; finding errors in AI output or better solutions than it proposed.\nProhibited (KSE AI Policy, 3): essays, research papers, term papers and literature reviews; answers to exams, quizzes and tests; calculation and analytical work where the reasoning must be the student’s own; debates and oral presentations; analysis of primary sources.\nConditions: the student states the tool and what it was used for. The instructor may ask to see the prompts; access is arranged with the student’s agreement.\nPenalties: undisclosed use is treated as a breach of academic integrity under the KSE Code.",
+          "labelUk": "Дозволено для визначених випадків",
+          "textUk": "Дозволено (Політика ШІ KSE, п. 2.2): будь-яка діяльність, що не оцінюється; оцінювані роботи, які здобувач згодом захищає й пояснює; добір літератури за умови, що здобувач її прочитав; великі проєкти з моделюванням або розширеним аналізом; формулювання гіпотез, які здобувач потім обґрунтовує; пошук помилок у результатах ШІ або кращих рішень, ніж він запропонував.\nЗаборонено (Політика ШІ KSE, розділ 3): есе, дослідницькі та курсові роботи, огляди літератури; відповіді на екзаменах, квізах і тестах; розрахункові й аналітичні роботи, де хід міркування має бути власним; дебати та усні презентації; аналіз першоджерел.\nУмови: здобувач зазначає інструмент і те, для чого його використано. Викладач може попросити показати промпти; доступ надається за згодою здобувача.\nСанкції: нерозкрите використання вважається порушенням академічної доброчесності за Кодексом KSE.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "ai_mode_required",
           "label": "Required",
-          "text": "AI use is part of the assessed work in this course. Students document the prompts they used and their own judgement about the output; the quality of that judgement is assessed, not the output alone. Disclosure under the KSE AI Policy still applies, and the prohibited uses in its section 3 still apply to any graded component they cover."
+          "text": "AI use is part of the assessed work in this course. Students document the prompts they used and their own judgement about the output; the quality of that judgement is assessed, not the output alone. Disclosure under the KSE AI Policy still applies, and the prohibited uses in its section 3 still apply to any graded component they cover.",
+          "labelUk": "Обовʼязкове",
+          "textUk": "Використання ШІ є частиною оцінюваної роботи в цьому курсі. Здобувачі документують використані промпти та власну оцінку отриманого результату; оцінюється якість цієї оцінки, а не сам результат. Вимога розкриття за Політикою ШІ KSE лишається чинною, як і заборони з її розділу 3 для тих оцінюваних компонентів, яких вони стосуються.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -207,17 +322,32 @@
         {
           "key": "ai_place_syllabus",
           "label": "In the syllabus",
-          "text": "The rules for AI use are stated in this syllabus and apply to every assignment unless an assignment brief says otherwise."
+          "text": "The rules for AI use are stated in this syllabus and apply to every assignment unless an assignment brief says otherwise.",
+          "labelUk": "У силабусі",
+          "textUk": "Правила використання ШІ зазначені в цьому силабусі й діють для кожного завдання, якщо в інструкції до завдання не сказано інше.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "ai_place_assignments",
           "label": "In the assignment briefs",
-          "text": "The rules for AI use are stated in each assignment brief, because they differ from task to task."
+          "text": "The rules for AI use are stated in each assignment brief, because they differ from task to task.",
+          "labelUk": "В інструкціях до завдань",
+          "textUk": "Правила використання ШІ зазначені в інструкції до кожного завдання, бо вони відрізняються від завдання до завдання.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "ai_place_both",
           "label": "In both",
-          "text": "This syllabus states the default rules for AI use. Individual assignment briefs may narrow or widen them, and the brief takes precedence for that assignment."
+          "text": "This syllabus states the default rules for AI use. Individual assignment briefs may narrow or widen them, and the brief takes precedence for that assignment.",
+          "labelUk": "В обох",
+          "textUk": "Цей силабус задає правила використання ШІ за замовчуванням. Інструкції до окремих завдань можуть звузити або розширити їх, і для такого завдання діє інструкція.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -233,12 +363,22 @@
         {
           "key": "appeal_none",
           "label": "Not stated",
-          "text": "Grade appeals follow the general KSE procedure; this syllabus adds nothing."
+          "text": "Grade appeals follow the general KSE procedure; this syllabus adds nothing.",
+          "labelUk": "Не зазначено",
+          "textUk": "Оскарження оцінки відбувається за загальною процедурою KSE; цей силабус нічого не додає.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "appeal_window",
           "label": "Written request within five working days",
-          "text": "A student who wishes to question a mark submits a written request to the instructor within five working days of the mark being published, with the programme coordinator copied. The instructor responds within five working days."
+          "text": "A student who wishes to question a mark submits a written request to the instructor within five working days of the mark being published, with the programme coordinator copied. The instructor responds within five working days.",
+          "labelUk": "Письмове звернення протягом пʼяти робочих днів",
+          "textUk": "Здобувач, який хоче оскаржити оцінку, подає письмове звернення викладачу протягом пʼяти робочих днів від дня її оприлюднення, з копією програмному координатору. Викладач відповідає протягом пʼяти робочих днів.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -254,17 +394,32 @@
         {
           "key": "contact_demand",
           "label": "Office hours on demand",
-          "text": "Office hours are available on demand. Students contact the instructor by email to arrange a time."
+          "text": "Office hours are available on demand. Students contact the instructor by email to arrange a time.",
+          "labelUk": "Консультації за запитом",
+          "textUk": "Консультації проводяться за запитом. Здобувач звертається до викладача електронною поштою, щоб домовитися про час.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "contact_fixed",
           "label": "A fixed weekly slot",
-          "text": "Office hours are held at a fixed time each week, stated in Course Faculty. No appointment is needed."
+          "text": "Office hours are held at a fixed time each week, stated in Course Faculty. No appointment is needed.",
+          "labelUk": "Фіксований щотижневий слот",
+          "textUk": "Консультації проводяться у фіксований час щотижня, зазначений у розділі про викладача. Домовлятися заздалегідь не потрібно.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "contact_sla",
           "label": "On demand, with a response time",
-          "text": "Office hours are available on demand by email. The instructor replies to course-related email within two working days, excluding weekends and holidays."
+          "text": "Office hours are available on demand by email. The instructor replies to course-related email within two working days, excluding weekends and holidays.",
+          "labelUk": "За запитом, із часом відповіді",
+          "textUk": "Консультації проводяться за запитом електронною поштою. Викладач відповідає на листи щодо курсу протягом двох робочих днів, не враховуючи вихідні та свята.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -280,17 +435,32 @@
         {
           "key": "groupwork_na",
           "label": "Not applicable",
-          "text": "This course has no assessed group work."
+          "text": "This course has no assessed group work.",
+          "labelUk": "Не застосовується",
+          "textUk": "У цьому курсі немає оцінюваної групової роботи.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "groupwork_std",
           "label": "Every member contributes and can explain",
-          "text": "In team projects every member must contribute meaningfully and be able to explain the submitted work."
+          "text": "In team projects every member must contribute meaningfully and be able to explain the submitted work.",
+          "labelUk": "Кожен учасник робить внесок і може пояснити",
+          "textUk": "У командних проєктах кожен учасник має зробити змістовний внесок і вміти пояснити здану роботу.",
+          "status": {
+            "uk": "machine"
+          }
         },
         {
           "key": "groupwork_extend",
           "label": "Shared topic allowed, individual work must extend it",
-          "text": "In team projects every member must contribute meaningfully and be able to explain the submitted work. A team and an individual submission may share a topic, but the individual submission must materially extend the team's work and may not reuse its text."
+          "text": "In team projects every member must contribute meaningfully and be able to explain the submitted work. A team and an individual submission may share a topic, but the individual submission must materially extend the team's work and may not reuse its text.",
+          "labelUk": "Спільна тема дозволена, індивідуальна робота має її розвивати",
+          "textUk": "У командних проєктах кожен учасник має зробити змістовний внесок і вміти пояснити здану роботу. Командна й індивідуальна роботи можуть мати спільну тему, але індивідуальна має істотно розвивати напрацювання команди й не може повторювати її текст.",
+          "status": {
+            "uk": "machine"
+          }
         }
       ]
     },
@@ -302,7 +472,11 @@
       "mode": "locked",
       "required": true,
       "rationale": "Один рядок, який уже стоїть в обох силабусах MBA. Без нього кожна незвична ситуація стає питанням до академічного директора.",
-      "text": "Situations not covered by these policies are resolved at the instructor's discretion and are governed by the Regulations on the Organization of the Educational Process at the Kyiv School of Economics."
+      "text": "Situations not covered by these policies are resolved at the instructor's discretion and are governed by the Regulations on the Organization of the Educational Process at the Kyiv School of Economics.",
+      "textUk": "Ситуації, не охоплені цими політиками, вирішуються на розсуд викладача та регулюються Положенням про організацію освітнього процесу в Київській школі економіки.",
+      "status": {
+        "uk": "machine"
+      }
     }
   ]
 }

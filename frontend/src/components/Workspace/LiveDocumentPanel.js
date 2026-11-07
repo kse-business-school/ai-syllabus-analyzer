@@ -2,6 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Paper from '@mui/material/Paper';
@@ -16,6 +24,8 @@ import ArrowForward from '@mui/icons-material/ArrowForward';
 import LockOpenOutlined from '@mui/icons-material/LockOpenOutlined';
 import DocumentBlocks from './document/DocumentBlocks';
 import { S } from '../../strings';
+import { sectionStatus } from '../../utils/sectionGroups';
+import PolicyChoiceCard from './suggestions/PolicyChoiceCard';
 
 const LiveDocumentPanel = ({
   instructors = [],
@@ -30,12 +40,32 @@ const LiveDocumentPanel = ({
   onApproveSection,
   onUnapproveSection,
   onDiscussSection,
+  language = null,
+  onChangeLanguage,
+  policyLibrary = {},
+  programBlocks = [],
+  programBlock = null,
+  statePolicies = [],
+  actions = null,
+  busy = false,
   readOnly = false,
 }) => {
   const scrollRef = useRef(null);
   const sections = document?.sections;
   const titles = new Map(templateSections.map((s) => [s.key, s]));
   const [activeHighlight, setActiveHighlight] = useState(null);
+  const [pendingLanguage, setPendingLanguage] = useState(null);
+  const [policyKey, setPolicyKey] = useState(null);
+  // B-3.2: library-політики без рішення — кнопка «Choose an option» у документі відкриває ті самі пресети, що й картка в чаті
+  const undecidedPolicies = statePolicies.filter((p) => p.mode !== 'locked' && !p.optionKey
+    && !['instructor_directed', 'fixture_edited'].includes(p.source) && policyLibrary[p.key]);
+  const hasText = (sections || []).some((s) => s.blocks?.length);
+  // B-1.2: на заповненому документі — окрема дія з попередженням; написаний текст не перекладається
+  const requestLanguage = (value) => {
+    if (!value || value === language) return;
+    if (hasText) setPendingLanguage(value);
+    else onChangeLanguage?.(value);
+  };
 
   useEffect(() => {
     if (!highlightedSectionKey) return undefined;
@@ -102,7 +132,46 @@ const LiveDocumentPanel = ({
             <ToggleButton value="changes">{S.showChanges}</ToggleButton>
           </ToggleButtonGroup>
         </Box>
+        {language && onChangeLanguage && (
+          <TextField select size="small" label="Document language" value={language} disabled={readOnly}
+            onChange={(e) => requestLanguage(e.target.value)} sx={{ minWidth: 150, '& .MuiInputBase-root': { height: 30, fontSize: '0.75rem' } }}>
+            <MenuItem value="en">English</MenuItem>
+            <MenuItem value="uk">Ukrainian</MenuItem>
+          </TextField>
+        )}
       </Box>
+      <Dialog open={Boolean(policyKey)} onClose={() => setPolicyKey(null)} maxWidth="md" fullWidth>
+        <DialogContent sx={{ p: 2 }}>
+          {policyKey && (
+            <PolicyChoiceCard
+              policyKey={policyKey}
+              policy={policyLibrary[policyKey]}
+              statePolicy={statePolicies.find((p) => p.key === policyKey)}
+              actions={{
+                ...actions,
+                choosePolicy: async (key, option) => { const r = await actions.choosePolicy(key, option); if (r?.ok) setPolicyKey(null); return r; },
+                writeOwnPolicy: async (key) => { const r = await actions.writeOwnPolicy(key); if (r?.ok) setPolicyKey(null); return r; },
+              }}
+              busy={busy}
+              readOnly={readOnly}
+              language={language}
+            />
+          )}
+        </DialogContent>
+        <DialogActions><Button onClick={() => setPolicyKey(null)}>Close</Button></DialogActions>
+      </Dialog>
+      <Dialog open={Boolean(pendingLanguage)} onClose={() => setPendingLanguage(null)}>
+        <DialogTitle>Change the document language?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Text that is already in the syllabus stays as it is and is not translated. New drafts, questions about the content and checks will use {pendingLanguage === 'uk' ? 'Ukrainian' : 'English'}.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingLanguage(null)}>Cancel</Button>
+          <Button variant="contained" onClick={() => { onChangeLanguage?.(pendingLanguage); setPendingLanguage(null); }}>Change language</Button>
+        </DialogActions>
+      </Dialog>
 
       {document?.loading && <LinearProgress sx={{ height: 2 }} />}
 
@@ -142,16 +211,20 @@ const LiveDocumentPanel = ({
           >
             {sections.map((sec) => {
               const meta = titles.get(sec.key);
-              const docTitle = meta?.docTitle;
+              // Назву групи бекенд віддає мовою документа (sec.docTitle); номер 0 — теж номер (профіль MMM)
+              const docTitle = sec.docTitle || meta?.docTitle;
+              const numbered = sec.docNumber != null;
               const groupHeading =
-                sec.docNumber && sec.docNumber !== lastDocNumber && docTitle && docTitle !== sec.title
+                numbered && sec.docNumber !== lastDocNumber && docTitle && docTitle !== sec.title
                   ? `${sec.docNumber}. ${docTitle}`
                   : null;
               const ownHeading = groupHeading
                 ? sec.title
-                : sec.docNumber && sec.docNumber !== lastDocNumber
+                : numbered && sec.docNumber !== lastDocNumber
                 ? `${sec.docNumber}. ${sec.title}`
                 : sec.title;
+              // Підказка слота (B-6.5): лише в UI, у .docx не потрапляє
+              const hint = meta?.hint?.en || meta?.hint?.uk || null;
               lastDocNumber = sec.docNumber ?? lastDocNumber;
               const focused = focusedKey === sec.key;
               const isHighlighted = activeHighlight === sec.key;
@@ -162,6 +235,7 @@ const LiveDocumentPanel = ({
               );
               const isLocked = sec.locked || sec.mode === 'locked';
               const isApproved = Boolean(readiness?.sections?.[sec.key]?.approved);
+              const status = readiness?.sections?.[sec.key] ? sectionStatus(readiness.sections[sec.key]) : null;
 
               return (
                 <Box
@@ -222,6 +296,13 @@ const LiveDocumentPanel = ({
                       }}
                     >
                       {ownHeading}
+                      {/* B-5.1/B-5.4: затверджено — позначка; готовий, але не затверджений — підказка, що дія лишилась */}
+                      {!isLocked && status === 'approved' && (
+                        <Chip size="small" color="success" variant="outlined" icon={<CheckCircleOutline sx={{ fontSize: 13 }} />} label="Approved" sx={{ ml: 1, height: 20, fontSize: '0.6875rem', verticalAlign: 'middle' }} />
+                      )}
+                      {!isLocked && status === 'ready' && (
+                        <Chip size="small" variant="outlined" label="Ready to approve" sx={{ ml: 1, height: 20, fontSize: '0.6875rem', verticalAlign: 'middle', borderColor: 'success.main', color: 'success.main' }} />
+                      )}
                     </Typography>
 
                     {/* Інтерактивні кнопки секції */}
@@ -282,6 +363,33 @@ const LiveDocumentPanel = ({
                       </Box>
                     )}
                   </Box>
+
+                  {hint && !readOnly && (
+                    <Typography variant="caption" component="p" sx={{ color: 'text.secondary', fontStyle: 'italic', mb: 1, whiteSpace: 'pre-line' }}>
+                      {hint}
+                    </Typography>
+                  )}
+
+                  {/* B-8.6: корпус і блок програми — закритий список програми */}
+                  {sec.key === 'at_a_glance' && programBlocks.length > 0 && actions?.setProgramBlock && (
+                    <TextField select size="small" fullWidth label={language === 'uk' ? 'Корпус і блок програми' : 'Programme block'}
+                      value={programBlock || ''} disabled={readOnly || busy} sx={{ mb: 1.5 }}
+                      onChange={(e) => actions.setProgramBlock(e.target.value || null)}>
+                      <MenuItem value=""><em>—</em></MenuItem>
+                      {programBlocks.map((b) => <MenuItem key={b.code} value={b.label}>{b.group ? `${b.label} · ${b.group}` : b.label}</MenuItem>)}
+                    </TextField>
+                  )}
+
+                  {sec.key === 'policies' && !readOnly && actions && undecidedPolicies.length > 0 && (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
+                      {undecidedPolicies.map((p) => (
+                        <Button key={p.key} size="small" variant="outlined" color="warning" onClick={() => setPolicyKey(p.key)}
+                          sx={{ fontSize: '0.6875rem', py: 0.2, textTransform: 'none' }}>
+                          {`Choose an option: ${(language === 'uk' && policyLibrary[p.key]?.titleUk) || policyLibrary[p.key]?.title || p.key}`}
+                        </Button>
+                      ))}
+                    </Box>
+                  )}
 
                   {/* Позначки регуляторних перевірок */}
                   {failedChecks.map((c, idx) => (

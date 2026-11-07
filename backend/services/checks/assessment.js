@@ -1,6 +1,6 @@
 // Бали і правила шаблону школи щодо компонентів оцінювання (ТЗ §2).
 const {
-  makeCheck, isNum, filled, sameNumber, fmt, plural, totals, courseTerm, parseDate, isoDay,
+  tr, pluralUk, makeCheck, isNum, filled, sameNumber, fmt, plural, totals, courseTerm, parseDate, isoDay,
   textSources, sentences, excerpt, findPhrase,
 } = require('./common');
 
@@ -23,7 +23,8 @@ function weightsTotal(state) {
   const missing = (state.assessments || []).filter((a) => !isNum(a.weight)).map((a) => a.id);
   return [makeCheck({
     rule: 'assessment.weights_total', severity: 'critical', section: SECTION, path: 'assessments[].weight',
-    message: `The component weights add up to ${fmt(total)}%, not 100%.${missing.length ? ` ${plural(missing.length, 'component')} have no weight yet.` : ''}`,
+    message: tr(state, `The component weights add up to ${fmt(total)}%, not 100%.${missing.length ? ` ${plural(missing.length, 'component')} have no weight yet.` : ''}`,
+      `Ваги компонентів дають ${fmt(total)}%, а не 100%.${missing.length ? ` Ще без ваги: ${pluralUk(missing.length, ['компонент', 'компоненти', 'компонентів'])}.` : ''}`),
     details: { total, missingWeightIds: missing },
   })];
 }
@@ -76,7 +77,8 @@ function weightConsistency(state) {
     const values = [...new Set(conflicting.map((m) => fmt(m.value)))];
     return [makeCheck({
       rule: 'assessment.weight_consistency', entityId: a.id, severity: 'high', section: SECTION, path: 'assessments[].weight',
-      message: `"${a.name}" is worth ${fmt(a.weight)}% in Assessment and Grading, but elsewhere the syllabus gives ${values.map((v) => `${v}%`).join(' and ')}. Which weight is correct?`,
+      message: tr(state, `"${a.name}" is worth ${fmt(a.weight)}% in Assessment and Grading, but elsewhere the syllabus gives ${values.map((v) => `${v}%`).join(' and ')}. Which weight is correct?`,
+        `«${a.name}» має вагу ${fmt(a.weight)}% у розділі «Оцінювання», але деінде силабус називає ${values.map((v) => `${v}%`).join(' і ')}. Яка вага правильна?`),
       details: { weight: a.weight, mentions: conflicting.map(({ path, sourceId, value, excerpt: e }) => ({ path, sourceId, value, excerpt: e })) },
     })];
   });
@@ -86,10 +88,12 @@ function weightConsistency(state) {
 function rowComplete(state) {
   return (state.assessments || []).flatMap((a, i) => {
     const missing = [!isNum(a.weight) && 'Weight', !filled(a.criteria) && 'Performance Criteria', !filled(a.deadline) && 'Deadline'].filter(Boolean);
+    const missingUk = [!isNum(a.weight) && 'ваги', !filled(a.criteria) && 'критеріїв оцінювання', !filled(a.deadline) && 'дедлайну'].filter(Boolean);
     if (!missing.length) return [];
     return [makeCheck({
       rule: 'assessment.row_complete', entityId: a.id, severity: 'high', section: SECTION, path: 'assessments[]',
-      message: `"${componentLabel(a, i)}" has no ${missing.join(', ')}. Each component needs a weight, performance criteria and a deadline.`,
+      message: tr(state, `"${componentLabel(a, i)}" has no ${missing.join(', ')}. Each component needs a weight, performance criteria and a deadline.`,
+        `«${componentLabel(a, i)}» не має ${missingUk.join(', ')}. Кожен компонент потребує ваги, критеріїв оцінювання й дедлайну.`),
       details: { missing },
     })];
   });
@@ -103,7 +107,7 @@ function componentCount(state) {
   if (!isNum(contactHours)) {
     return [makeCheck({
       rule: 'assessment.component_count', severity: 'info', section: SECTION, path: 'sessions[].hours',
-      message: 'Add session durations to enable this check: the required number of assessment components depends on contact hours.',
+      message: tr(state, 'Add session durations to enable this check: the required number of assessment components depends on contact hours.', 'Додайте тривалість занять, щоб увімкнути цю перевірку: потрібна кількість компонентів оцінювання залежить від аудиторних годин.'),
       details: { components: count, contactHours: null },
     })];
   }
@@ -111,7 +115,8 @@ function componentCount(state) {
   if (count >= required) return [];
   return [makeCheck({
     rule: 'assessment.component_count', severity: 'critical', section: SECTION, path: 'assessments[]',
-    message: `A course with ${fmt(contactHours)} contact hours must include at least ${required} assessment components; this syllabus has ${count}.`,
+    message: tr(state, `A course with ${fmt(contactHours)} contact hours must include at least ${required} assessment components; this syllabus has ${count}.`,
+      `Курс на ${fmt(contactHours)} аудиторних год має містити щонайменше ${required} компоненти оцінювання; у силабусі — ${count}.`),
     details: { components: count, required, contactHours, thresholdHours: SMALL_COURSE_HOURS },
   })];
 }
@@ -130,13 +135,15 @@ function participationShare(state) {
   if (justified) {
     return [makeCheck({
       rule: 'assessment.participation_share', severity: 'info', section: SECTION, path: 'assessments[].criteria', passed: true,
-      message: `Participation accounts for ${fmt(share)}% of the grade, above the usual ${PARTICIPATION_LIMIT}%; the Performance Criteria explain why.`,
+      message: tr(state, `Participation accounts for ${fmt(share)}% of the grade, above the usual ${PARTICIPATION_LIMIT}%; the Performance Criteria explain why.`,
+        `Активність становить ${fmt(share)}% оцінки — більше за звичні ${PARTICIPATION_LIMIT}%; критерії оцінювання пояснюють чому.`),
       details: { share, limit: PARTICIPATION_LIMIT, componentIds: ids, justified: true },
     })];
   }
   return [makeCheck({
     rule: 'assessment.participation_share', severity: 'warning', section: SECTION, path: 'assessments[].weight',
-    message: `Participation accounts for ${fmt(share)}% of the grade. The school template expects no more than ${PARTICIPATION_LIMIT}% unless it is clearly justified. What is the reason for this weight? I will add it to the Performance Criteria.`,
+    message: tr(state, `Participation accounts for ${fmt(share)}% of the grade. The school template expects no more than ${PARTICIPATION_LIMIT}% unless it is clearly justified. What is the reason for this weight? I will add it to the Performance Criteria.`,
+      `Активність становить ${fmt(share)}% оцінки. Шаблон школи передбачає не більше ${PARTICIPATION_LIMIT}%, якщо немає чіткого обґрунтування. Чим зумовлена така вага? Я додам пояснення до критеріїв оцінювання.`),
     details: { share, limit: PARTICIPATION_LIMIT, componentIds: ids, justified: false },
   })];
 }
@@ -154,17 +161,36 @@ function deadlinesInTerm(state) {
     const late = due > end + DEADLINE_GRACE_DAYS * DAY;
     if (!early && !late) return [];
     const where = early ? `before the course starts (${term.start})` : `more than ${DEADLINE_GRACE_DAYS} days after the course ends (${term.end})`;
+    const whereUk = early ? `до початку курсу (${term.start})` : `більш ніж через ${DEADLINE_GRACE_DAYS} днів після завершення курсу (${term.end})`;
     return [makeCheck({
       rule: 'assessment.deadline_in_term', entityId: a.id, severity: 'warning', section: SECTION, path: 'assessments[].deadline',
-      message: `The deadline for "${componentLabel(a, i)}" (${isoDay(due)}) falls ${where}. Is this date correct?`,
+      message: tr(state, `The deadline for "${componentLabel(a, i)}" (${isoDay(due)}) falls ${where}. Is this date correct?`,
+        `Дедлайн «${componentLabel(a, i)}» (${isoDay(due)}) припадає ${whereUk}. Чи правильна ця дата?`),
       details: { deadline: isoDay(due), term: { start: term.start, end: term.end, source: term.source }, graceDays: DEADLINE_GRACE_DAYS },
+    })];
+  });
+}
+
+// B-6.3: бали за одиницями — unitCount × max(rubric.points) = maxPoints (наприклад, 7 лекцій × 2 = 14)
+function pointsConsistency(state) {
+  return (state.assessments || []).flatMap((a, i) => {
+    const levels = (a.rubric || []).map((r) => r.points).filter(isNum);
+    if (!isNum(a.maxPoints) || !isNum(a.unitCount) || !levels.length) return [];
+    const top = Math.max(...levels);
+    const expected = a.unitCount * top;
+    if (sameNumber(expected, a.maxPoints)) return [];
+    return [makeCheck({
+      rule: 'assessment.points_consistency', entityId: a.id, severity: 'high', section: SECTION, path: 'assessments[].maxPoints',
+      message: tr(state, `"${componentLabel(a, i)}" has ${fmt(a.unitCount)} units with up to ${fmt(top)} points each, which gives ${fmt(expected)}, but the maximum is ${fmt(a.maxPoints)} points. Which figure is correct?`,
+        `«${componentLabel(a, i)}»: ${fmt(a.unitCount)} одиниць по ${fmt(top)} бали дають ${fmt(expected)}, а максимум — ${fmt(a.maxPoints)} балів. Яке значення правильне?`),
+      details: { unitCount: a.unitCount, topLevel: top, expected, maxPoints: a.maxPoints },
     })];
   });
 }
 
 const run = (state) => [
   ...weightsTotal(state), ...weightConsistency(state), ...rowComplete(state),
-  ...componentCount(state), ...participationShare(state), ...deadlinesInTerm(state),
+  ...componentCount(state), ...participationShare(state), ...deadlinesInTerm(state), ...pointsConsistency(state),
 ];
 
 module.exports = { run, weightMentions, isJustified };

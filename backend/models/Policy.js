@@ -39,11 +39,20 @@ const PolicySchema = new mongoose.Schema({
   rationale: String,
   titleUk: String,
   text: String,
+  // Українська версія locked-блоку і статус її перевірки (B-1.4): machine — машинний переклад, approved — затверджено
+  textUk: String,
+  status: { uk: { type: String, enum: ['machine', 'approved'] } },
+  // Параметр програми в locked-тексті (B07): param — поле refs (passingScore), paramDefault — значення школи в тексті
+  param: String,
+  paramDefault: Number,
   options: [{
     _id: false,
     key: { type: String, required: true },
     label: { type: String, required: true },
-    text: { type: String, required: true }
+    text: { type: String, required: true },
+    labelUk: String,
+    textUk: String,
+    status: { uk: { type: String, enum: ['machine', 'approved'] } }
   }],
   libraryVersion: String,
   // Адмін правив блок довідника через API: сід нових версій фікстури його не перезаписує (stats.conflicts)

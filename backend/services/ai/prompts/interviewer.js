@@ -16,7 +16,7 @@ const PROMPT_VERSION = 'interviewer-v1';
 async function nextQuestion({ state, refs, transcript = [], skipped = [], preferredSection = null } = {}) {
   const allowed = candidates({ state, refs, skipped, preferredSection });
   if (!allowed.length) return null;
-  const fallback = templateQuestion(allowed[0], refs);
+  const fallback = templateQuestion(allowed[0], refs, state?.language);
   const keys = allowed.map((s) => s.key);
   const schema = {
     type: 'object',

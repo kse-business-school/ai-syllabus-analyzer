@@ -9,7 +9,7 @@ const store = require('../syllabusState/store');
 const { renderState, renderText } = require('../syllabusState/render');
 const references = require('../references');
 const { parseToState } = require('./parse');
-const { checksToCards, policyCards, courseHintCards, ploConfirmCards } = require('./parse/cards');
+const { checksToCards, policyCards, courseHintCards, ploConfirmCards, programmeOutcomeCards } = require('./parse/cards');
 const { reviewState } = require('./prompts/reviewer');
 const { runChecks, runLlmChecks } = require('../checks');
 const { createDraftSuggestions } = require('../chat/draftSuggestions');
@@ -91,6 +91,7 @@ async function analyzeSyllabus(syllabusId, { leaseToken } = {}) {
     ...policyCards(state, refs, { lockedNotes: parsed.lockedNotes }),
     ...courseHintCards(parsed.courseHint),
     ...ploConfirmCards(state, refs),
+    ...programmeOutcomeCards(parsed.programmeOutcomes, state, refs),
   ];
 
   // 3. review: Ревізор оцінює якість формулювань вільних розділів

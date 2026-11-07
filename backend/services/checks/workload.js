@@ -1,6 +1,6 @@
 // Самостійна робота (шаблон школи: «одна академічна година занять ≈ дві години самостійної роботи»).
 // «typically … approximately» — не заборона, тому лише warning з питанням.
-const { makeCheck, isNum, fmt, totals } = require('./common');
+const { tr, pluralUk, makeCheck, isNum, fmt, totals } = require('./common');
 
 const SELF_STUDY_RATIO = 2;
 const LOWER = 0.5;
@@ -14,7 +14,8 @@ function run(state) {
   if (ratio >= LOWER && ratio <= UPPER) return [];
   return [makeCheck({
     rule: 'workload.self_study_ratio', severity: 'warning', section: 'schedule', path: 'individualWork[].hours',
-    message: `Individual work adds up to ${fmt(selfStudyHours)} hours. With ${fmt(contactHours)} contact hours the school template expects about ${fmt(expected)} (two hours per contact hour). Is the self-study estimate complete?`,
+    message: tr(state, `Individual work adds up to ${fmt(selfStudyHours)} hours. With ${fmt(contactHours)} contact hours the school template expects about ${fmt(expected)} (two hours per contact hour). Is the self-study estimate complete?`,
+      `Самостійна робота становить ${fmt(selfStudyHours)} год. За ${fmt(contactHours)} аудиторних год шаблон школи передбачає близько ${fmt(expected)} (дві години на одну аудиторну). Чи повна оцінка самостійної роботи?`),
     details: { contactHours, selfStudyHours, expected, ratio: Math.round(ratio * 1000) / 1000, bounds: [LOWER, UPPER] },
   })];
 }

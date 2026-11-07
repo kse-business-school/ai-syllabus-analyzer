@@ -85,7 +85,7 @@ async function freeChatMessage(syllabusId, text, userId) {
           }));
         }
         return { reply: 'I have drafted these sections from your answer. Review and confirm each card to continue.',
-          createdSuggestionIds: cards.map((c) => String(c._id)), answeredSlots: NARRATIVE_SLOTS, sequential: true };
+          createdSuggestionIds: cards.map((c) => String(c._id)), answeredSlots: [...new Set(drafts.map((d) => d.slotKey))], sequential: true };
       }
     }
     const res = await runner.runOrchestratorTurn({

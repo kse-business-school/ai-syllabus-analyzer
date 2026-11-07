@@ -1,12 +1,14 @@
 // План інтерв'ю: одна розповідь покриває кілька D-слотів, похідні поради й політики не стають питаннями.
 // Дозволені лише C/D-слоти з editability free: A (автопідстановка), B (довідник) і E (обчислюється) не питаються ніколи.
+const { sectionTitle, sectionQuestion, phrases } = require('../references/sectionText');
 const { SLOTS } = require('../syllabusState/slots');
 const { getPath } = require('../syllabusState/paths');
 const { NARRATIVE_SLOTS } = require('./slotDrafts');
 
 // Порядок = потік розмови: про курс → результати → сесії → оцінювання → матеріали (політики — картки policy-choice)
+// B09: «Практичне застосування» (профіль MMM) — після розповіді про курс; для програм без розділу слот відсіюється за шаблоном
 const QUESTION_SLOTS = [
-  ...NARRATIVE_SLOTS, 'schedule.sessions', 'schedule.individual_work', 'assessment.criteria', 'materials.required',
+  ...NARRATIVE_SLOTS, 'course.practical_application', 'schedule.sessions', 'schedule.individual_work', 'assessment.criteria', 'materials.required',
 ];
 
 function hasContent(value) {
@@ -29,16 +31,17 @@ function candidates({ state, refs, skipped = [], preferredSection } = {}) {
   return preferred.length ? preferred : open;
 }
 
-function templateQuestion(slot, refs) {
+/** Шаблонне питання за слотом — мовою документа (language = state.language, B-1.3). */
+function templateQuestion(slot, refs, language = 'en') {
   const section = refs.template.find((t) => t.key === slot.section);
   const narrative = refs.template.find((t) => t.key === 'short_description');
+  const title = sectionTitle(section, language);
+  const say = phrases(language);
   return {
     slotKey: slot.key,
-    question: section.question || (NARRATIVE_SLOTS.includes(slot.key) && narrative?.question)
-      || `What would you like to include in ${section.title}?`,
-    why: NARRATIVE_SLOTS.includes(slot.key)
-      ? 'One description is enough for me to draft the summary, objectives, learning outcomes and Capstone connection for you to confirm.'
-      : `The section "${section.title}" still needs your input.`,
+    question: sectionQuestion(section, language) || (NARRATIVE_SLOTS.includes(slot.key) && sectionQuestion(narrative, language))
+      || say.include(title),
+    why: NARRATIVE_SLOTS.includes(slot.key) ? say.narrative : say.needsInput(title),
   };
 }
 

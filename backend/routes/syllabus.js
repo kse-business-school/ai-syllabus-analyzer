@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const Syllabus = require('../models/Syllabus');
 const Suggestion = require('../models/Suggestion');
 const Program = require('../models/Program');
+const { programLanguage } = Program;
 const { auth, requireRole } = require('../middleware/auth');
 const analysisRunner = require('../services/analysisRunner');
 const { deleteSyllabiCascade, deleteConversationsFor } = require('../services/syllabusCleanup');
@@ -205,7 +206,9 @@ router.post('/', auth, [
     });
     try {
       const refs = await getRefs(programCode);
-      const state = createEmptyState({ programCode, track: 'scratch', refs, course: { title, code } });
+      // B-1.1: мова документа нового силабуса — за замовчуванням програми (завантажений файл визначає її сам)
+      const language = programLanguage(await Program.findById(programId).select('defaultLanguage').lean());
+      const state = createEmptyState({ programCode, track: 'scratch', refs, course: { title, code }, language });
       const instructorCard = prepareInstructor(state, await resolveProfile(req.user.userId, { excludeSyllabusId: syllabus._id }));
       const saved = await initState(syllabus._id, state, { setBaseline: true, refs });
       await createDraftSuggestions([instructorCard], { syllabusId: syllabus._id, state: saved.state, refs });

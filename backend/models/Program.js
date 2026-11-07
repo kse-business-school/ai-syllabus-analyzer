@@ -26,6 +26,15 @@ const programSchema = new mongoose.Schema({
     }, { _id: false })],
     default: [],
   },
+  // Корпуси й блоки програми (B-8.6) — закритий список для поля At a Glance; порожній — поля немає
+  blocks: {
+    type: [new mongoose.Schema({ code: { type: String, required: true, trim: true }, label: { type: String, required: true, trim: true }, group: { type: String, default: '', trim: true } }, { _id: false })],
+    default: [],
+  },
+  // Прохідний бал програми (B-9.3); null — бал школи за Положенням (60 зі 100)
+  passingScore: { type: Number, min: 0, max: 100, default: null },
+  // Мова документа за замовчуванням для нових силабусів програми (B-1.1): MBA — en, MMM — uk
+  defaultLanguage: { type: String, enum: ['en', 'uk'], default: 'en' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
@@ -43,6 +52,9 @@ programSchema.statics.seedDefaults = async function () {
   await require('../services/programs').syncCodeRegistry();
 };
 
+/** Мова документа за замовчуванням (старі записи без поля — en). */
+const programLanguage = (program) => (program?.defaultLanguage === 'uk' ? 'uk' : 'en');
+
 /** Найновіший набір програми — останній у списку (набори додаються в порядку набору студентів). */
 const latestEdition = (program) => (program?.editions?.length ? program.editions[program.editions.length - 1].code : null);
 
@@ -50,3 +62,4 @@ module.exports = mongoose.model('Program', programSchema);
 module.exports.DEFAULT_PROGRAMS = DEFAULT_PROGRAMS;
 module.exports.EDITION_CODE_RE = EDITION_CODE_RE;
 module.exports.latestEdition = latestEdition;
+module.exports.programLanguage = programLanguage;

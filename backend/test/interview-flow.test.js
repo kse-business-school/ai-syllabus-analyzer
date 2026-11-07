@@ -94,7 +94,10 @@ function scriptedModel() {
 
 async function scratch() {
   const s = await helpers.createSyllabus(owner, { programCode: 'MBA28', track: 'scratch', title: 'Negotiations' });
-  await store.initState(s._id, createEmptyState({ programCode: 'MBA28', track: 'scratch', refs, course: { title: 'Negotiations' } }), { refs });
+  // At a Glance уже заповнено: сценарії перевіряють розмову після блоку At a Glance (B-3.6 — окремий тест)
+  const initial = createEmptyState({ programCode: 'MBA28', track: 'scratch', refs, course: { title: 'Negotiations' } });
+  initial.header = { ...initial.header, deliveryFormat: 'offline', ects: 3 };
+  await store.initState(s._id, initial, { refs });
   created.push(s._id);
   return Syllabus.findById(s._id);
 }

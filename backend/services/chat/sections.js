@@ -26,13 +26,24 @@ async function blockersBuilder(ctx) {
 /** Розділи, які можна затвердити одним натисканням: пороги пройдені, відкритих карток і перевірок немає. */
 async function approvableSections(ctx) {
   const blockerOf = await blockersBuilder(ctx);
+  // Тексти рівня програми (nature: locked, «Педагогічний підхід») не затверджуються викладачем
   return (ctx.refs.template || [])
-    .filter((t) => !ctx.state.sections?.[t.key]?.approved && !sectionGaps(t.key, ctx.state).length && !blockerOf(t.key))
+    .filter((t) => t.nature !== 'locked' && !ctx.state.sections?.[t.key]?.approved && !sectionGaps(t.key, ctx.state).length && !blockerOf(t.key))
     .map((t) => t.key);
 }
 
+/** Розділи, які викладач затверджує: розділи профілю набору, крім текстів рівня програми (B04). */
+const approvableKeysOf = (ctx) => (ctx.refs.template || []).filter((t) => t.nature !== 'locked').map((t) => t.key);
+
+function assertApprovable(ctx, key) {
+  store.assertSectionKey(key); // невідомий ключ — 400, як і раніше
+  if (!approvableKeysOf(ctx).includes(key)) {
+    throw httpError(409, 'This section is not approved by the instructor in this programme.', { code: 'SECTION_NOT_APPROVABLE' });
+  }
+}
+
 async function approveSection(syllabusId, key, { userId, expectedRevision } = {}) {
-  await loadContext(syllabusId);
+  assertApprovable(await loadContext(syllabusId), key);
   await store.approveSection(syllabusId, key, { by: userId, expectedRevision });
   invalidateOutputs(syllabusId);
   await refreshConversationReadiness(syllabusId);
@@ -56,12 +67,43 @@ async function approveAll(syllabusId, { userId, expectedRevision, keys } = {}) {
   if (expectedRevision !== undefined && expectedRevision !== ctx.revision) {
     throw httpError(409, 'The syllabus was changed in the meantime. Reload and try again.', { code: 'STATE_CONFLICT', details: { revision: ctx.revision } });
   }
+  // Без переліку — розділи профілю набору (B-6.1), крім текстів рівня програми; явний перелік — теж лише з них (B04)
+  const profileKeys = approvableKeysOf(ctx);
+  const requested = keys && keys.length ? keys : profileKeys;
+  requested.forEach(store.assertSectionKey);
+  const outside = requested.filter((k) => !profileKeys.includes(k));
   const { approved, skipped } = await store.approveAll(syllabusId, {
-    blockersFor, by: userId, expectedRevision: ctx.revision, keys: keys && keys.length ? keys : undefined,
+    blockersFor, by: userId, expectedRevision: ctx.revision, keys: requested.filter((k) => profileKeys.includes(k)),
   });
+  skipped.push(...outside.map((key) => ({ key, reason: 'Not a section of this programme template' })));
   invalidateOutputs(syllabusId);
   await refreshConversationReadiness(syllabusId);
   return { approved, skipped };
 }
 
-module.exports = { blockersBuilder, approvableSections, approveSection, unapproveSection, approveAll };
+/**
+ * Мова документа (B-1.2): окрема дія власника. Уже написаний текст не перекладається — змінюється лише
+ * state.language, від якої залежать нові чернетки, питання, перевірки й тексти довідника політик.
+ */
+async function setDocumentLanguage(syllabusId, language, { userId, expectedRevision } = {}) {
+  if (!['en', 'uk'].includes(language)) throw httpError(400, 'language must be "en" or "uk"', { code: 'VALIDATION_ERROR' });
+  const ctx = await loadContext(syllabusId);
+  await store.mutate(syllabusId, expectedRevision ?? ctx.revision, (st) => { st.language = language; }, {
+    by: userId, source: 'instructor_directed', refs: ctx.refs,
+  });
+  invalidateOutputs(syllabusId);
+}
+
+/** Корпус і блок програми (B-8.6): лише значення із закритого списку програми; null — очистити. */
+async function setProgramBlock(syllabusId, value, { userId, expectedRevision } = {}) {
+  const ctx = await loadContext(syllabusId);
+  const blocks = ctx.refs.programBlocks || [];
+  const label = value == null || value === '' ? null : blocks.find((b) => b.label === value || b.code === value)?.label;
+  if (label === undefined) throw httpError(400, blocks.length ? 'Choose a programme block from the list' : 'This programme has no blocks', { code: 'VALIDATION_ERROR' });
+  await store.mutate(syllabusId, expectedRevision ?? ctx.revision, (st) => { st.header = { ...st.header, programBlock: label }; }, {
+    by: userId, source: 'instructor_directed', refs: ctx.refs,
+  });
+  invalidateOutputs(syllabusId);
+}
+
+module.exports = { blockersBuilder, approvableSections, approveSection, unapproveSection, approveAll, setDocumentLanguage, setProgramBlock };

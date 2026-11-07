@@ -1,5 +1,6 @@
 // Довідник політик розділу Course Policies — єдина точка читання (БД з фолбеком на фікстуру).
 // Формат блока = fixtures/reference/policies.library.json: { order, key, title, titleUk, mode, required, rationale, options | text }.
+// Двомовність (B-1.4, v2): textUk і status.uk у locked-блоці, labelUk / textUk / status.uk у варіантах.
 const Policy = require('../../models/Policy');
 const { readFixture } = require('./fixtureRefs');
 
@@ -34,6 +35,17 @@ function policyMarkdown(block) {
   return lines.join('\n').trim();
 }
 
+/** Українські поля (лише присутні): textUk, labelUk, status.uk. */
+function ukFields(src) {
+  const out = {};
+  if (src.labelUk) out.labelUk = src.labelUk;
+  if (src.textUk) out.textUk = src.textUk;
+  if (src.status?.uk) out.status = { uk: src.status.uk };
+  return out;
+}
+
+const optionFields = (o) => ({ key: o.key, label: o.label, text: o.text, ...ukFields(o) });
+
 function toBlock(doc) {
   const d = doc.toObject ? doc.toObject() : doc;
   const block = {
@@ -45,8 +57,8 @@ function toBlock(doc) {
     required: d.blockRequired !== false,
     rationale: d.rationale,
   };
-  if (d.mode === 'locked') block.text = d.text;
-  else block.options = (d.options || []).map(({ key, label, text }) => ({ key, label, text }));
+  if (d.mode === 'locked') Object.assign(block, { text: d.text }, ukFields(d), d.param ? { param: d.param, paramDefault: d.paramDefault } : {});
+  else block.options = (d.options || []).map(optionFields);
   return block;
 }
 
@@ -66,10 +78,10 @@ function blockFields(block, version) {
     libraryVersion: version,
   };
   if (block.mode === 'locked') {
-    fields.text = block.text;
+    Object.assign(fields, { text: block.text, textUk: undefined, status: undefined, param: block.param, paramDefault: block.paramDefault }, ukFields(block));
     fields.options = [];
   } else {
-    fields.options = block.options.map(({ key, label, text }) => ({ key, label, text }));
+    fields.options = block.options.map(optionFields);
   }
   return fields;
 }

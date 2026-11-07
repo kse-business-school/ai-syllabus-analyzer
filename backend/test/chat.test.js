@@ -59,7 +59,10 @@ async function uploaded(extra = {}) {
 
 async function scratch() {
   const s = await helpers.createSyllabus(owner, { programCode: 'MBA28', track: 'scratch', title: 'Negotiations' });
-  await store.initState(s._id, createEmptyState({ programCode: 'MBA28', track: 'scratch', refs, course: { title: 'Negotiations' } }), { refs });
+  // At a Glance уже заповнено: сценарії перевіряють розмову після блоку At a Glance (B-3.6 — окремий тест)
+  const initial = createEmptyState({ programCode: 'MBA28', track: 'scratch', refs, course: { title: 'Negotiations' } });
+  initial.header = { ...initial.header, deliveryFormat: 'offline', ects: 3 };
+  await store.initState(s._id, initial, { refs });
   created.push(s._id);
   return Syllabus.findById(s._id);
 }
@@ -104,7 +107,7 @@ describe('GET /api/chat/:id — View', () => {
     const s = await uploaded({ title: 'Risk Management' });
     const res = await get(s);
     expect(res.status).toBe(200);
-    expect(Object.keys(res.body).sort()).toEqual(['checks', 'conversation', 'messages', 'readiness', 'revision', 'sections', 'state', 'suggestions', 'syllabus'].sort());
+    expect(Object.keys(res.body).sort()).toEqual(['checks', 'conversation', 'messages', 'programBlocks', 'readiness', 'revision', 'sections', 'state', 'suggestions', 'syllabus'].sort());
     expect(res.body.syllabus).toMatchObject({
       id: String(s._id), title: 'Risk Management', status: 'in_progress', track: 'upload', programCode: 'MBA28', canMutate: true, needsRebuild: false,
     });
@@ -169,7 +172,7 @@ describe('POST /start', () => {
     const first = await card(s, { severity: 'critical', title: 'Critical first', target: { path: 'summary.capstone' }, text: 'Connects the course to the capstone project.' });
     const res = await post(s, '/start');
     expect(res.status).toBe(200);
-    expect(Object.keys(res.body).sort()).toEqual(['checks', 'conversation', 'messages', 'readiness', 'revision', 'sections', 'state', 'suggestions', 'syllabus'].sort());
+    expect(Object.keys(res.body).sort()).toEqual(['checks', 'conversation', 'messages', 'programBlocks', 'readiness', 'revision', 'sections', 'state', 'suggestions', 'syllabus'].sort());
     const kinds = res.body.messages.map((m) => m.kind);
     expect(res.body.messages[0].content).toMatch(/^Here's what I found in your file: \d+ of 11 sections have content/);
     expect(kinds).toContain('approve-all');

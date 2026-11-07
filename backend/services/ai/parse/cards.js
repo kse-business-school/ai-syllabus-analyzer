@@ -182,4 +182,36 @@ function ploConfirmCards(state, refs) {
     }));
 }
 
-module.exports = { checksToCards, policyCards, courseHintCards, ploConfirmCards, titleOf, TITLES };
+/**
+ * ПРН із розділу «Зв'язок з результатами програми» файлу (B-8.8): файл називає їх для курсу загалом, а покриття
+ * рахується за підтвердженими зв'язками окремих результатів навчання. Тому — питання: які CLO їх формують.
+ * Нічого не записується в стан, доки викладач не підтвердить конкретні зв'язки.
+ */
+function programmeOutcomeCards(programmeOutcomes, state, refs) {
+  const known = new Map((refs?.outcomes || []).map((o) => [normalizePloCode(o.code), o]));
+  const listed = (programmeOutcomes || []).filter((p) => known.has(normalizePloCode(p.ploCode)));
+  if (!listed.length || !(refs?.template || []).some((t) => t.key === 'programme_outcomes')) return [];
+  const linked = new Set((state.outcomes || []).flatMap((o) => (o.plo || []).map((p) => normalizePloCode(p.code))));
+  const open = listed.filter((p) => !linked.has(normalizePloCode(p.ploCode)));
+  if (!open.length) return [];
+  const uk = state.language === 'uk';
+  const codes = open.map((p) => normalizePloCode(p.ploCode)).join(', ');
+  return [{
+    origin: 'check',
+    checkId: 'plo.programme_section',
+    severity: 'medium',
+    kind: 'question',
+    title: uk ? 'Які результати курсу формують названі ПРН?' : 'Which course outcomes build the programme outcomes you named?',
+    description: uk
+      ? `У файлі зазначено, що курс підсилює ${codes}. Покриття ПРН рахується за зв'язками окремих результатів навчання курсу.`
+      : `Your file says the course strengthens ${codes}. Programme outcome coverage counts links of individual course learning outcomes.`,
+    question: uk
+      ? `Які результати навчання курсу формують ${codes}?`
+      : `Which course learning outcomes build ${codes}?`,
+    rationale: 'Links count only after you confirm them.',
+    target: { path: 'outcomes[].plo', section: 'programme_outcomes' },
+    promptVersion: PROMPT_VERSION,
+  }];
+}
+
+module.exports = { checksToCards, policyCards, courseHintCards, ploConfirmCards, programmeOutcomeCards, titleOf, TITLES };
