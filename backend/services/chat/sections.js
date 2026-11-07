@@ -32,8 +32,18 @@ async function approvableSections(ctx) {
     .map((t) => t.key);
 }
 
+/** Розділи, які викладач затверджує: розділи профілю набору, крім текстів рівня програми (B04). */
+const approvableKeysOf = (ctx) => (ctx.refs.template || []).filter((t) => t.nature !== 'locked').map((t) => t.key);
+
+function assertApprovable(ctx, key) {
+  store.assertSectionKey(key); // невідомий ключ — 400, як і раніше
+  if (!approvableKeysOf(ctx).includes(key)) {
+    throw httpError(409, 'This section is not approved by the instructor in this programme.', { code: 'SECTION_NOT_APPROVABLE' });
+  }
+}
+
 async function approveSection(syllabusId, key, { userId, expectedRevision } = {}) {
-  await loadContext(syllabusId);
+  assertApprovable(await loadContext(syllabusId), key);
   await store.approveSection(syllabusId, key, { by: userId, expectedRevision });
   invalidateOutputs(syllabusId);
   await refreshConversationReadiness(syllabusId);
@@ -57,11 +67,15 @@ async function approveAll(syllabusId, { userId, expectedRevision, keys } = {}) {
   if (expectedRevision !== undefined && expectedRevision !== ctx.revision) {
     throw httpError(409, 'The syllabus was changed in the meantime. Reload and try again.', { code: 'STATE_CONFLICT', details: { revision: ctx.revision } });
   }
-  // Без переліку — розділи профілю набору (B-6.1), крім текстів рівня програми (nature: locked)
-  const profileKeys = (ctx.refs.template || []).filter((t) => t.nature !== 'locked').map((t) => t.key);
+  // Без переліку — розділи профілю набору (B-6.1), крім текстів рівня програми; явний перелік — теж лише з них (B04)
+  const profileKeys = approvableKeysOf(ctx);
+  const requested = keys && keys.length ? keys : profileKeys;
+  requested.forEach(store.assertSectionKey);
+  const outside = requested.filter((k) => !profileKeys.includes(k));
   const { approved, skipped } = await store.approveAll(syllabusId, {
-    blockersFor, by: userId, expectedRevision: ctx.revision, keys: keys && keys.length ? keys : profileKeys,
+    blockersFor, by: userId, expectedRevision: ctx.revision, keys: requested.filter((k) => profileKeys.includes(k)),
   });
+  skipped.push(...outside.map((key) => ({ key, reason: 'Not a section of this programme template' })));
   invalidateOutputs(syllabusId);
   await refreshConversationReadiness(syllabusId);
   return { approved, skipped };

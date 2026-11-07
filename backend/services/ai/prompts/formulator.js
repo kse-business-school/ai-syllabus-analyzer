@@ -76,8 +76,8 @@ const transcriptBlock = (transcript) => (transcript?.length
 async function draftFromNarrative({ state, refs, narrative, slotKeys, transcript = [] } = {}) {
   const keys = [...new Set((slotKeys || []).filter((k) => NARRATIVE_SLOTS.includes(k)))];
   const criteria = refs?.capstone?.criteria || [];
-  // Без критеріїв Capstone у довіднику програми слот capstone не чернеткується
-  const wanted = keys.filter((k) => k !== 'course.capstone' || criteria.length);
+  // B10: без критеріїв Capstone у довіднику набору (MMM26) зв'язок із Capstone чернеткується звичайним текстом, criteriaKeys: []
+  const wanted = keys;
   if (!wanted.length || !String(narrative || '').trim()) return [];
 
   const schema = {
@@ -102,9 +102,9 @@ async function draftFromNarrative({ state, refs, narrative, slotKeys, transcript
     required: ['drafts'],
     additionalProperties: false,
   };
-  const capstoneBlock = wanted.includes('course.capstone')
-    ? `Capstone criteria of ${refs.programCode}:\n${criteria.map((c) => `- ${c.key}: ${c.name} — ${c.description}`).join('\n')}`
-    : '';
+  const capstoneBlock = !wanted.includes('course.capstone') ? ''
+    : criteria.length ? `Capstone criteria of ${refs.programCode}:\n${criteria.map((c) => `- ${c.key}: ${c.name} — ${c.description}`).join('\n')}`
+      : `${refs?.programCode || 'This programme'} has no Capstone criteria catalog yet: for course.capstone write the connection as plain text (how the course work can feed into the final Capstone project) and leave criteriaKeys empty.`;
   const system = [
     buildPreamble({ refs, state }),
     'Task: the instructor described the course in their own words. Draft the requested syllabus slots from that description. Return exactly one draft per requested slot.',

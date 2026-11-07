@@ -62,6 +62,10 @@ function writeSlot(state, path, value, { source }) {
   if (typeof value === 'string' && isObject(current) && 'text' in current) {
     return setPath(state, path, { ...current, text: value, source, evidenceBlockIds: [] });
   }
+  // B08: текстовий слот-об'єкт, якого ще немає в старому стані (необов'язковий ключ схеми) — створюється як об'єкт
+  if (typeof value === 'string' && current === undefined && textObjectPaths().has(path)) {
+    return setPath(state, path, { text: value, source, evidenceBlockIds: [] });
+  }
   // Текст із супутніми полями чернетки (Capstone: { text, criteriaKeys }): решта полів слота зберігається
   if (isObject(value) && typeof value.text === 'string' && isObject(current) && 'text' in current) {
     const known = Object.fromEntries(Object.entries(value).filter(([k]) => k in current && !['source', 'evidenceBlockIds'].includes(k)));
@@ -71,6 +75,16 @@ function writeSlot(state, path, value, { source }) {
     return setPath(state, path, toEntities(path, value, current, source));
   }
   return setPath(state, path, value);
+}
+
+/** Шляхи текстових слотів-об'єктів { text, … } (реєстр чернеток DRAFTABLE, без полів сутностей). */
+let textPaths = null;
+function textObjectPaths() {
+  if (!textPaths) {
+    const { DRAFTABLE } = require('../ai/slotDrafts');
+    textPaths = new Set(Object.values(DRAFTABLE).filter((d) => d.mode === 'text' && !d.entity).map((d) => d.path));
+  }
+  return textPaths;
 }
 
 /** Текст варіанта політики з довідника. */

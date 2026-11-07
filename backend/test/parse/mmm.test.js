@@ -88,3 +88,23 @@ test('ПРН із розділу 1 файлу — картка-питання, �
   // У MBA розділу немає — картки теж
   expect(programmeOutcomeCards(mmmSlots().programmeOutcomes, state, refs('MBA28'))).toEqual([]);
 });
+
+test('B01: рівень рубрики з вигаданим описом чи URL відкидається, навіть якщо бал написано', () => {
+  const x = mmmSlots();
+  x.assessments[0].rubric = [{ points: 2, descriptor: 'Analyze the Secret Example Corporation case at https://invented.example/audit' }, { points: 1, descriptor: 'частковий' }];
+  const { slots, warnings } = sanitize(x, blocks);
+  expect(slots.assessments[0].rubric).toEqual([{ points: 1, descriptor: 'частковий' }]);
+  expect(warnings.join(' ')).toMatch(/rubric/);
+});
+
+test('B06: українські тексти політик із файлу збігаються з textUk довідника; locked — українською', async () => {
+  const { matchPolicies } = require('../../services/ai/parse/policyMatch');
+  const attendance = mmm.policyLibrary.blocks.find((b) => b.key === 'policy.attendance');
+  const absence = mmm.policyLibrary.blocks.find((b) => b.key === 'policy.absence');
+  const segments = [{ text: attendance.options[0].textUk, blockIds: ids(30), topicHint: 'attendance' }];
+  const res = await matchPolicies({ segments, refs: mmm, language: 'uk' }, {
+    classify: async () => [{ segmentIndex: 0, blockKey: 'policy.attendance', optionKey: attendance.options[0].key, match: 'exact' }],
+  });
+  expect(res.matches[0]).toMatchObject({ key: 'policy.attendance', candidateOptionKey: attendance.options[0].key });
+  expect(res.policies.find((p) => p.key === 'policy.absence').text).toBe(absence.textUk);
+});

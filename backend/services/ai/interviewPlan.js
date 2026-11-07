@@ -6,8 +6,9 @@ const { getPath } = require('../syllabusState/paths');
 const { NARRATIVE_SLOTS } = require('./slotDrafts');
 
 // Порядок = потік розмови: про курс → результати → сесії → оцінювання → матеріали (політики — картки policy-choice)
+// B09: «Практичне застосування» (профіль MMM) — після розповіді про курс; для програм без розділу слот відсіюється за шаблоном
 const QUESTION_SLOTS = [
-  ...NARRATIVE_SLOTS, 'schedule.sessions', 'schedule.individual_work', 'assessment.criteria', 'materials.required',
+  ...NARRATIVE_SLOTS, 'course.practical_application', 'schedule.sessions', 'schedule.individual_work', 'assessment.criteria', 'materials.required',
 ];
 
 function hasContent(value) {

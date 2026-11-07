@@ -16,7 +16,7 @@ function policiesFromRefs(refs, language = 'en') {
       mode: locked ? 'locked' : 'library',
       optionKey: null,
       candidateOptionKey: null,
-      text: locked ? lockedText(b, language) : null,
+      text: locked ? lockedText(b, language, refs) : null,
       fixtureRef: locked ? { key: b.key, version } : null,
       modified: false,
       ...prov(locked ? 'fixture' : null),

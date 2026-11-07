@@ -109,9 +109,13 @@ async function classify(segments, blocks, stats) {
 
 const MATCH_RANK = { exact: 3, equivalent: 2, partial: 1, none: 0 };
 
+// B06: файл може бути українською — порівнюємо з обома версіями тексту довідника (text і textUk)
+const bestSimilarity = (text, entry) => Math.max(similarity(text, entry?.text || ''), entry?.textUk ? similarity(text, entry.textUk) : 0);
+const numbersCompatibleAny = (text, entry) => numbersCompatible(text, entry.text) || (entry.textUk ? numbersCompatible(text, entry.textUk) : false);
+
 /** Найкращий варіант довідника за схожістю з текстом. */
 function bestOption(block, text) {
-  return (block.options || []).map((o) => ({ optionKey: o.key, similarity: similarity(text, o.text) }))
+  return (block.options || []).map((o) => ({ optionKey: o.key, similarity: bestSimilarity(text, o) }))
     .sort((a, b) => b.similarity - a.similarity)[0] || null;
 }
 
@@ -124,8 +128,8 @@ function pickCandidate(block, text, judgements) {
   const strongest = judgements.reduce((m, j) => (MATCH_RANK[j.match] > MATCH_RANK[m] ? j.match : m), 'none');
   if (!judged) return { candidateOptionKey: null, similarity: best?.similarity ?? 0, match: strongest, by: null };
   const option = block.options.find((o) => o.key === judged.optionKey);
-  const sim = similarity(text, option.text);
-  if (sim < MIN_CANDIDATE_SIMILARITY || !numbersCompatible(text, option.text)) {
+  const sim = bestSimilarity(text, option);
+  if (sim < MIN_CANDIDATE_SIMILARITY || !numbersCompatibleAny(text, option)) {
     return { candidateOptionKey: null, similarity: sim, match: 'partial', by: null };
   }
   return { candidateOptionKey: judged.optionKey, similarity: sim, match: judged.match, by: 'model' };
@@ -138,8 +142,9 @@ function pickCandidate(block, text, judgements) {
  *   policies — усі блоки довідника у формі state.policies; matches — [{ key, candidateOptionKey, match, similarity }]
  *   lockedNotes — [{ key, fileText, similarity, match, evidenceBlockIds }] для info-карток
  */
-async function matchPolicies({ segments = [], refs }, deps = {}) {
-  const policies = policiesFromRefs(refs);
+async function matchPolicies({ segments = [], refs, language = 'en' }, deps = {}) {
+  // Тексти locked-блоків — мовою документа (B06)
+  const policies = policiesFromRefs(refs, language);
   const blocks = (refs?.policyLibrary?.blocks || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const usable = segments.filter((s) => String(s.text || '').trim());
   if (!usable.length || !blocks.length) return { policies, matches: [], lockedNotes: [] };
@@ -157,7 +162,7 @@ async function matchPolicies({ segments = [], refs }, deps = {}) {
     const policy = policies.find((p) => p.key === block.key);
 
     if (block.mode === 'locked') {
-      const sim = similarity(text, block.text);
+      const sim = bestSimilarity(text, block);
       const strongest = mine.reduce((m, c) => (MATCH_RANK[c.match] > MATCH_RANK[m] ? c.match : m), 'none');
       if (sim < 1) lockedNotes.push({ key: block.key, fileText: text, similarity: sim, match: strongest, evidenceBlockIds });
       matches.push({ key: block.key, candidateOptionKey: null, match: strongest, similarity: sim });

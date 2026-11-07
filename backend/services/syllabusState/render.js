@@ -55,8 +55,8 @@ function ploCoverage(s, refs) {
  * Текст з файлу без обраного варіанта (source: 'parsed') — ще не рішення: показується текст файлу з позначкою
  * FROM_FILE_NOTE; плейсхолдер лише тоді, коли тексту немає.
  */
-function policyText(p, block, language) {
-  if (p.mode === 'locked') return p.text || lockedText(block, language) || '';
+function policyText(p, block, language, refs) {
+  if (p.mode === 'locked') return p.text || lockedText(block, language, refs) || '';
   const own = ['instructor_directed', 'fixture_edited'].includes(p.source) || p.modified;
   // Плейсхолдер і позначка «з файлу» — мовою документа
   const choose = language === 'uk' ? CHOOSE_OPTION_UK : CHOOSE_OPTION;
@@ -179,7 +179,7 @@ const RENDERERS = {
     const blocks = new Map((refs?.policyLibrary?.blocks || []).map((b) => [b.key, b]));
     return (s.policies || []).flatMap((p) => {
       const block = blocks.get(p.key);
-      return [heading(blockTitle(block, s.language) || p.key), ...textBlocks(policyText(p, block, s.language))];
+      return [heading(blockTitle(block, s.language) || p.key), ...textBlocks(policyText(p, block, s.language, refs))];
     });
   },
 };

@@ -76,6 +76,17 @@ async function commit(syllabusId, revision, state, changes, { by = null, source 
  */
 const COURSE_KIND_SECTIONS = ['at_a_glance', 'learning_outcomes'];
 
+/**
+ * Розділи, чиє подання залежить від даних інших розділів (B05): зміна шляху з префіксом знімає й їхнє затвердження.
+ * ПРН результатів навчання → «Зв'язок з результатами програми»; гості й модулі → розклад; сесії → матеріали за сесіями.
+ */
+const DEPENDENT_SECTIONS = [
+  { prefix: 'outcomes', sections: ['programme_outcomes'] },
+  { prefix: 'guests', sections: ['schedule', 'guest_speakers'] },
+  { prefix: 'modules', sections: ['schedule'] },
+  { prefix: 'sessions', sections: ['materials'] },
+];
+
 async function mutate(syllabusId, expectedRevision, fn, ctx = {}) {
   if (!Number.isInteger(expectedRevision)) throw httpError(400, 'expectedRevision is required', { code: 'REVISION_REQUIRED' });
   const { state: before } = await loadAt(syllabusId, expectedRevision);
@@ -85,6 +96,9 @@ async function mutate(syllabusId, expectedRevision, fn, ctx = {}) {
 
   const changes = changedPaths(before, next);
   const touched = new Set(changes.map((c) => c.section).filter(Boolean));
+  for (const { path } of changes) {
+    for (const dep of DEPENDENT_SECTIONS) if (path === dep.prefix || path.startsWith(`${dep.prefix}[`) || path.startsWith(`${dep.prefix}.`)) dep.sections.forEach((k) => touched.add(k));
+  }
   // E-поле courseKind (зміна призначення чи нормативних курсів) у SlotChange не потрапляє, але від нього залежать
   // At a Glance (Course type) і Learning Outcomes (перевірка покриття ПРН): затвердження знімається в тому ж записі (C07)
   if ((before.header?.courseKind ?? null) !== (next.header?.courseKind ?? null)) COURSE_KIND_SECTIONS.forEach((k) => touched.add(k));
@@ -216,4 +230,4 @@ async function revertChange(syllabusId, slotChange, ctx = {}) {
   });
 }
 
-module.exports = { COURSE_KIND_SECTIONS, getState, mutate, initState, approveSection, unapproveSection, approveAll, revertChange };
+module.exports = { COURSE_KIND_SECTIONS, assertSectionKey, getState, mutate, initState, approveSection, unapproveSection, approveAll, revertChange };

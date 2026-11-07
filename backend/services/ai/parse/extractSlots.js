@@ -254,11 +254,12 @@ function sanitize(x, blocks) {
   slots.individualWork.forEach((w, i) => guardNumber(w, 'hours', `individualWork[${i}].hours`));
   slots.assessments.forEach((a, i) => guardNumber(a, 'weight', `assessments[${i}].weight`));
   slots.assessments.forEach((a, i) => { guardNumber(a, 'maxPoints', `assessments[${i}].maxPoints`); guardNumber(a, 'unitCount', `assessments[${i}].unitCount`); });
-  // Рівні рубрики — лише з числом, написаним у цитованих блоках
+  // Рівні рубрики (B01) — лише дослівно з цитованих блоків: і бали, і опис (з усім, що в ньому, зокрема URL)
   slots.assessments.forEach((a, i) => {
     const near = numbersNear(a.blockIds);
-    const kept = (a.rubric || []).filter((r) => near.has(String(r.points)));
-    if (kept.length !== (a.rubric || []).length) warnings.push(`assessments[${i}].rubric: levels whose points are not written in the cited blocks were dropped`);
+    const source = norm(a.blockIds.map((id) => byId.get(id) || '').join(' '));
+    const kept = (a.rubric || []).filter((r) => near.has(String(r.points)) && source.includes(norm(r.descriptor)));
+    if (kept.length !== (a.rubric || []).length) warnings.push(`assessments[${i}].rubric: levels that are not written verbatim in the cited blocks were dropped`);
     a.rubric = kept;
   });
   slots.programmeOutcomes = (slots.programmeOutcomes || []).map((p) => ({ ...p, ploCode: normalizePloCode(p.ploCode) }));

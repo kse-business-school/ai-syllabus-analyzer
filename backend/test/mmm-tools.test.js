@@ -84,3 +84,14 @@ describe('B-9.3: прохідний бал програми', () => {
     expect(ids({ passingScore: 50 })).not.toContain('regulations.passing_score');
   });
 });
+
+describe('аудит B: факти українською і блок програми', () => {
+  test('B02: «20 годин підготовки» за відомих «20 студентів» — proposedValue; слова-числа й дати теж', () => {
+    const part = itemsDraft('schedule.sessions', { state: base(), known: ['Курс розрахований на 20 студентів'], items: [{ id: null, label: 'Вступ', prep: '20 годин підготовки', deadline: 'першого грудня' }] });
+    expect(part.proposedValues.map((v) => v.value)).toEqual(expect.arrayContaining(['20 годин', 'першого грудня']));
+  });
+  test('B03: propose_draft для блоку програми — лише зі списку', async () => {
+    const ctx = { state: base(), refs: mmm, lastUtterance: 'Мій блок 9.9', utterances: ['Мій блок 9.9'], createdIds: [], deps: { createDraftSuggestions: async () => [{ _id: 'x', draft: {} }] } };
+    expect(await HANDLERS.propose_draft(ctx, { key: 'glance.program_block', text: '9.9' })).toMatchObject({ error: 'INVALID_VALUE' });
+  });
+});

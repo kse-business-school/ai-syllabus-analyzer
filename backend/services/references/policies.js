@@ -57,7 +57,7 @@ function toBlock(doc) {
     required: d.blockRequired !== false,
     rationale: d.rationale,
   };
-  if (d.mode === 'locked') Object.assign(block, { text: d.text }, ukFields(d));
+  if (d.mode === 'locked') Object.assign(block, { text: d.text }, ukFields(d), d.param ? { param: d.param, paramDefault: d.paramDefault } : {});
   else block.options = (d.options || []).map(optionFields);
   return block;
 }
@@ -78,7 +78,7 @@ function blockFields(block, version) {
     libraryVersion: version,
   };
   if (block.mode === 'locked') {
-    Object.assign(fields, { text: block.text, textUk: undefined, status: undefined }, ukFields(block));
+    Object.assign(fields, { text: block.text, textUk: undefined, status: undefined, param: block.param, paramDefault: block.paramDefault }, ukFields(block));
     fields.options = [];
   } else {
     fields.options = block.options.map(optionFields);

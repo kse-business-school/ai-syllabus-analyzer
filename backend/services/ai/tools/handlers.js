@@ -53,6 +53,8 @@ const NUMBER_FIELD_WORDS = {
 const NUMBER_FIELD_DISTANCE = 3;
 // Формат курсу українською (B-3.6, MMM): викладач пише «офлайн», у стані — offline
 const DELIVERY_ALIASES = { 'офлайн': 'offline', 'очно': 'offline', 'онлайн': 'online', 'змішаний': 'hybrid', 'гібрид': 'hybrid', 'гібридний': 'hybrid' };
+/** Блок програми із закритого списку за кодом («2.2») або повною назвою; null — немає такого. */
+const programBlockOf = (refs, value) => (refs?.programBlocks || []).find((b) => norm(b.code) === norm(value) || norm(b.label) === norm(value)) || null;
 // Псевдослот розмови: одне питання про кілька полів At a Glance на початку інтерв'ю
 const GLANCE_BLOCK = 'glance.block';
 const MAX_BARE_ANSWER_TOKENS = 3;
@@ -245,7 +247,7 @@ async function set_slot(tctx, { key, value }) {
   } else if (slot.path === 'header.programBlock') {
     // B-8.6: лише значення із закритого списку програми — за кодом блоку («2.2») або повною назвою
     const blocks = tctx.refs?.programBlocks || [];
-    const block = blocks.find((b) => norm(b.code) === norm(raw) || norm(b.label) === norm(raw));
+    const block = programBlockOf(tctx.refs, raw);
     if (!block) return fail('INVALID_VALUE', blocks.length ? `Programme block must be one of: ${blocks.map((b) => b.label).join('; ')}` : 'This programme has no blocks');
     next = block.label;
   } else if (slot.path === 'header.deliveryFormat') {
@@ -307,8 +309,13 @@ async function propose_draft(tctx, { key, text, instruction, entity_id: entityId
       value = Number(body.replace(',', '.'));
       if (!Number.isFinite(value) || value < 0) return fail('INVALID_VALUE', 'Expected a non-negative number');
     } else if (slot.path === 'header.deliveryFormat') {
-      value = norm(body);
+      value = DELIVERY_ALIASES[norm(body)] || norm(body);
       if (!DELIVERY_FORMATS.includes(value)) return fail('INVALID_VALUE', `Delivery mode must be one of: ${DELIVERY_FORMATS.join(', ')}`);
+    } else if (slot.path === 'header.programBlock') {
+      // B03: закритий список програми — той самий, що в set_slot і PUT /program-block
+      const block = programBlockOf(tctx.refs, body);
+      if (!block) return fail('INVALID_VALUE', `Programme block must be one of: ${(tctx.refs?.programBlocks || []).map((b) => b.label).join('; ') || 'none (this programme has no blocks)'}`);
+      value = block.label;
     }
     path = slot.path;
     part = { target: { path, entityId: null }, value, text: body };

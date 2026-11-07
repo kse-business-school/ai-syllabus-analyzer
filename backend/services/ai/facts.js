@@ -6,7 +6,22 @@ const NUMBER_WORDS = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
   seventy: 70, eighty: 80, ninety: 90, hundred: 100,
+  // B02: українські слова-числа (апостроф нормалізується до ')
+  'один': 1, 'одна': 1, 'одне': 1, 'два': 2, 'дві': 2, 'три': 3, 'чотири': 4, "п'ять": 5, 'шість': 6, 'сім': 7, 'вісім': 8,
+  "дев'ять": 9, 'десять': 10, 'одинадцять': 11, 'дванадцять': 12, "п'ятнадцять": 15, 'двадцять': 20, 'тридцять': 30,
+  'сорок': 40, "п'ятдесят": 50, 'шістдесят': 60, 'сто': 100,
 };
+// Українські одиниці й місяці (родовий відмінок) — факти в чернетках силабусів мовою uk (B02)
+const UNITS_UK = 'годин\\p{L}*|год|хвилин\\p{L}*|хв|дн\\p{L}*|день|тижн\\p{L}*|тижд\\p{L}*|місяц\\p{L}*|бал\\p{L}*|кредит\\p{L}*|єктс|сторін\\p{L}*|слайд\\p{L}*|слів|разів|рази';
+const MONTHS_UK = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+// Порядкові числівники дня в родовому відмінку: «першого грудня», «двадцять п'ятого травня»
+const ORDINALS_UK = {
+  'першого': 1, 'другого': 2, 'третього': 3, 'четвертого': 4, "п'ятого": 5, 'шостого': 6, 'сьомого': 7, 'восьмого': 8,
+  "дев'ятого": 9, 'десятого': 10, 'одинадцятого': 11, 'дванадцятого': 12, 'тринадцятого': 13, 'чотирнадцятого': 14,
+  "п'ятнадцятого": 15, 'шістнадцятого': 16, 'сімнадцятого': 17, 'вісімнадцятого': 18, "дев'ятнадцятого": 19,
+  'двадцятого': 20, 'тридцятого': 30,
+};
+const ORDINAL_UK_RE = `(?:(?:двадцять|тридцять) )?(?:${Object.keys(ORDINALS_UK).join('|')})`;
 const UNITS = 'hours?|hrs?|h|days?|weeks?|months?|minutes?|mins?|points?|pts?|ac(?:ademic)?\\.? hours?|ects|credits?|percent|%|times|slides?|pages?|words?';
 const NUM = '\\d+(?:[.,]\\d+)?';
 const WORDNUM = `(?:${Object.keys(NUMBER_WORDS).join('|')})(?:[- ](?:${Object.keys(NUMBER_WORDS).join('|')}))?`;
@@ -15,14 +30,18 @@ const MONTHS = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|j
 // Порядок важливий: довші шаблони раніше, щоб «48 hours» не розпалось на «48»
 const PATTERNS = [
   { label: 'Date', re: new RegExp(`\\b\\d{4}-\\d{2}-\\d{2}\\b|\\b\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}\\b|\\b(?:${MONTHS})\\.? \\d{1,2}(?:st|nd|rd|th)?(?:,? \\d{4})?\\b|\\b\\d{1,2}(?:st|nd|rd|th)? (?:of )?(?:${MONTHS})(?:,? \\d{4})?\\b`, 'gi') },
+  // B02: українські дати («1 грудня 2026», «першого грудня»), відсотки й кількості — з межами слів для кирилиці
+  { label: 'Date', re: new RegExp(`(?<![\\p{L}\\p{N}])(?:\\d{1,2}|${ORDINAL_UK_RE}) (?:${MONTHS_UK.join('|')})(?: \\d{4})?(?![\\p{L}])`, 'giu') },
   { label: 'Time', re: /\b\d{1,2}[:.]\d{2}\s?(?:[–-]\s?\d{1,2}[:.]\d{2})?\s?(?:am|pm)?\b/gi },
   { label: 'Percentage', re: new RegExp(`\\b${NUM}\\s?%|\\b${NUM} percent\\b|\\b${WORDNUM} percent\\b`, 'gi') },
+  { label: 'Percentage', re: new RegExp(`(?<![\\p{L}\\p{N}])(?:${NUM}|${WORDNUM}) відсот\\p{L}*`, 'giu') },
   { label: 'Quantity', re: new RegExp(`\\b(?:${NUM}|${WORDNUM})(?:\\s?[-–]\\s?(?:${NUM}))?[- ](?:${UNITS})\\b`, 'gi') },
+  { label: 'Quantity', re: new RegExp(`(?<![\\p{L}\\p{N}])(?:${NUM}|${WORDNUM})(?:\\s?[-–]\\s?(?:${NUM}))?[- ](?:${UNITS_UK})(?![\\p{L}])`, 'giu') },
   { label: 'Title', re: /“[^”]{3,120}”|"[^"]{3,120}"|«[^»]{3,120}»/g },
   { label: 'Number', re: new RegExp(`\\b${NUM}\\b`, 'g') },
 ];
 
-const norm = (s) => String(s || '').toLowerCase().replace(/[“”"«»]/g, '"').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
+const norm = (s) => String(s || '').toLowerCase().replace(/[’ʼ`]/g, "'").replace(/[“”"«»]/g, '"').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
 
 // Число — окреме слово: «clo3», «b0012», «obj2» чисел не дають, «2nd» дає 2; слова-числа — теж лише цілі («often» ≠ ten)
 const DIGITS_RE = /(?<![\p{L}\p{N}_])\d+(?:[.,]\d+)?(?=(?:st|nd|rd|th)?(?![\p{L}\p{N}_]))/gu;
@@ -38,8 +57,8 @@ function numbersOf(text) {
 
 // Сімейства одиниць: «48 hours», «48-hour», «48h», «48 hrs» — одна одиниця; «48 students» — інша
 const UNIT_FAMILIES = [
-  ['hour', /^(?:hours?|hrs?|h|годин\p{L}*)$/u],
-  ['minute', /^(?:minutes?|mins?|хвилин\p{L}*)$/u],
+  ['hour', /^(?:hours?|hrs?|h|годин\p{L}*|год)$/u],
+  ['minute', /^(?:minutes?|mins?|хвилин\p{L}*|хв)$/u],
   ['day', /^(?:days?|дн\p{L}*|день|доби|діб)$/u],
   ['week', /^(?:weeks?|тижд\p{L}*|тижн\p{L}*)$/u],
   ['month', /^(?:months?|місяц\p{L}*)$/u],
@@ -57,7 +76,7 @@ const UNIT_WINDOW = 3;
 
 /** Токени: числа (у т. ч. слова-числа → цифри), «%», слова. */
 function tokensOf(text) {
-  return (norm(text).match(/\d+(?:[.,]\d+)?|%|\p{L}+/gu) || []).map((t) => (NUMBER_WORDS[t] !== undefined ? String(NUMBER_WORDS[t]) : t.replace(',', '.')));
+  return (norm(text).match(/\d+(?:[.,]\d+)?|%|[\p{L}']+/gu) || []).map((t) => (NUMBER_WORDS[t] !== undefined ? String(NUMBER_WORDS[t]) : t.replace(',', '.')));
 }
 const isNumberToken = (t) => /^\d/.test(t);
 
@@ -93,6 +112,13 @@ function dateKey(text) {
   if (m) return { y: year4(m[3]), m: MONTH_INDEX.indexOf(m[1]) + 1, d: Number(m[2]) };
   m = new RegExp(`(\\d{1,2})(?:st|nd|rd|th)? (?:of )?(${MONTH_RE})\\w*(?:,? (\\d{4}))?`).exec(t);
   if (m) return { y: year4(m[3]), m: MONTH_INDEX.indexOf(m[2]) + 1, d: Number(m[1]) };
+  // Українські: «1 грудня 2026», «двадцять п'ятого травня»
+  m = new RegExp(`(\\d{1,2}|${ORDINAL_UK_RE}) (${MONTHS_UK.join('|')})(?: (\\d{4}))?`, 'u').exec(t);
+  if (m) {
+    const day = /^\d/.test(m[1]) ? Number(m[1])
+      : m[1].split(' ').reduce((sum, w) => sum + (ORDINALS_UK[w] ?? NUMBER_WORDS[w] ?? 0), 0);
+    return { y: year4(m[3]), m: MONTHS_UK.indexOf(m[2]) + 1, d: day };
+  }
   return null;
 }
 
@@ -108,7 +134,8 @@ function timeKeys(text) {
   });
 }
 
-const DATE_RE = PATTERNS.find((p) => p.label === 'Date').re;
+const DATE_RES = PATTERNS.filter((p) => p.label === 'Date').map((p) => p.re);
+const DATE_RE = DATE_RES[0];
 const TIME_RE = PATTERNS.find((p) => p.label === 'Time').re;
 const escapeRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /**
@@ -125,7 +152,7 @@ function corpusOf(known) {
     text: corpus,
     numbers: new Set(numbersOf(corpus)),
     quantities: quantitiesOf(text),
-    dates: [...corpus.matchAll(new RegExp(DATE_RE.source, 'gi'))].map((m) => dateKey(m[0])).filter(Boolean),
+    dates: DATE_RES.flatMap((re) => [...corpus.matchAll(new RegExp(re.source, re.flags))]).map((m) => dateKey(m[0])).filter(Boolean),
     times: new Set([...corpus.matchAll(new RegExp(TIME_RE.source, 'gi'))].flatMap((m) => timeKeys(m[0]))),
   };
 }

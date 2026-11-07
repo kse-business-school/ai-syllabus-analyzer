@@ -398,7 +398,7 @@ function policiesSection(state, refs) {
     const p = byKey.get(b.key);
     // B-1.4: заголовок і текст довідника — мовою документа
     const title = blockTitle(b, state.language);
-    if (b.mode === 'locked') { emit(title, has(p?.text) ? p.text : lockedText(b, state.language), title); continue; }
+    if (b.mode === 'locked') { emit(title, has(p?.text) ? p.text : lockedText(b, state.language, refs), title); continue; }
     if (has(p?.text) && !has(p?.optionKey)) {
       if (policyDecided(p)) { emit(title, p.text, title); continue; } // власний текст викладача
       // Текст з файлу без вибору: показуємо його з позначкою, а не порожній плейсхолдер

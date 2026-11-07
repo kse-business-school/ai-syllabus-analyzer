@@ -57,11 +57,20 @@ function scheduleSchema(componentIds, itemIds) {
 
 const llmCheck = (props) => ({ ...makeCheck(props), source: 'llm' });
 
-// Пункти розкладу: заняття і самостійна робота
-const scheduleItems = (state) => [
-  ...(state.sessions || []).map((s) => ({ id: s.id, kind: 'session', n: s.n, text: [s.topic, s.additional].filter(filled).join(' — '), date: s.date || null })),
-  ...(state.individualWork || []).map((w) => ({ id: w.id, kind: 'individual_work', text: w.title || '' })),
-].filter((x) => filled(x.text));
+// Пункти розкладу: заняття (з назвою модуля, B11 / B-6.2 — компонент може бути названий на рівні модуля),
+// підготовка й дедлайн сесії, самостійна робота
+const scheduleItems = (state) => {
+  const modules = new Map((state.modules || []).map((m) => [m.id, m.title]));
+  return [
+    ...(state.sessions || []).map((s) => ({
+      id: s.id, kind: 'session', n: s.n,
+      text: [modules.get(s.moduleId), s.topic, s.additional, s.prep, s.deadline].filter(filled).join(' — '),
+      ...(s.moduleId && modules.get(s.moduleId) ? { module: modules.get(s.moduleId) } : {}),
+      date: s.date || null,
+    })),
+    ...(state.individualWork || []).map((w) => ({ id: w.id, kind: 'individual_work', text: w.title || '' })),
+  ].filter((x) => filled(x.text));
+};
 
 /**
  * Детермінований збіг компонент ↔ розклад за назвами. Participation не прив'язується до одного заняття — пропускаємо.

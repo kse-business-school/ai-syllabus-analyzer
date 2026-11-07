@@ -2,7 +2,7 @@
 // extractSlots (LLM) → policyMatch (LLM-класифікація + детермінована схожість) → toState (детерміновано).
 const { extractSlots } = require('./extractSlots');
 const { matchPolicies } = require('./policyMatch');
-const { toState } = require('./toState');
+const { toState, detectLanguage } = require('./toState');
 const references = require('../../references');
 
 /**
@@ -28,7 +28,9 @@ async function parseToState({ blocks, meta = {}, programCode, refs, course = {} 
   warnings.push(...extracted.warnings);
   const { slots } = extracted;
 
-  const policyResult = await (deps.matchPolicies || matchPolicies)({ segments: slots.policySegments, refs }, { stats: deps.stats });
+  // Мова документа визначається до зіставлення політик: locked-тексти й варіанти — тією ж мовою (B06)
+  const language = detectLanguage(slots);
+  const policyResult = await (deps.matchPolicies || matchPolicies)({ segments: slots.policySegments, refs, language }, { stats: deps.stats });
   const courseCode = courseCodeOf(slots.header.code, course);
   const match = await (deps.courseKind || references.courseKind)(programCode, {
     courseCode, courseTitle: slots.header.title || course.title,
