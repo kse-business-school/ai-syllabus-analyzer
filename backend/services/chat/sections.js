@@ -26,8 +26,9 @@ async function blockersBuilder(ctx) {
 /** Розділи, які можна затвердити одним натисканням: пороги пройдені, відкритих карток і перевірок немає. */
 async function approvableSections(ctx) {
   const blockerOf = await blockersBuilder(ctx);
+  // Тексти рівня програми (nature: locked, «Педагогічний підхід») не затверджуються викладачем
   return (ctx.refs.template || [])
-    .filter((t) => !ctx.state.sections?.[t.key]?.approved && !sectionGaps(t.key, ctx.state).length && !blockerOf(t.key))
+    .filter((t) => t.nature !== 'locked' && !ctx.state.sections?.[t.key]?.approved && !sectionGaps(t.key, ctx.state).length && !blockerOf(t.key))
     .map((t) => t.key);
 }
 

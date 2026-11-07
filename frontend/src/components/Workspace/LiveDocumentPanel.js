@@ -385,7 +385,7 @@ const LiveDocumentPanel = ({
                       {undecidedPolicies.map((p) => (
                         <Button key={p.key} size="small" variant="outlined" color="warning" onClick={() => setPolicyKey(p.key)}
                           sx={{ fontSize: '0.6875rem', py: 0.2, textTransform: 'none' }}>
-                          {`Choose an option: ${policyLibrary[p.key]?.title || p.key}`}
+                          {`Choose an option: ${(language === 'uk' && policyLibrary[p.key]?.titleUk) || policyLibrary[p.key]?.title || p.key}`}
                         </Button>
                       ))}
                     </Box>

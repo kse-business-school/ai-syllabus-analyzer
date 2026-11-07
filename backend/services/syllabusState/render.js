@@ -9,6 +9,8 @@ const CHOOSE_OPTION = '[Choose an option]';
 // Текст library-політики з файлу, поки викладач не обрав варіант і не залишив свій текст
 const FROM_FILE_NOTE = '(from your file — choose an option or keep your text)';
 const EMPTY = '—';
+const CHOOSE_OPTION_UK = '[Оберіть варіант]';
+const FROM_FILE_NOTE_UK = '(з вашого файлу — оберіть варіант або залиште свій текст)';
 
 const filled = (v) => v !== null && v !== undefined && String(v).trim() !== '';
 const val = (v) => (filled(v) ? String(v).trim() : EMPTY);
@@ -56,10 +58,12 @@ function ploCoverage(s, refs) {
 function policyText(p, block, language) {
   if (p.mode === 'locked') return p.text || lockedText(block, language) || '';
   const own = ['instructor_directed', 'fixture_edited'].includes(p.source) || p.modified;
+  // Плейсхолдер і позначка «з файлу» — мовою документа
+  const choose = language === 'uk' ? CHOOSE_OPTION_UK : CHOOSE_OPTION;
   if (own && filled(p.text)) return p.text;
-  if (filled(p.optionKey)) return optionText(block?.options?.find((o) => o.key === p.optionKey), language) || p.text || CHOOSE_OPTION;
-  if (filled(p.text)) return `${p.text.trim()} ${FROM_FILE_NOTE}`;
-  return CHOOSE_OPTION;
+  if (filled(p.optionKey)) return optionText(block?.options?.find((o) => o.key === p.optionKey), language) || p.text || choose;
+  if (filled(p.text)) return `${p.text.trim()} ${language === 'uk' ? FROM_FILE_NOTE_UK : FROM_FILE_NOTE}`;
+  return choose;
 }
 
 const RENDERERS = {
@@ -73,7 +77,7 @@ const RENDERERS = {
       ...((refs?.programBlocks || []).length ? [row(L.programBlock, val(h.programBlock))] : []),
       row(L.courseType, val(h.courseKind ? L[h.courseKind] || capitalize(h.courseKind) : null)),
       row(L.term, val(range(h.term) || range(c.termFromSchedule))),
-      row(L.deliveryMode, val(h.deliveryFormat)),
+      row(L.deliveryMode, val(h.deliveryFormat ? L.formats?.[h.deliveryFormat] || h.deliveryFormat : null)),
       row(L.credits, val(h.ects)),
       row(L.totalHours, val(h.totalHours)),
       row(L.contactHours, val(c.contactHours)),

@@ -20,7 +20,8 @@ const SyllabusStructurePanel = ({ readiness, state = {}, sections = [], focusedK
     <List aria-label="Syllabus sections" sx={{ flex: 1, overflowY: 'auto', py: 1.5 }}>
       {grouped.groups.map(group => {
         const [color, status] = STATUS[group.status] || STATUS.empty;
-        const single = group.backendKeys.length === 1 || group.isVirtualAi;
+        // Підрозділи групи — лише коли відомі розділи профілю з назвами (без шаблону — лише групи)
+        const single = group.backendKeys.length === 1 || group.isVirtualAi || !sections.length;
         const singleStatus = single && !group.isVirtualAi ? sectionStatus(readiness?.sections?.[group.backendKeys[0]]) : null;
         const label = singleStatus === 'ready' ? SECTION_STATUS_LABELS.ready : status;
         return <React.Fragment key={group.id}>
