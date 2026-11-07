@@ -16,9 +16,19 @@ const CohortSelect = () => {
     api.cabinet.listPrograms()
       .then(({ data }) => {
         if (!active) return;
-        const list = (data || []).flatMap((p) => (p.editions || []).map((e) => ({ code: e.code, label: e.label || e.code })));
+        const programs = (data || []).filter((p) => (p.editions || []).length);
+        // Кілька програм з наборами — підпис з назвою програми, щоб EMBA25 і MBA25 не плутались
+        const many = programs.length > 1;
+        const list = [
+          ...programs.flatMap((p) => p.editions.map((e) => ({
+            code: e.code, label: `${many && !String(e.label || e.code).includes(p.code) ? `${p.name || p.code} · ` : ''}${e.label || e.code}`,
+          }))),
+          // Програма без наборів: її код сам є кодом довідників і призначень
+          ...(data || []).filter((p) => !(p.editions || []).length).map((p) => ({ code: p.code, label: p.name || p.code })),
+        ];
         setEditions(list);
-        if (list.length && !list.some((e) => e.code === currentCohort)) setCurrentCohort(list[0].code);
+        // За замовчуванням — найновіший набір першої програми (набори йдуть у порядку набору студентів)
+        if (list.length && !list.some((e) => e.code === currentCohort)) setCurrentCohort(programs[0]?.editions.at(-1).code || list[0].code);
       })
       .catch(() => {});
     return () => { active = false; };

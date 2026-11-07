@@ -3,6 +3,7 @@
 const { concretePath, sectionOfPath } = require('../../syllabusState/paths');
 const { SECTION_KEYS } = require('../../syllabusState/schema');
 const { policyDecided } = require('../../syllabusState/slots');
+const { normalizePloCode } = require('../../checks/plo');
 
 const PROMPT_VERSION = 'parse-cards-v1';
 
@@ -131,21 +132,54 @@ function policyCards(state, refs, { lockedNotes = [] } = {}) {
   return cards;
 }
 
-/** Збіг назви курсу з нормативним курсом програми: код не ставимо автоматично, питаємо викладача. */
+/**
+ * Збіг назви курсу з нормативним курсом програми: код не ставимо автоматично, а пропонуємо вибір (C16).
+ * Confirm записує код через ту саму перевірку призначення курс × набір, що й PUT (decisions → claimOfferingForCode).
+ */
 function courseHintCards(courseHint) {
   if (!courseHint) return [];
   return [{
     origin: 'check',
     checkId: 'course.code_hint',
     severity: 'info',
-    kind: 'question',
+    kind: 'choice',
+    choiceBasis: true,
     title: 'Is this a core course of the programme?',
-    description: `The course title matches the core course "${courseHint.title}" (code ${courseHint.code}) of the programme. If it is the same course, what is the course code in your syllabus?`,
+    description: `The course title matches the core course "${courseHint.title}" (code ${courseHint.code}) of the programme. If it is the same course, confirm its code; core courses must cover programme learning outcomes.`,
     rationale: 'Core courses must cover programme learning outcomes',
-    question: `The course title matches the core course "${courseHint.title}" (code ${courseHint.code}). If it is the same course, please confirm the course code.`,
     target: { path: 'header.courseCode', section: 'at_a_glance' },
+    options: [
+      { id: 'confirm', label: `Yes, the course code is ${courseHint.code}`, value: courseHint.code },
+      { id: 'different', label: 'No, it is a different course', value: null },
+    ],
     promptVersion: PROMPT_VERSION,
   }];
 }
 
-module.exports = { checksToCards, policyCards, courseHintCards, titleOf, TITLES };
+/**
+ * Зв'язки CLO → ПРН, названі у файлі, мають confirmed: false і не зараховуються (checks/plo, plo/coverage),
+ * доки викладач їх не підтвердить. Картка на кожен такий CLO: Confirm записує ті самі зв'язки з confirmed: true.
+ */
+function ploConfirmCards(state, refs) {
+  const known = new Set((refs?.outcomes || []).map((o) => normalizePloCode(o.code)));
+  const outcomes = state.outcomes || [];
+  return outcomes
+    .map((clo, i) => ({ clo, n: i + 1, links: (clo.plo || []).filter((p) => known.has(normalizePloCode(p.code))) }))
+    .filter(({ links }) => links.length && links.some((p) => p.confirmed !== true))
+    .map(({ clo, n, links }) => ({
+      origin: 'check',
+      checkId: `plo.confirm:${clo.id}`,
+      severity: 'medium',
+      kind: 'edit',
+      title: `Confirm the programme outcome links of LO${n}`,
+      description: `Your file links LO${n} to ${links.map((p) => `${p.code}${p.coverage === 'partial' ? ' (partial)' : ''}`).join(', ')}. `
+        + 'Confirm these links so they count towards programme outcome coverage, or cancel and map the outcome again.',
+      rationale: 'Links taken from the file count only after you confirm them.',
+      target: { path: `outcomes[${clo.id}].plo`, entityId: clo.id, section: 'learning_outcomes' },
+      value: links.map((p) => ({ code: p.code, coverage: p.coverage, confirmed: false })),
+      source: 'instructor_directed',
+      promptVersion: PROMPT_VERSION,
+    }));
+}
+
+module.exports = { checksToCards, policyCards, courseHintCards, ploConfirmCards, titleOf, TITLES };

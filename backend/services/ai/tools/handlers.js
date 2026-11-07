@@ -4,6 +4,8 @@
 //    (число — поруч із назвою поля, інакше AMBIGUOUS_VALUE);
 //  · propose_draft — лише pending-картка; для політик потрібна instruction-цитата з ОСТАННЬОЇ репліки викладача
 //    або розмова, переведена на цю політику кнопкою «Write my own»; факти додає серверний сканер;
+//  · propose_items / propose_instructor — сутності списків (заняття, оцінювання, матеріали, профіль) будує сервер,
+//    факти (числа, дати, назви, яких не казав викладач) — proposedValues окремих полів; запис лише через Confirm;
 //  · apply_edit — лише поточна картка (currentSuggestionId), яку AI показав останньою перед реплікою викладача,
 //    усі proposedValues підтверджені, остання репліка — явне підтвердження;
 //  · серверні репліки від імені викладача (Message.origin: 'server') не є ні його словами, ні підтвердженням;
@@ -14,7 +16,9 @@ const { getPath, setPath } = require('../../syllabusState/paths');
 const { computeReadiness } = require('../../syllabusState/readiness');
 const { DELIVERY_FORMATS } = require('../../syllabusState/schema');
 const { untrusted } = require('../prompts/preamble');
-const { DRAFTABLE, NUMERIC_PATHS, draftTarget, currentText, referenceTexts, filled } = require('../slotDrafts');
+const {
+  DRAFTABLE, NUMERIC_PATHS, ITEM_SLOTS, draftTarget, currentText, referenceTexts, filled, itemsDraft, instructorDraft,
+} = require('../slotDrafts');
 const { slotKeysOf } = require('./definitions');
 
 const MAX_DRAFT_CHARS = 4000;
@@ -94,9 +98,11 @@ function isExplicitConfirm(text) {
  * Залежності, яких не передав виклик, беруться зі справжніх модулів (завантажуються ліниво: чисті тести їх не потребують).
  * acceptSuggestion дефолту не має — його реалізує сервіс рішень чату.
  */
-function withDefaultDeps(deps = {}) {
+function withDefaultDeps(deps = {}, { draftOnly = false } = {}) {
   const out = { ...deps };
   if (!out.mutate) out.mutate = (...a) => require('../../syllabusState/store').mutate(...a);
+  // Хід Reword лише будує чернетку (N08): будь-який запис стану — помилка, навіть якщо інструмент його спробує
+  if (draftOnly) out.mutate = async () => { throw Object.assign(new Error('This turn only drafts; the syllabus cannot be changed'), { code: 'DRAFT_ONLY' }); };
   if (!out.getState) out.getState = (...a) => require('../../syllabusState/store').getState(...a);
   if (!out.createDraftSuggestions) out.createDraftSuggestions = (...a) => require('../../chat/draftSuggestions').createDraftSuggestions(...a);
   if (!out.runChecks) out.runChecks = (...a) => require('../../checks').runChecks(...a);
@@ -128,7 +134,10 @@ function createToolContext(ctx) {
     userId: ctx.userId ?? null,
     lastUtterance: last,
     utterances,
-    deps: withDefaultDeps(ctx.deps),
+    deps: withDefaultDeps(ctx.deps, { draftOnly: Boolean(ctx.draftOnly) }),
+    // Reword картки (N07, N08): чернетка будується на значенні картки, а стан не змінюється
+    draftOnly: Boolean(ctx.draftOnly),
+    draftBase: ctx.draftBase || null,
     startedAt: Date.now(),
     createdIds: [],
     wrote: false,
@@ -194,7 +203,13 @@ async function get_slot(tctx, { key }) {
   };
 }
 
+const draftOnlyError = () => fail('DRAFT_ONLY', 'This turn only rewords the draft on the card; use propose_items or propose_instructor');
+
+/** Значення чернетки картки для Reword, якщо інструмент пише в той самий шлях. */
+const draftBaseFor = (tctx, path) => (tctx.draftBase && tctx.draftBase.path === path ? tctx.draftBase.value : null);
+
 async function set_slot(tctx, { key, value }) {
+  if (tctx.draftOnly) return draftOnlyError();
   const { slot, error } = slotError(key, tctx.state);
   if (error) return error;
   if (key.startsWith('policy.') || slot.type === 'E' || slot.editability !== 'free') {
@@ -285,6 +300,8 @@ async function propose_draft(tctx, { key, text, instruction, entity_id: entityId
     part = { target: { path, entityId: null }, value, text: body };
     current = getPath(tctx.state, path);
   } else {
+    if (ITEM_SLOTS[key]) return fail('USE_PROPOSE_ITEMS', 'This slot is a list of items; use propose_items');
+    if (key === 'instructor.profile') return fail('USE_PROPOSE_INSTRUCTOR', 'Use propose_instructor for the instructor profile');
     return fail('SLOT_NOT_DRAFTABLE', 'This slot cannot be drafted as text; it is filled from a catalog or by a dedicated tool');
   }
 
@@ -319,7 +336,67 @@ async function propose_draft(tctx, { key, text, instruction, entity_id: entityId
   };
 }
 
+/** Посилання в чернетці — лише ті, що назвав викладач (перевірені URL додає suggest_readings). */
+const unverifiedUrl = (tctx, texts) => texts.flatMap((t) => String(t ?? '').match(/https?:\/\/\S+/gi) || [])
+  .some((u) => !tctx.utterances.some((m) => norm(m).includes(norm(u))));
+
+/** Спільне для propose_items / propose_instructor: картка з чернеткою, зібраною сервером. */
+async function createStructuredDraft(tctx, key, slot, part, description) {
+  const input = {
+    origin: 'orchestrator',
+    kind: 'edit',
+    severity: 'medium',
+    title: `Draft: ${sectionTitle(tctx, slot)}`,
+    description,
+    rationale: 'Based on what you told me in this conversation.',
+    target: part.target,
+    value: part.value,
+    text: part.text,
+    template: part.template,
+    proposedValues: part.proposedValues,
+    factsScanned: true,
+  };
+  const [created] = await tctx.deps.createDraftSuggestions([input], {
+    syllabusId: tctx.syllabusId, state: tctx.state, refs: tctx.refs, known: knownTexts(tctx, key, getPath(tctx.state, part.target.path)),
+  });
+  const id = String(created._id);
+  tctx.createdIds.push(id);
+  tctx.currentSlotKey = key;
+  const pv = created.draft?.proposedValues || [];
+  return {
+    ok: true, draft_id: id, status: 'pending',
+    proposed_values: pv.map((v) => ({ id: v.id, label: v.label, value: v.value })),
+    next_step: pv.length
+      ? 'Tell the instructor the draft is on a card. The listed values were not stated by them and must be confirmed on the card; then they press Confirm.'
+      : 'Tell the instructor the draft is on a card and they should press Confirm to save it.',
+  };
+}
+
+async function propose_items(tctx, { key, mode, items }) {
+  const { slot, error } = slotError(key, tctx.state);
+  if (error) return error;
+  if (!ITEM_SLOTS[key]) return fail('SLOT_NOT_LIST', `propose_items works only for: ${Object.keys(ITEM_SLOTS).join(', ')}`);
+  if (unverifiedUrl(tctx, (items || []).flatMap((i) => [i?.url, i?.label, i?.criteria]))) {
+    return fail('UNVERIFIED_URL', 'Links cannot be added unless the instructor gave them; use suggest_readings');
+  }
+  const known = knownTexts(tctx, key, getPath(tctx.state, ITEM_SLOTS[key].path));
+  const part = itemsDraft(key, { state: tctx.state, items, mode, known, base: draftBaseFor(tctx, ITEM_SLOTS[key].path) });
+  if (part.error) return fail(part.error, part.message);
+  return createStructuredDraft(tctx, key, slot, part, mode === 'replace' ? 'The list drafted from your answers in chat.' : 'Items drafted from your answers in chat.');
+}
+
+async function propose_instructor(tctx, values) {
+  const key = 'instructor.profile';
+  const { slot, error } = slotError(key, tctx.state);
+  if (error) return error;
+  if (unverifiedUrl(tctx, Object.values(values || {}).flat())) return fail('UNVERIFIED_URL', 'Links cannot be added unless the instructor gave them');
+  const part = instructorDraft({ state: tctx.state, values, known: knownTexts(tctx, key, tctx.state.instructors), base: draftBaseFor(tctx, 'instructors[]') });
+  if (part.error) return fail(part.error, part.message);
+  return createStructuredDraft(tctx, key, slot, part, 'Instructor details drafted from your answers in chat.');
+}
+
 async function apply_edit(tctx, { draft_id: draftId }) {
+  if (tctx.draftOnly) return draftOnlyError();
   const suggestion = await tctx.deps.findSuggestion(draftId);
   if (!suggestion || String(suggestion.syllabusId) !== String(tctx.syllabusId)) return fail('NOT_FOUND', 'Draft not found');
   if (suggestion.status !== 'pending') return fail('NOT_PENDING', 'This draft has already been decided');
@@ -408,7 +485,9 @@ async function suggest_ai_tools(tctx) {
   return { ok: true, created: created.length, draft_ids: created.map((c) => String(c._id)), next_step: 'Tell the instructor the ideas are on a card and ask which one they want and where to use it.' };
 }
 
-const HANDLERS = { get_slot, set_slot, propose_draft, apply_edit, run_checks, suggest_plo, suggest_readings, suggest_ai_tools };
+const HANDLERS = {
+  get_slot, set_slot, propose_draft, propose_items, propose_instructor, apply_edit, run_checks, suggest_plo, suggest_readings, suggest_ai_tools,
+};
 
 /** Виконує інструмент; збої повертаються моделі як { error }, а не кидаються. */
 async function runTool(tctx, name, args) {

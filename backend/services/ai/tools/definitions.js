@@ -2,6 +2,8 @@
 // Опис для моделі лише пояснює, що робить інструмент; обмеження (locked, лише free A/C, підтвердження) примусово
 // виконує handlers.js, а не промпт (docs/api-v5.md §8).
 const { SLOTS } = require('../../syllabusState/slots');
+const { SESSION_TYPES, DELIVERY_FORMATS } = require('../../syllabusState/schema');
+const { ITEM_SLOTS, COMPENSATION_GROUPS } = require('../slotDrafts');
 
 const nullable = (type) => ({ type: [type, 'null'] });
 
@@ -32,7 +34,7 @@ function buildTools(state) {
       + 'Only works when the value appears literally in the instructor\'s last message; otherwise use propose_draft.',
       { key, value: { type: ['string', 'number'], description: 'The value exactly as the instructor said it' } }),
     fn('propose_draft',
-      'Create a draft card for the instructor to Confirm. Use it for wording (description, objectives, learning outcomes, capstone, criteria), '
+      'Create a draft card for the instructor to Confirm. Use it for wording (description, objectives, learning outcomes, capstone, prerequisites, criteria of an existing assessment), '
       + 'for values the instructor did not state literally, and for policy text. For a policy, instruction must quote the instructor\'s own request. '
       + 'List every number, date, duration, name or title that the instructor did not state in proposed_values.',
       {
@@ -45,6 +47,54 @@ function buildTools(state) {
           description: 'Facts in the text that the instructor has not stated',
           items: { type: 'object', properties: { label: { type: 'string' }, value: { type: 'string', description: 'Exactly as written in text' } }, required: ['label', 'value'], additionalProperties: false },
         },
+      }),
+    fn('propose_items',
+      'Create a draft card that adds, changes or replaces items of a list section: sessions (schedule.sessions), individual work (schedule.individual_work), '
+      + 'assessment components with weight, deadline and criteria (assessment.components), compensation and retake rules (assessment.compensation), '
+      + 'required or recommended readings (materials.required, materials.recommended). Use the instructor\'s own words; leave a field null when they did not say it. '
+      + 'Numbers, dates and titles the instructor did not state are flagged on the card for confirmation automatically.',
+      {
+        key: { type: 'string', enum: Object.keys(ITEM_SLOTS), description: 'List slot key' },
+        mode: { type: 'string', enum: ['append', 'replace'], description: 'append: add new items and change the items given by id; replace: the list becomes exactly these items' },
+        items: {
+          type: 'array',
+          description: 'One entry per item',
+          items: {
+            type: 'object',
+            properties: {
+              id: { ...nullable('string'), description: 'Id of an existing item to change (from get_slot); null for a new item' },
+              label: { type: 'string', description: 'Session topic, task title, component name, rule text or reading citation; empty string keeps the current one for an existing item' },
+              hours: { ...nullable('number'), description: 'Academic hours (sessions, individual work)' },
+              weight: { ...nullable('number'), description: 'Assessment weight in percent' },
+              type: { type: ['string', 'null'], enum: [...SESSION_TYPES, null], description: 'Session type' },
+              format: { type: ['string', 'null'], enum: [...DELIVERY_FORMATS, null], description: 'Session delivery format' },
+              date: { ...nullable('string'), description: 'Session date as the instructor said it' },
+              time: { ...nullable('string'), description: 'Session time as the instructor said it' },
+              deadline: { ...nullable('string'), description: 'Assessment deadline as the instructor said it' },
+              criteria: { ...nullable('string'), description: 'Assessment criteria' },
+              guest: { ...nullable('string'), description: 'Guest speaker of a session' },
+              url: { ...nullable('string'), description: 'Link to a reading, only if the instructor gave it' },
+              group: { type: ['string', 'null'], enum: [...COMPENSATION_GROUPS, null], description: 'Compensation rules only: comp, proof (proof of absence), retake, improve' },
+              participation: { ...nullable('boolean'), description: 'Assessment components only: true if the component grades class participation or activity in class' },
+              control: { ...nullable('boolean'), description: 'Assessment components only: true if it is a formal control event (exam, test, final defence)' },
+            },
+            required: ['id', 'label', 'hours', 'weight', 'type', 'format', 'date', 'time', 'deadline', 'criteria', 'guest', 'url', 'group', 'participation', 'control'],
+            additionalProperties: false,
+          },
+        },
+      }),
+    fn('propose_instructor',
+      'Create a draft card that fills in or updates the instructor profile (name, position, email, office hours, assistants, expertise, education, experience). '
+      + 'Use null for every field the instructor did not mention; it keeps the current value.',
+      {
+        name: nullable('string'),
+        position: nullable('string'),
+        email: nullable('string'),
+        office_hours: nullable('string'),
+        assistants: nullable('string'),
+        expertise: { type: ['array', 'null'], items: { type: 'string' } },
+        education: { type: ['array', 'null'], items: { type: 'string' } },
+        experience: { type: ['array', 'null'], items: { type: 'string' } },
       }),
     fn('apply_edit',
       'Apply a pending draft that was created earlier. Works only after the instructor explicitly confirmed in their last message and every proposed value is confirmed; '
@@ -63,6 +113,6 @@ function buildTools(state) {
   ];
 }
 
-const TOOL_NAMES = ['get_slot', 'set_slot', 'propose_draft', 'apply_edit', 'run_checks', 'suggest_plo', 'suggest_readings', 'suggest_ai_tools'];
+const TOOL_NAMES = ['get_slot', 'set_slot', 'propose_draft', 'propose_items', 'propose_instructor', 'apply_edit', 'run_checks', 'suggest_plo', 'suggest_readings', 'suggest_ai_tools'];
 
 module.exports = { buildTools, slotKeysOf, TOOL_NAMES };

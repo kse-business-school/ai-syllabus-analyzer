@@ -207,9 +207,12 @@ class ApiService {
     },
     template: (programCode) => this.client.get(`/references/${programCode}/template`),
     outcomes: (programCode) => this.client.get(`/references/${programCode}/outcomes`),
-    updateOutcomeLabel: (programCode, code, label) => this.client.patch(`/references/${programCode}/outcomes/${encodeURIComponent(code)}`, { label }),
     courses: (programCode) => this.client.get(`/references/${programCode}/courses`),
     capstone: (programCode) => this.client.get(`/references/${programCode}/capstone`),
+    // Редактор довідників набору (manager / director / admin): увесь перелік одним запитом
+    saveOutcomes: (programCode, outcomes) => this.client.put(`/references/${programCode}/outcomes`, { outcomes }),
+    saveCourses: (programCode, courses) => this.client.put(`/references/${programCode}/courses`, { courses }),
+    saveCapstone: (programCode, capstone) => this.client.put(`/references/${programCode}/capstone`, capstone),
   };
 
   // Профіль викладача до інтеграції Lecturers CRM

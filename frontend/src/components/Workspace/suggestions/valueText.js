@@ -1,6 +1,6 @@
 // Читабельне подання всього значення слота без службових id та провенансу.
 // Додаткові поля (criteria, email, officeHours, PLO) також видимі перед Confirm.
-const INTERNAL = new Set(['id', '_id', 'source', 'evidenceBlockIds', 'basisHash']);
+const INTERNAL = new Set(['id', '_id', 'source', 'evidenceBlockIds', 'basisHash', 'criteriaKeys']);
 const MAIN_KEYS = ['text', 'name', 'title', 'citation', 'topic', 'label'];
 const label = (key) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 export default function valueText(value) {

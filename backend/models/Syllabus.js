@@ -96,6 +96,8 @@ syllabusSchema.index({ instructor: 1, createdAt: -1 });
 syllabusSchema.index({ status: 1 });
 syllabusSchema.index({ programId: 1, status: 1 });
 syllabusSchema.index({ programId: 1, updatedAt: -1 });
+// Пара курс × набір (CourseOffering) має один силабус (доповнення 29.10 §3); силабуси без призначення не обмежуються
+syllabusSchema.index({ offeringId: 1 }, { unique: true, partialFilterExpression: { offeringId: { $type: 'objectId' } } });
 
 syllabusSchema.statics.ANALYSIS_STAGES = ANALYSIS_STAGES;
 

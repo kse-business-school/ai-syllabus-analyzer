@@ -18,29 +18,51 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import Add from '@mui/icons-material/Add';
 import Delete from '@mui/icons-material/Delete';
 import Edit from '@mui/icons-material/Edit';
+import Close from '@mui/icons-material/Close';
 import api from '../../services/api';
 
 const ProgramsTab = ({ programs, reload }) => {
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: '', code: '', academicDirectorEmail: '' });
+  const empty = { name: '', code: '', academicDirectorEmail: '', editions: [] };
+  const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [snack, setSnack] = useState('');
 
-  const openCreate = () => { setForm({ name: '', code: '', academicDirectorEmail: '' }); setCreating(true); };
-  const openEdit = (p) => { setEditing(p._id); setForm({ name: p.name, code: p.code, academicDirectorEmail: p.academicDirectorEmail || '' }); };
+  // Набори (редакції) програми: код набору — ключ довідників (ПРН, нормативні курси, Capstone) і призначень.
+  // Новий набір можна почати з копії довідників наявного набору (copyFrom).
+  const allCohorts = programs.flatMap((p) => (p.editions || []).map((e) => e.code));
+  const openCreate = () => { setForm(empty); setCreating(true); };
+  const openEdit = (p) => {
+    setEditing(p._id);
+    setForm({
+      name: p.name, code: p.code, academicDirectorEmail: p.academicDirectorEmail || '',
+      editions: (p.editions || []).map((e) => ({ code: e.code, label: e.label || '', copyFrom: '', isNew: false })),
+    });
+  };
+  const setEdition = (i, patch) => setForm((f) => ({ ...f, editions: f.editions.map((e, j) => (j === i ? { ...e, ...patch } : e)) }));
+  const addEdition = () => setForm((f) => ({
+    ...f,
+    editions: [...f.editions, { code: '', label: '', copyFrom: f.editions.at(-1)?.code || '', isNew: true }],
+  }));
+  const removeEdition = (i) => setForm((f) => ({ ...f, editions: f.editions.filter((_, j) => j !== i) }));
+  const editionsPayload = () => form.editions
+    .filter((e) => e.code.trim())
+    .map((e) => ({ code: e.code.trim().toUpperCase(), label: e.label.trim(), ...(e.isNew && e.copyFrom ? { copyFrom: e.copyFrom } : {}) }));
 
   const save = async () => {
     setSaving(true);
     try {
       if (editing) {
-        await api.cabinet.updateProgram(editing, { name: form.name, academicDirectorEmail: form.academicDirectorEmail });
+        await api.cabinet.updateProgram(editing, { name: form.name, academicDirectorEmail: form.academicDirectorEmail, editions: editionsPayload() });
       } else {
-        await api.cabinet.createProgram(form);
+        await api.cabinet.createProgram({ name: form.name, code: form.code, academicDirectorEmail: form.academicDirectorEmail, editions: editionsPayload() });
       }
       setEditing(null);
       setCreating(false);
@@ -77,6 +99,7 @@ const ProgramsTab = ({ programs, reload }) => {
             <TableRow>
               <TableCell>Code</TableCell>
               <TableCell>Title</TableCell>
+              <TableCell>Cohorts</TableCell>
               <TableCell>Academic director email</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
@@ -86,6 +109,11 @@ const ProgramsTab = ({ programs, reload }) => {
               <TableRow key={p._id} hover>
                 <TableCell><Chip label={p.code} size="small" variant="outlined" /></TableCell>
                 <TableCell>{p.name}</TableCell>
+                <TableCell>
+                  {(p.editions || []).length
+                    ? <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>{p.editions.map((e) => <Chip key={e.code} label={e.code} size="small" title={e.label || e.code} />)}</Stack>
+                    : '—'}
+                </TableCell>
                 <TableCell>{p.academicDirectorEmail || '—'}</TableCell>
                 <TableCell align="right">
                   <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(p)}><Edit fontSize="small" /></IconButton></Tooltip>
@@ -94,13 +122,13 @@ const ProgramsTab = ({ programs, reload }) => {
               </TableRow>
             ))}
             {programs.length === 0 && (
-              <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>No programmes yet</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>No programmes yet</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Dialog open={isOpen} onClose={() => { setCreating(false); setEditing(null); }} maxWidth="xs" fullWidth>
+      <Dialog open={isOpen} onClose={() => { setCreating(false); setEditing(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? "Edit programme" : "Add programme"}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -112,6 +140,34 @@ const ProgramsTab = ({ programs, reload }) => {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <TextField label="Academic director email" size="small" fullWidth value={form.academicDirectorEmail}
               onChange={(e) => setForm((f) => ({ ...f, academicDirectorEmail: e.target.value }))} />
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Cohorts</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Each cohort (for example MBA29 or EMBA25) has its own programme outcomes, core courses and Capstone guide.
+                A new cohort can start from a copy of an existing one. Without cohorts, the programme code is used.
+                A cohort with syllabi or course assignments cannot be removed. List cohorts from oldest to newest.
+              </Typography>
+              <Stack spacing={1}>
+                {form.editions.map((e, i) => (
+                  <Stack key={i} direction="row" spacing={1} alignItems="center">
+                    <TextField label="Code" size="small" value={e.code} disabled={!e.isNew} sx={{ width: 120 }}
+                      onChange={(ev) => setEdition(i, { code: ev.target.value.toUpperCase() })} placeholder="MBA29" />
+                    <TextField label="Label" size="small" value={e.label} sx={{ flex: 1 }}
+                      onChange={(ev) => setEdition(i, { label: ev.target.value })} placeholder="MBA29 (2027-28 intake)" />
+                    {e.isNew && (
+                      <TextField select label="Copy references from" size="small" value={e.copyFrom} sx={{ width: 170 }}
+                        onChange={(ev) => setEdition(i, { copyFrom: ev.target.value })}>
+                        <MenuItem value="">Start empty</MenuItem>
+                        {allCohorts.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                      </TextField>
+                    )}
+                    <Tooltip title="Remove cohort"><IconButton size="small" aria-label={`Remove cohort ${e.code}`} onClick={() => removeEdition(i)}><Close fontSize="small" /></IconButton></Tooltip>
+                  </Stack>
+                ))}
+                <Box><Button size="small" startIcon={<Add />} onClick={addEdition}>Add cohort</Button></Box>
+              </Stack>
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions>

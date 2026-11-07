@@ -13,18 +13,25 @@ const sameCode = (a, b) => String(a || '').trim().toLowerCase() === String(b || 
 
 /**
  * Силабус для призначення: за offeringId, інакше за програмою й кодом курсу. Із кількох — найсвіжіший зі станом.
+ * Неприв'язаний силабус зараховується, лише якщо його автор — викладач призначення (чужа чернетка чи дубль
+ * не змінює Σ); призначення без викладача неприв'язаних силабусів не бере.
  */
 function pickSyllabus(offering, syllabi) {
   const fresh = (list) => list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))[0] || null;
   const usable = syllabi.filter((s) => s.state && !SKIP_STATUSES.includes(s.status));
   const byOffering = usable.filter((s) => idOf(s.offeringId) === idOf(offering._id));
   if (byOffering.length) return fresh(byOffering);
+  if (!offering.lecturerId) return null;
   return fresh(usable.filter((s) => !s.offeringId
+    && idOf(s.instructor?._id || s.instructor) === idOf(offering.lecturerId?._id || offering.lecturerId)
     && sameCode(s.programCode || s.state.programCode, offering.programCode)
     && sameCode(s.course?.code || s.state.header?.courseCode, offering.courseCode)));
 }
 
-/** Внесок одного силабуса: код ПРН → { weight, clos[] } (вага — максимум за всіма CLO, як у перевірці). */
+/**
+ * Внесок одного силабуса: код ПРН → { weight, clos[], unconfirmed[] } (вага — максимум за підтвердженими CLO,
+ * як у перевірці plo.coverage). Непідтверджені зв'язки (з файлу чи від моделі) у Σ не входять, лише показуються.
+ */
 function syllabusContribution(state, knownCodes) {
   const assessments = new Map((state.assessments || []).map((a) => [a.id, a]));
   const byPlo = new Map();
@@ -33,7 +40,12 @@ function syllabusContribution(state, knownCodes) {
       const code = knownCodes.get(normalizePloCode(p.code));
       const weight = COVERAGE_WEIGHT[p.coverage] ?? 0;
       if (!code || weight === 0) continue;
-      const entry = byPlo.get(code) || { weight: 0, clos: [] };
+      const entry = byPlo.get(code) || { weight: 0, clos: [], unconfirmed: [] };
+      if (p.confirmed !== true) {
+        entry.unconfirmed.push({ id: clo.id, text: clo.text || '', coverage: p.coverage });
+        byPlo.set(code, entry);
+        continue;
+      }
       entry.weight = Math.max(entry.weight, weight);
       entry.clos.push({
         id: clo.id,

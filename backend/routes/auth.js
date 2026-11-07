@@ -11,19 +11,19 @@ const router = express.Router();
 function validationFailed(req, res) {
   const errors = validationResult(req);
   if (errors.isEmpty()) return false;
-  res.status(400).json({ message: 'Помилка валідації', errors: errors.array() });
+  res.status(400).json({ message: 'Validation failed', errors: errors.array() });
   return true;
 }
 
-// Login user
+// Вхід користувача
 router.post('/login', [
   body('email')
     .isEmail()
     .normalizeEmail({ gmail_remove_dots: false })
-    .withMessage('Вкажіть коректний email'),
+    .withMessage('Enter a valid email'),
   body('password')
     .notEmpty()
-    .withMessage('Пароль обов\'язковий')
+    .withMessage('Password is required')
 ], async (req, res) => {
   try {
     if (validationFailed(req, res)) return;
@@ -32,12 +32,12 @@ router.post('/login', [
 
     const user = await User.findOne({ email, isActive: true });
     if (!user) {
-      return res.status(401).json({ message: 'Неправильна електронна пошта або пароль' });
+      return res.status(401).json({ message: 'Incorrect email or password' });
     }
 
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Неправильна електронна пошта або пароль' });
+      return res.status(401).json({ message: 'Incorrect email or password' });
     }
 
     user.lastLogin = new Date();
@@ -51,27 +51,27 @@ router.post('/login', [
     );
 
     res.json({
-      message: 'Вхід виконано успішно',
+      message: 'Signed in',
       token,
       user: user.toPublicJSON()
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера під час входу' });
+    res.status(500).json({ message: 'Internal server error during sign-in' });
   }
 });
 
-// Get current user profile
+// Профіль поточного користувача
 router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) {
-      return res.status(404).json({ message: 'Користувача не знайдено' });
+      return res.status(404).json({ message: 'User not found' });
     }
     res.json({ user: user.toPublicJSON() });
   } catch (error) {
     console.error('Profile fetch error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -81,12 +81,12 @@ router.put('/profile', auth, [
     .optional()
     .trim()
     .notEmpty()
-    .withMessage('Ім\'я не може бути порожнім'),
+    .withMessage('First name cannot be empty'),
   body('lastName')
     .optional()
     .trim()
     .notEmpty()
-    .withMessage('Прізвище не може бути порожнім'),
+    .withMessage('Last name cannot be empty'),
   body('avatarUrl')
     .optional()
     .trim(),
@@ -98,7 +98,7 @@ router.put('/profile', auth, [
 
     const user = await User.findById(req.user.userId);
     if (!user) {
-      return res.status(404).json({ message: 'Користувача не знайдено' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     if (firstName) user.firstName = firstName;
@@ -108,23 +108,23 @@ router.put('/profile', auth, [
     await user.save();
 
     res.json({
-      message: 'Профіль оновлено успішно',
+      message: 'Profile updated',
       user: user.toPublicJSON()
     });
   } catch (error) {
     console.error('Profile update error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
-const RESET_GENERIC_MESSAGE = 'Якщо така адреса існує, ви отримаєте інструкції зі скидання пароля';
+const RESET_GENERIC_MESSAGE = 'If this address exists, you will receive password reset instructions';
 
-// Request password reset
+// Запит на скидання пароля
 router.post('/forgot-password', [
   body('email')
     .isEmail()
     .normalizeEmail({ gmail_remove_dots: false })
-    .withMessage('Вкажіть коректний email')
+    .withMessage('Enter a valid email')
 ], async (req, res) => {
   try {
     if (validationFailed(req, res)) return;
@@ -150,7 +150,7 @@ router.post('/forgot-password', [
     res.json({ message: RESET_GENERIC_MESSAGE });
   } catch (error) {
     console.error('Password reset request error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -159,10 +159,10 @@ router.post('/reset-password', [
   body('token')
     .isString()
     .notEmpty()
-    .withMessage('Токен скидання обов\'язковий'),
+    .withMessage('A reset token is required'),
   body('password')
     .isLength({ min: 6 })
-    .withMessage('Пароль має містити мінімум 6 символів')
+    .withMessage('The password must be at least 6 characters')
 ], async (req, res) => {
   try {
     if (validationFailed(req, res)) return;
@@ -175,7 +175,7 @@ router.post('/reset-password', [
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Недійсний або прострочений токен скидання' });
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
     }
 
     user.password = password;
@@ -183,16 +183,16 @@ router.post('/reset-password', [
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    res.json({ message: 'Пароль оновлено' });
+    res.json({ message: 'Password updated' });
   } catch (error) {
     console.error('Password reset error:', error);
-    res.status(500).json({ message: 'Внутрішня помилка сервера' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
-// Logout (client-side token invalidation)
+// Вихід (токен інвалідує клієнт)
 router.post('/logout', auth, (req, res) => {
-  res.json({ message: 'Вихід виконано' });
+  res.json({ message: 'Signed out' });
 });
 
 module.exports = router;

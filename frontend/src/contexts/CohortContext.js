@@ -16,7 +16,8 @@ const read = (key, fallback) => {
 
 // currentCohort — код редакції програми (MBA27, MBA28…), за ним беруться ПРН, курси й призначення
 export const CohortProvider = ({ children }) => {
-  const [currentProgram, setCurrentProgram] = useState(() => read(PROGRAM_KEY, 'MBA'));
+  // Без дефолтної програми: перемикач набору сам обирає найновіший набір зі списку програм
+  const [currentProgram, setCurrentProgram] = useState(() => read(PROGRAM_KEY, ''));
   const [currentCohort, setCurrentCohort] = useState(() => read(COHORT_KEY, ''));
 
   useEffect(() => {

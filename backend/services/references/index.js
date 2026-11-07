@@ -27,13 +27,14 @@ const norm = (code) => String(code || '').trim().toUpperCase();
 const lean = (doc) => { const { _id, __v, createdAt, updatedAt, ...rest } = doc; return rest; };
 
 
-/** Редакція існує, якщо для неї є довідники ПРН/курсів або вона вказана в Program.editions */
+/** Набір існує, якщо для нього є довідники ПРН/курсів, він є в Program.editions або це код програми без наборів */
 async function assertKnownProgramCode(programCode) {
   const code = norm(programCode);
   const known = await cached(`known:${code}`, async () => {
     if (await ProgramOutcome.exists({ programCode: code })) return true;
     if (await ProgramCourse.exists({ programCode: code })) return true;
-    return !!(await Program.exists({ 'editions.code': code }));
+    // Набір програми або програма без наборів (її код сам є кодом довідників)
+    return !!(await Program.exists({ $or: [{ 'editions.code': code }, { code, 'editions.0': { $exists: false } }] }));
   });
   if (!known) throw httpError(404, `Unknown programCode: ${programCode}`, { code: 'UNKNOWN_PROGRAM_CODE' });
   return code;
@@ -124,12 +125,8 @@ async function courseKind(programCode, { courseCode, courseTitle } = {}) {
   return { kind: 'elective', matchedBy: null, course: null };
 }
 
-/** «PRN 3», «ПРН 3», «ПPН3» → «ПРН3» (NFC, латинські P/H → кирилічні Р/Н, без пробілів) */
-function normalizePloCode(code) {
-  const s = String(code || '').normalize('NFC').replace(/\s+/g, '').toUpperCase();
-  if (/^PRN/.test(s)) return `ПРН${s.slice(3)}`;
-  return s.replace(/^[^\d]+/, (prefix) => prefix.replace(/P/g, 'Р').replace(/H/g, 'Н'));
-}
+/** «PRN 3», «ПРН 3», «ПPН3» → «ПРН3»: канонічна форма коду ПРН, спільна для всіх модулів */
+const { canonicalPloCode: normalizePloCode } = require('./ploCode');
 
 module.exports = {
   getRefs, getTemplate, getOutcomes, getCourses, getCapstone, listEditions,

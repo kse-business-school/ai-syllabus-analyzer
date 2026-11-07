@@ -281,11 +281,35 @@ describe('propose_draft', () => {
     expect(out.error).toBe('UNKNOWN_ENTITY');
   });
 
-  test('слот із довідника (library, не політика) і непідтримуваний → SLOT_NOT_DRAFTABLE', async () => {
-    const { tctx } = await turn('x');
-    for (const key of ['assessment.components', 'course.prerequisites', 'course.outcomes_plo']) {
-      expect((await runTool(tctx, 'propose_draft', { key, text: 'text', instruction: null, entity_id: null, proposed_values: [] })).error).toBe('SLOT_NOT_DRAFTABLE');
-    }
+  test('списки → USE_PROPOSE_ITEMS, профіль → USE_PROPOSE_INSTRUCTOR, PLO → SLOT_NOT_DRAFTABLE; prerequisites без каталогу — текст (A02)', async () => {
+    const { tctx } = await turn('No prerequisites are needed for this course.');
+    const draft = (key) => runTool(tctx, 'propose_draft', { key, text: 'No prerequisites are needed for this course.', instruction: null, entity_id: null, proposed_values: [] });
+    for (const key of ['assessment.components', 'schedule.sessions', 'materials.required']) expect((await draft(key)).error).toBe('USE_PROPOSE_ITEMS');
+    expect((await draft('instructor.profile')).error).toBe('USE_PROPOSE_INSTRUCTOR');
+    expect((await draft('course.outcomes_plo')).error).toBe('SLOT_NOT_DRAFTABLE');
+    const out = await draft('course.prerequisites');
+    expect(out.ok).toBe(true);
+    const card = await Suggestion.findById(out.draft_id).lean();
+    expect(card.target.path).toBe('summary.prerequisites');
+  });
+
+  test('propose_items: сутності будує сервер, нечутий факт — proposedValue поля; невідомий id і чужий URL — помилка', async () => {
+    const { tctx } = await turn('Two sessions: interests and positions (2 hours), then a BATNA workshop.');
+    const item = (f) => ({ id: null, label: '', hours: null, weight: null, type: null, format: null, date: null, time: null, deadline: null, criteria: null, guest: null, url: null, group: null, ...f });
+    const out = await runTool(tctx, 'propose_items', { key: 'schedule.sessions', mode: 'replace', items: [
+      item({ label: 'Interests and positions', hours: 2, type: 'lecture' }), item({ label: 'BATNA workshop', hours: 3, type: 'workshop' }),
+    ] });
+    expect(out.ok).toBe(true);
+    const card = await Suggestion.findById(out.draft_id).lean();
+    expect(card.target.path).toBe('sessions[]');
+    expect(card.draft.value.map((x) => [x.n, x.topic, x.hours])).toEqual([[1, 'Interests and positions', 2], [2, 'BATNA workshop', 3]]);
+    // 3 години викладач не називав
+    expect(card.draft.proposedValues.map((v) => [v.path, v.value])).toEqual([[`[${card.draft.value[1].id}].hours`, '3']]);
+    expect(card.draft.template).toContain(`{{${card.draft.proposedValues[0].id}}} h`);
+    expect(tctx.stateChanged).toBe(false);
+    expect((await runTool(tctx, 'propose_items', { key: 'schedule.sessions', mode: 'append', items: [item({ id: 'nope', hours: 1 })] })).error).toBe('UNKNOWN_ENTITY');
+    expect((await runTool(tctx, 'propose_items', { key: 'materials.required', mode: 'append', items: [item({ label: 'A book', url: 'https://invented.example.com/x' })] })).error).toBe('UNVERIFIED_URL');
+    expect((await runTool(tctx, 'propose_items', { key: 'course.description', mode: 'append', items: [item({ label: 'x' })] })).error).toBe('SLOT_NOT_LIST');
   });
 
   test('число для скалярного слота — факт: потрібне підтвердження; значення зберігається числом', async () => {

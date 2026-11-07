@@ -61,6 +61,11 @@ function writeSlot(state, path, value, { source }) {
   if (typeof value === 'string' && isObject(current) && 'text' in current) {
     return setPath(state, path, { ...current, text: value, source, evidenceBlockIds: [] });
   }
+  // Текст із супутніми полями чернетки (Capstone: { text, criteriaKeys }): решта полів слота зберігається
+  if (isObject(value) && typeof value.text === 'string' && isObject(current) && 'text' in current) {
+    const known = Object.fromEntries(Object.entries(value).filter(([k]) => k in current && !['source', 'evidenceBlockIds'].includes(k)));
+    return setPath(state, path, { ...current, ...known, source, evidenceBlockIds: [] });
+  }
   if (path.endsWith('[]') && (Array.isArray(current) || current === undefined)) {
     return setPath(state, path, toEntities(path, value, current, source));
   }

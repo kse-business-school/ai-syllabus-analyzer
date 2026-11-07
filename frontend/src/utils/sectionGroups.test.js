@@ -11,16 +11,36 @@ const makeSec = (over = {}) => ({
 
 describe('sectionGroups & computeGroupedReadiness', () => {
   test('returns — when all sections are empty', () => {
-    const res = computeGroupedReadiness({ sections: {} }, { policies: [] });
+    const res = computeGroupedReadiness({ score: 0, sections: {}, counts: { approved: 0, required: 11 } }, { policies: [] });
     expect(res.isEmpty).toBe(true);
     expect(res.percent).toBeNull();
     expect(res.approvedCount).toBe(0);
-    expect(res.totalCount).toBe(8);
+    expect(res.totalCount).toBe(11);
     expect(res.label).toBe('—');
+  });
+
+  test('percent and counts come from the backend readiness (A08), groups are display only', () => {
+    const readiness = {
+      score: 9,
+      counts: { approved: 1, required: 11 },
+      sections: {
+        short_description: makeSec({ status: 'approved', complete: true, approved: true }),
+      },
+    };
+    const res = computeGroupedReadiness(readiness, { policies: [] });
+    expect(res.isEmpty).toBe(false);
+    expect(res.approvedCount).toBe(1);
+    expect(res.totalCount).toBe(11);
+    expect(res.percent).toBe(9);
+    expect(res.label).toBe('9% · 1 of 11 sections approved');
+    // Група Summary не затверджена, доки не затверджено всі її підрозділи, але відсоток — бекендний
+    expect(res.groups.find((g) => g.id === 'summary_outcomes').isApproved).toBe(false);
   });
 
   test('counts a single approved section from contract object', () => {
     const readiness = {
+      score: 9,
+      counts: { approved: 1, required: 11 },
       sections: {
         at_a_glance: makeSec({ status: 'approved', complete: true, approved: true }),
       },
@@ -28,8 +48,7 @@ describe('sectionGroups & computeGroupedReadiness', () => {
     const res = computeGroupedReadiness(readiness, { policies: [] });
     expect(res.isEmpty).toBe(false);
     expect(res.approvedCount).toBe(1);
-    expect(res.percent).toBe(13);
-    expect(res.label).toBe('13% · 1 of 8 approved');
+    expect(res.percent).toBe(9);
     const glance = res.groups.find((g) => g.id === 'at_a_glance');
     expect(glance.status).toBe('approved');
     expect(glance.isApproved).toBe(true);

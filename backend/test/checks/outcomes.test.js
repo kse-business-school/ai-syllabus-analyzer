@@ -42,13 +42,13 @@ describe('покриття PLO', () => {
     expect(coverage([], null)[0]).toMatchObject({ severity: 'info', passed: false, path: 'header.courseKind' });
   });
 
-  test('латинська P у коді нормалізується; невідомий код → warning', () => {
+  test('латинська P і «PRN» у коді нормалізуються (єдина канонічна форма, C08); невідомий код → warning', () => {
     const state = rm((s) => { s.header.courseKind = 'core'; s.outcomes[0].plo = [plo('PRN1'), plo('ПPН 2'), plo('ПРН20')]; }, { programCode: 'MBA28' });
     const checks = runChecks(state, refs('MBA28'));
-    expect(byRule(checks, 'plo.coverage')[0]).toMatchObject({ severity: 'info', details: { covered: ['ПРН2'] } });
+    expect(byRule(checks, 'plo.coverage')[0]).toMatchObject({ severity: 'info', details: { covered: ['ПРН1', 'ПРН2'] } });
     // ПРН20 є лише в MBA27: силабус перевіряється проти свого programCode
     expect(byRule(checks, 'plo.unknown_code').map((c) => [c.id, c.severity])).toEqual([
-      ['plo.unknown_code:PRN1', 'warning'], ['plo.unknown_code:ПРН20', 'warning'],
+      ['plo.unknown_code:ПРН20', 'warning'],
     ]);
   });
 

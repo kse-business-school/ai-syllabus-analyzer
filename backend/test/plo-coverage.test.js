@@ -32,7 +32,7 @@ test('PLO coverage збирає клітинки зі state силабуса п�
   const offering = await CourseOffering.create({ programCode: 'MBA28', courseCode: 'RM.1', courseName: 'Risk Management', type: 'elective' });
   await Syllabus.create({
     title: 'Risk', instructor: lecturer._id, status: 'in_progress', programCode: 'MBA28', offeringId: offering._id,
-    state: { programCode: 'MBA28', outcomes: [{ id: 'c1', text: 'Apply risk models', plo: [{ code: 'ПРН1', coverage: 'full' }], assessmentIds: [] }], assessments: [] },
+    state: { programCode: 'MBA28', outcomes: [{ id: 'c1', text: 'Apply risk models', plo: [{ code: 'ПРН1', coverage: 'full', confirmed: true }], assessmentIds: [] }], assessments: [] },
   });
   const res = await request(app).get('/api/cabinet/plo-coverage?programCode=MBA28').set(bearer(director));
   const course = res.body.courses.find((c) => c.courseCode === 'RM.1');

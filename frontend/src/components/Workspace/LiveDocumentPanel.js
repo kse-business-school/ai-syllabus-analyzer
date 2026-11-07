@@ -13,6 +13,7 @@ import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import ChatBubbleOutline from '@mui/icons-material/ChatBubbleOutline';
 import WarningAmber from '@mui/icons-material/WarningAmber';
 import ArrowForward from '@mui/icons-material/ArrowForward';
+import LockOpenOutlined from '@mui/icons-material/LockOpenOutlined';
 import DocumentBlocks from './document/DocumentBlocks';
 import { S } from '../../strings';
 
@@ -27,6 +28,7 @@ const LiveDocumentPanel = ({
   checks = [],
   readiness = null,
   onApproveSection,
+  onUnapproveSection,
   onDiscussSection,
   readOnly = false,
 }) => {
@@ -159,6 +161,7 @@ const LiveDocumentPanel = ({
                 (c) => c.passed === false && (c.section === sec.key || c.target?.section === sec.key)
               );
               const isLocked = sec.locked || sec.mode === 'locked';
+              const isApproved = Boolean(readiness?.sections?.[sec.key]?.approved);
 
               return (
                 <Box
@@ -243,7 +246,20 @@ const LiveDocumentPanel = ({
                             </Button>
                           </Tooltip>
                         )}
-                        {hasContent && onApproveSection && !isLocked && (
+                        {isApproved && onUnapproveSection && (
+                          <Tooltip title="Reopen this section for changes; it will need approval again">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<LockOpenOutlined sx={{ fontSize: 13 }} />}
+                              onClick={() => onUnapproveSection(sec.key)}
+                              sx={{ fontSize: '0.6875rem', py: 0.2, px: 0.75, borderColor: 'divider', color: 'text.secondary' }}
+                            >
+                              Reopen
+                            </Button>
+                          </Tooltip>
+                        )}
+                        {hasContent && onApproveSection && !isLocked && !isApproved && (
                           <Tooltip title="Approve this section">
                             <Button
                               size="small"

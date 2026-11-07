@@ -9,7 +9,6 @@ const mongoose = require('mongoose');
 const Syllabus = require('../models/Syllabus');
 const Suggestion = require('../models/Suggestion');
 const Program = require('../models/Program');
-const CourseOffering = require('../models/CourseOffering');
 const { auth, requireRole } = require('../middleware/auth');
 const analysisRunner = require('../services/analysisRunner');
 const { deleteSyllabiCascade, deleteConversationsFor } = require('../services/syllabusCleanup');
@@ -23,7 +22,9 @@ const { initState } = store;
 const { resolveProfile } = require('../services/lecturers/profile');
 const { prepareInstructor } = require('../services/lecturers/cards');
 const { createDraftSuggestions } = require('../services/chat/draftSuggestions');
-const { canSeeAll, canManageProgramme } = require('../services/roles');
+const { canSeeAll } = require('../services/roles');
+const { resolveOfferingForCreate, assertOfferingFree, offeringTakenError, normCourseCode, claimOfferingForCode, courseCodeLockKey } = require('../services/offerings');
+const locks = require('../services/locks');
 
 const CLEANUP_GRACE_MS = 10 * 60 * 1000;
 
@@ -55,8 +56,14 @@ function isOwner(user, syllabus) {
   return !!ownerId && ownerId === user.userId;
 }
 
-function isOwnerOrAdmin(user, syllabus) {
+// Читання: власник або ролі, що бачать усі силабуси (manager/director/admin — лише читання)
+function canRead(user, syllabus) {
   return isOwner(user, syllabus) || canSeeAll(user.role);
+}
+
+// Видалення (destructive): лише власник або admin; manager/director чужі силабуси не видаляють
+function canDelete(user, syllabus) {
+  return isOwner(user, syllabus) || user.role === 'admin';
 }
 
 const notFound = () => httpError(404, 'Syllabus not found', { code: 'NOT_FOUND' });
@@ -153,15 +160,19 @@ async function resolveProgram(programId, rawProgramCode) {
 }
 
 // Призначення курсу до набору: programCode і код курсу беруться з нього, а не з тіла запиту.
-// Викладач може взяти лише своє призначення (або без викладача); admin — будь-яке.
-async function resolveOffering(offeringId, user) {
-  if (!offeringId) return null;
-  if (!mongoose.isValidObjectId(offeringId)) throw httpError(400, 'Invalid offering id', { code: 'INVALID_OFFERING' });
-  const offering = await CourseOffering.findById(offeringId).lean();
-  if (!offering) throw httpError(404, 'Course offering not found', { code: 'OFFERING_NOT_FOUND' });
-  const own = !offering.lecturerId || String(offering.lecturerId) === String(user.userId);
-  if (!own && !canManageProgramme(user.role)) throw httpError(403, 'This course is assigned to another lecturer', { code: 'OFFERING_FORBIDDEN' });
-  return offering;
+// Без offeringId призначення шукається за programCode + courseCode (services/offerings), тож обійти
+// «курс призначено іншому викладачу» не можна; одна пара курс × набір — один силабус (409 OFFERING_TAKEN).
+async function resolveCreateTarget(req) {
+  const { programId, offeringId, courseCode } = req.body;
+  let offering = await resolveOfferingForCreate({ offeringId }, req.user);
+  const { programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode);
+  // C02: явне призначення має належати обраній програмі (і для програми без наборів теж)
+  if (offering && offering.programCode !== programCode) {
+    throw httpError(400, `This course assignment belongs to ${offering.programCode}, not to the selected programme.`, { code: 'OFFERING_PROGRAM_MISMATCH' });
+  }
+  if (!offering) offering = await resolveOfferingForCreate({ programCode, courseCode }, req.user);
+  await assertOfferingFree(offering?._id);
+  return { offering, programCode };
 }
 
 // Трек 1: силабус з нуля, без файлу. Порожній стан створює createEmptyState, пише його store.initState
@@ -178,8 +189,7 @@ router.post('/', auth, [
       return res.status(400).json({ message: 'Validation failed', code: 'VALIDATION_ERROR', errors: errors.array() });
     }
     const { title, programId, courseCode } = req.body;
-    const offering = await resolveOffering(req.body.offeringId, req.user);
-    const { programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode);
+    const { offering, programCode } = await resolveCreateTarget(req);
     const code = (offering ? offering.courseCode : courseCode) || undefined;
 
     const syllabus = await Syllabus.create({
@@ -207,11 +217,11 @@ router.post('/', auth, [
     const created = await Syllabus.findById(syllabus._id);
     res.status(201).json({ syllabus: publicSyllabus(created) });
   } catch (error) {
-    sendError(res, error);
+    sendError(res, error?.code === 11000 ? offeringTakenError() : error);
   }
 });
 
-// Upload and analyze syllabus
+// Трек 2: завантаження файлу й фоновий аналіз
 router.post('/upload', auth, uploadSingle, [
   body('courseName').trim().notEmpty().withMessage('Course name is required'),
   body('courseCode').optional().trim(),
@@ -245,8 +255,7 @@ router.post('/upload', auth, uploadSingle, [
     let programCode;
     let offering;
     try {
-      offering = await resolveOffering(req.body.offeringId, req.user);
-      ({ programCode } = await resolveProgram(programId, offering ? offering.programCode : req.body.programCode));
+      ({ offering, programCode } = await resolveCreateTarget(req));
     } catch (err) {
       await unlinkQuiet(req.file.path);
       throw err;
@@ -291,7 +300,8 @@ router.post('/upload', auth, uploadSingle, [
     });
   } catch (error) {
     if (req.file) await unlinkQuiet(req.file.path);
-    console.error('Syllabus upload error:', error);
+    if (error?.code === 11000) return sendError(res, offeringTakenError());
+    if (!error?.statusCode) console.error('Syllabus upload error:', error);
     sendError(res, error, 'Internal server error while uploading the file');
   }
 });
@@ -309,7 +319,7 @@ function publicSyllabus(syllabus) {
   return obj;
 }
 
-// Get specific syllabus details
+// Дані силабуса (без state і шляхів до файлів)
 router.get('/:id', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id)
@@ -317,7 +327,7 @@ router.get('/:id', auth, async (req, res) => {
       .populate('programId', 'name code academicDirectorEmail');
 
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden('You can only view your own syllabi.'));
+    if (!canRead(req.user, syllabus)) return sendError(res, forbidden('You can only view your own syllabi.'));
     res.json(publicSyllabus(syllabus));
   } catch (error) {
     console.error('Get syllabus error:', error);
@@ -325,7 +335,7 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// Get syllabus analysis status
+// Статус аналізу силабуса
 router.get('/:id/status', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id)
@@ -333,7 +343,7 @@ router.get('/:id/status', auth, async (req, res) => {
       .populate('instructor', '_id');
 
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden());
+    if (!canRead(req.user, syllabus)) return sendError(res, forbidden());
     res.json({ status: syllabus.status, stage: syllabus.analysisStage || null, error: syllabus.analysisError || null });
   } catch (error) {
     console.error('Get status error:', error);
@@ -346,7 +356,7 @@ router.delete('/:id', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id).select('instructor');
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden('You can only delete your own syllabi.'));
+    if (!canDelete(req.user, syllabus)) return sendError(res, forbidden('You can only delete your own syllabi.'));
 
     await deleteSyllabiCascade({ _id: syllabus._id });
     res.json({ message: 'The syllabus was deleted' });
@@ -373,45 +383,60 @@ router.put('/:id', auth, [
     if (!errors.isEmpty()) {
       return res.status(400).json({ message: 'Validation failed', code: 'VALIDATION_ERROR', errors: errors.array() });
     }
-    const syllabus = await Syllabus.findById(req.params.id);
-    if (!syllabus) return sendError(res, notFound());
-    if (!isOwner(req.user, syllabus)) return sendError(res, forbidden('You can only edit your own syllabi.'));
-    if (syllabus.status === 'analyzing') {
-      return sendError(res, httpError(409, 'The file is still being analysed. Try again when the analysis finishes.', { code: 'ANALYSIS_IN_PROGRESS' }));
-    }
+    // N05: зміна коду курсу (claim → стан → метадані) — під блокуванням силабуса; читання — вже під ним
+    const saved = await locks.withLock(courseCodeLockKey(req.params.id), async (lock) => {
+      const syllabus = await Syllabus.findById(req.params.id);
+      if (!syllabus) throw notFound();
+      if (!isOwner(req.user, syllabus)) throw forbidden('You can only edit your own syllabi.');
+      if (syllabus.status === 'analyzing') {
+        throw httpError(409, 'The file is still being analysed. Try again when the analysis finishes.', { code: 'ANALYSIS_IN_PROGRESS' });
+      }
 
-    const { title, courseCode, courseName, credits, semester, year, programId, programCode } = req.body;
-    const sameProgram = programId === undefined || String(programId) === String(syllabus.programId || '');
-    const sameEdition = programCode === undefined || String(programCode).trim().toUpperCase() === String(syllabus.programCode || '');
-    if (!sameProgram || !sameEdition) {
-      return sendError(res, httpError(400, 'The programme and its edition cannot be changed. Create a new syllabus for another programme.', { code: 'PROGRAM_CHANGE_NOT_ALLOWED' }));
-    }
+      const { title, courseCode, courseName, credits, semester, year, programId, programCode } = req.body;
+      const sameProgram = programId === undefined || String(programId) === String(syllabus.programId || '');
+      const sameEdition = programCode === undefined || String(programCode).trim().toUpperCase() === String(syllabus.programCode || '');
+      if (!sameProgram || !sameEdition) {
+        throw httpError(400, 'The programme and its edition cannot be changed. Create a new syllabus for another programme.', { code: 'PROGRAM_CHANGE_NOT_ALLOWED' });
+      }
 
-    // Спершу стан (умова на ревізію): якщо запис не вдався, метадані теж не змінюються
-    const header = {};
-    if (courseName) header.courseTitle = courseName;
-    else if (title) header.courseTitle = title;
-    if (courseCode !== undefined) header.courseCode = courseCode || null;
-    const v5 = syllabus.state && !syllabus.legacy && !syllabus.needsRebuild;
-    if (v5 && Object.keys(header).length) {
-      await store.mutate(syllabus._id, syllabus.stateRevision || 0, (st) => {
-        st.header = { ...st.header, ...header };
-      }, { by: req.user.userId, source: 'instructor_directed', refs: await getRefs(syllabus.programCode) });
-    }
+      // Зміна коду курсу — ті самі правила призначення, що й при створенні (C01): прив'язаний код не змінюється,
+      // чужий чи зайнятий курс → 403/409, своє вільне призначення займається до запису стану
+      let claim = { courseCode: courseCode === undefined ? undefined : (courseCode || null), release: async () => {} };
+      if (courseCode !== undefined && normCourseCode(courseCode) !== normCourseCode(syllabus.course?.code)) {
+        claim = await claimOfferingForCode(syllabus, courseCode, req.user);
+      }
 
-    const updates = {};
-    if (title) updates.title = title;
-    if (courseCode !== undefined) updates['course.code'] = courseCode;
-    if (courseName !== undefined) updates['course.name'] = courseName;
-    if (credits !== undefined) updates['course.credits'] = parseInt(credits, 10);
-    if (semester !== undefined) updates['course.semester'] = semester;
-    if (year !== undefined) updates['course.year'] = parseInt(year, 10);
-    const saved = Object.keys(updates).length
-      ? await Syllabus.findByIdAndUpdate(syllabus._id, { $set: updates }, { new: true })
-      : await Syllabus.findById(syllabus._id);
+      // Спершу стан (умова на ревізію): якщо запис не вдався, метадані теж не змінюються
+      const header = {};
+      if (courseName) header.courseTitle = courseName;
+      else if (title) header.courseTitle = title;
+      if (courseCode !== undefined) header.courseCode = claim.courseCode;
+      const v5 = syllabus.state && !syllabus.legacy && !syllabus.needsRebuild;
+      if (v5 && Object.keys(header).length) {
+        try {
+          await store.mutate(syllabus._id, syllabus.stateRevision || 0, (st) => {
+            st.header = { ...st.header, ...header };
+          }, { by: req.user.userId, source: 'instructor_directed', refs: await getRefs(syllabus.programCode) });
+        } catch (err) {
+          if (await locks.isHeld(lock)) await claim.release();
+          throw err;
+        }
+      }
+
+      const updates = {};
+      if (title) updates.title = title;
+      if (courseCode !== undefined) updates['course.code'] = claim.courseCode;
+      if (courseName !== undefined) updates['course.name'] = courseName;
+      if (credits !== undefined) updates['course.credits'] = parseInt(credits, 10);
+      if (semester !== undefined) updates['course.semester'] = semester;
+      if (year !== undefined) updates['course.year'] = parseInt(year, 10);
+      return Object.keys(updates).length
+        ? await Syllabus.findByIdAndUpdate(syllabus._id, { $set: updates }, { new: true })
+        : await Syllabus.findById(syllabus._id);
+    });
     res.json({ message: 'The syllabus was updated', syllabus: publicSyllabus(saved) });
   } catch (error) {
-    console.error('Update syllabus error:', error);
+    if (!error?.statusCode) console.error('Update syllabus error:', error);
     sendError(res, error);
   }
 });
@@ -452,12 +477,12 @@ router.post('/:id/analyze', auth, async (req, res) => {
   }
 });
 
-// Download original syllabus file
+// Завантаження оригінального файлу силабуса
 router.get('/:id/download', auth, async (req, res) => {
   try {
     const syllabus = await Syllabus.findById(req.params.id);
     if (!syllabus) return sendError(res, notFound());
-    if (!isOwnerOrAdmin(req.user, syllabus)) return sendError(res, forbidden());
+    if (!canRead(req.user, syllabus)) return sendError(res, forbidden());
 
     const filePath = syllabus.originalFile?.path;
     if (!filePath) {

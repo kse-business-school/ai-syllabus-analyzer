@@ -1,5 +1,6 @@
 {
   "version": "1.0",
+  "programCodes": ["MBA27", "MBA28"],
   "source": "KSE_GBS_Capstone_Guidelines_MBA28, Google Drive, ред. 20.10.2026",
   "note": "Довідник для слота connection_to_capstone. Курс має назвати, до якого з шести критеріїв він готує студента, і до якого типу проєкту це застосовне.",
   "projectTypes": [
